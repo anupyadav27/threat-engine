@@ -10,18 +10,18 @@ rules:
     csp: azure
     resource_type: virtualmachines
     origin_type: internet
-    title: "Azure VM has a public network access enabled"
+    title: "Azure VM has a network profile (NIC attached)"
     description: >
-      Azure VMs with public_network_access enabled or with a public IP attached to
-      a NIC are directly reachable from the internet if NSG rules permit inbound traffic.
-      NOTE: virtualmachines step6 YAML does not yet emit public_ip_address directly.
-      This field is emitted by the compute step6. Gap: IEDS-GAP-AZR-001.
-      Using 'id' as placeholder until public_ip is emitted in virtualmachines step6.
+      Azure VMs with a network_profile have at least one NIC attached. NICs may have
+      public IPs assigned. Any VM with a network_profile is flagged for further
+      evaluation — the network_profile.networkInterfaces list contains NIC resource IDs
+      that must be checked for associated public IP configurations.
+      GAP IEDS-GAP-AZR-001 resolved — network_profile now emitted from virtualmachines step6.
     severity: high
     required_emitted_fields:
-      - id
+      - network_profile
     exposure_conditions:
-      - field: id
+      - field: network_profile
         operator: not_null
 
   - rule_id: IEDS-T2-AZR-002
@@ -63,15 +63,15 @@ rules:
     title: "Azure SQL Server has public network access enabled"
     description: >
       Azure SQL Servers with public_network_access=Enabled are accessible from the
-      internet. SQL Server discovery YAML does not yet emit this field.
-      Gap tracked: IEDS-GAP-AZR-002 — add public_network_access to sql step6.
-      Using 'id' as placeholder.
+      internet via the public endpoint. GAP IEDS-GAP-AZR-002 resolved —
+      public_network_access is now emitted directly from azure.sql.servers.list step6.
     severity: critical
     required_emitted_fields:
-      - id
+      - public_network_access
     exposure_conditions:
-      - field: id
-        operator: not_null
+      - field: public_network_access
+        operator: eq
+        value: "Enabled"
 
   - rule_id: IEDS-T2-AZR-005
     tier: 2

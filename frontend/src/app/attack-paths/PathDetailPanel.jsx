@@ -217,6 +217,31 @@ export default function PathDetailPanel({ node, onClose }) {
           </div>
         )}
 
+        {/* Edge context — per-edge posture risk signals */}
+        {node.edge_context && node.edge_context.signals && node.edge_context.signals.length > 0 && (() => {
+          const riskColors = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#64748b' };
+          const riskLevel = node.edge_context.risk_level || 'low';
+          const riskColor = riskColors[riskLevel] || '#64748b';
+          return (
+            <div style={{ padding: '8px 10px', borderRadius: 8, backgroundColor: `${riskColor}0d`, border: `1px solid ${riskColor}30` }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                <SectionLabel style={{ margin: 0 }}>Edge Risk</SectionLabel>
+                <span style={{ fontSize: 8, fontWeight: 700, padding: '2px 7px', borderRadius: 20, backgroundColor: `${riskColor}20`, color: riskColor, border: `1px solid ${riskColor}40`, textTransform: 'uppercase' }}>
+                  {riskLevel}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {node.edge_context.signals.map((sig, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <span style={{ color: riskColor, fontSize: 10, flexShrink: 0, marginTop: 1 }}>▸</span>
+                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', lineHeight: 1.4, margin: 0 }}>{sig}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+
         {/* Traversal reason */}
         {node.traversal_reason && (
           <div

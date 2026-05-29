@@ -1,0 +1,71 @@
+# DI Scan Spot Node Group — di-scan-spot
+#
+# LIFECYCLE (what "create spot → run scan → remove spot" means here):
+#
+#   1. At rest: 0 nodes exist (minSize=0, cost = $0)
+#   2. Argo creates K8s Job → Pod goes Pending (no matching node)
+#   3. Cluster Autoscaler detects Pending pod → provisions ONE spot EC2 from this ASG
+#   4. Scan runs on the spot instance
+#   5. Job completes → Pod terminates
+#   6. CA detects idle node → terminates EC2 after cooldown (~5 min)
+#   7. Back to 0 nodes ($0)
+#
+# Net effect: each scan automatically gets its own ephemeral spot instance.
+# Cluster Autoscaler handles the EC2 lifecycle — Argo just creates the Job.
+#
+# INSTANCE SIZING (m5.2xlarge: 8 vCPU, 32 GB):
+#   Chosen for MAX_REGIONAL_WORKERS=60 concurrent I/O-bound API calls.
+#   One DI scan Job per node (the Job requests 2 vCPU / 4 Gi, but benefits
+#   from the full 32 GB buffer for in-flight scan data).
+#   Multiple instance types → higher spot availability, fewer interruptions.
+#
+# CLUSTER AUTOSCALER TAGS (required for auto-discovery):
+#   k8s.io/cluster-autoscaler/enabled=true
+#   k8s.io/cluster-autoscaler/vulnerability-eks-cluster=owned
+#
+# CREATE NODE GROUP (run once — requires EKS admin IAM):
+# ─────────────────────────────────────────────────────
+#   aws eks create-nodegroup \
+#     --cluster-name vulnerability-eks-cluster \
+#     --nodegroup-name di-scan-spot \
+#     --scaling-config minSize=0,maxSize=10,desiredSize=0 \
+#     --instance-types m5.2xlarge m5a.2xlarge m4.2xlarge m6i.2xlarge \
+#     --ami-type AL2023_x86_64_STANDARD \
+#     --capacity-type SPOT \
+#     --subnets subnet-0eb3ec80f3c9cb1af subnet-fe709485 subnet-06cc90b4acc9aa656 \
+#     --node-role arn:aws:iam::588989875114:role/vulnerability-eks-cluster-node-role \
+#     --disk-size 50 \
+#     --labels workload-type=di-scan,lifecycle=spot \
+#     --taints "key=workload-type,value=di-scan,effect=NO_SCHEDULE" \
+#     --tags "k8s.io/cluster-autoscaler/enabled=true,k8s.io/cluster-autoscaler/vulnerability-eks-cluster=owned,workload-type=di-scan,Project=threat-engine" \
+#     --region ap-south-1
+#
+# DELETE NODE GROUP (if decommissioning):
+#   aws eks delete-nodegroup \
+#     --cluster-name vulnerability-eks-cluster \
+#     --nodegroup-name di-scan-spot \
+#     --region ap-south-1
+#
+# VERIFY (after creation):
+#   aws eks describe-nodegroup \
+#     --cluster-name vulnerability-eks-cluster \
+#     --nodegroup-name di-scan-spot \
+#     --region ap-south-1 \
+#     | jq '.nodegroup.status'
+#
+#   kubectl get nodes -l workload-type=di-scan
+#   # → Should show 0 nodes at rest, 1+ during active scan
+#
+# CLUSTER AUTOSCALER SCALE-DOWN TUNING:
+#   The existing CA is deployed with:
+#     --scale-down-delay-after-add=5m
+#     --scale-down-unneeded-time=5m
+#   This means spot instance is terminated ~5 min after the scan Job completes.
+#   To tighten (faster removal): patch the CA deployment to 2m/2m.
+#
+# COST ESTIMATE (ap-south-1, May 2026):
+#   m5.2xlarge spot: ~$0.04/hr
+#   AWS full scan duration on spot: ~2 hr (vs ~4 hr on-demand)
+#   Cost per full AWS scan: ~$0.08
+#   vs. on-demand (t3.xlarge): ~$0.40/scan
+#   Savings: ~80% per scan

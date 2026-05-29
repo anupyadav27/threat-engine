@@ -3,25 +3,32 @@ IAM relationship writer — derives identity edges from parsed IAM data and writ
 them to asset_relationships in the DI DB.
 
 Edges written:
-  principal → ASSUMES    → iam_role     (trust policy allows principal to assume role)
-  role/user → HAS_POLICY → iam_policy   (managed policy attached to identity)
-  user      → MEMBER_OF  → iam_group    (user belongs to an IAM group)
-  instance_profile → LINKED_TO → iam_role  (EC2 instance profile → role it wraps)
+  principal → ASSUMES         → iam_role     (trust policy allows principal to assume role)
+  role/user → HAS_POLICY      → iam_policy   (managed policy attached to identity)
+  user      → MEMBER_OF       → iam_group    (user belongs to an IAM group)
+  instance_profile → LINKED_TO → iam_role   (EC2 instance profile → role it wraps)
+  resource  → GRANTS_ACCESS_TO → principal  (resource-based policy grants access)
+  identity  → CAN_ACCESS       → resource   (wildcard Resource:* policy expansion)
 
 attack_path_category mapping:
-  ASSUMES cross-account → privilege_escalation
-  ASSUMES same-account  → lateral_movement
-  HAS_POLICY admin/wildcard → privilege_escalation
-  HAS_POLICY normal         → lateral_movement
-  MEMBER_OF / LINKED_TO   → lateral_movement
+  ASSUMES cross-account       → privilege_escalation
+  ASSUMES same-account        → lateral_movement
+  HAS_POLICY admin/wildcard   → privilege_escalation
+  HAS_POLICY normal           → lateral_movement
+  MEMBER_OF / LINKED_TO       → lateral_movement
+  GRANTS_ACCESS_TO            → data_access (or data_exfil for KMS)
+  CAN_ACCESS wildcard         → lateral_movement (or privilege_escalation for IAM actions)
 """
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
-from engine_common.db_connections import get_di_conn
+import psycopg2.extras
+
+from engine_common.db_connections import get_di_conn, get_iam_conn
 from engine_common.relationship_writer import upsert_asset_relationships
 
 logger = logging.getLogger(__name__)
@@ -36,6 +43,8 @@ def write_iam_relationships(
     managed_policies: Optional[List[Any]] = None,
     groups: Optional[List[Any]] = None,
     instance_profiles: Optional[List[Any]] = None,
+    resource_policy_edges: bool = True,
+    wildcard_expansion_edges: bool = True,
 ) -> int:
     """Derive IAM identity edges and upsert to asset_relationships.
 
@@ -43,10 +52,12 @@ def write_iam_relationships(
     the main scan pipeline.
 
     Args:
-        trust_relationships: List of TrustRelationship objects from trust_analyzer.
-        managed_policies:    List of ParsedPolicy objects (those with attached_to_arn set).
-        groups:              Raw group dicts from IAM reader (may contain Users list).
-        instance_profiles:   Raw instance profile dicts (contain Roles list).
+        trust_relationships:      TrustRelationship objects from trust_analyzer.
+        managed_policies:         ParsedPolicy objects (attached_to_arn set).
+        groups:                   Group dicts from IAM reader (may contain Users list).
+        instance_profiles:        Instance profile dicts (contain Roles list).
+        resource_policy_edges:    If True, derive GRANTS_ACCESS_TO from resource policies.
+        wildcard_expansion_edges: If True, derive CAN_ACCESS from wildcard Resource:* policies.
 
     Returns:
         Number of edges written (0 on error).
@@ -59,14 +70,27 @@ def write_iam_relationships(
         edges.extend(_member_of_edges(groups or []))
         edges.extend(_linked_to_edges(instance_profiles or []))
 
-        if not edges:
-            logger.info("IAM relationship writer: no edges derived for scan %s", scan_run_id)
-            return 0
-
-        conn = get_di_conn()
+        di_conn = get_di_conn()
         try:
+            if resource_policy_edges:
+                edges.extend(
+                    _grants_access_to_edges(di_conn, scan_run_id, tenant_id, provider)
+                )
+
+            if wildcard_expansion_edges and managed_policies:
+                edges.extend(
+                    _can_access_edges(
+                        di_conn, scan_run_id, tenant_id, provider,
+                        managed_policies or [],
+                    )
+                )
+
+            if not edges:
+                logger.info("IAM relationship writer: no edges derived for scan %s", scan_run_id)
+                return 0
+
             written = upsert_asset_relationships(
-                conn, edges,
+                di_conn, edges,
                 scan_run_id=scan_run_id,
                 tenant_id=tenant_id,
                 account_id=account_id,
@@ -74,8 +98,9 @@ def write_iam_relationships(
             )
             logger.info("IAM relationship writer: wrote %d edges for scan %s", written, scan_run_id)
             return written
+
         finally:
-            conn.close()
+            di_conn.close()
 
     except Exception as exc:
         logger.warning("IAM relationship write failed (non-fatal): %s", exc, exc_info=True)
@@ -227,3 +252,291 @@ def _linked_to_edges(instance_profiles: List[Any]) -> List[dict]:
             })
 
     return edges
+
+
+# ── Resource policy edges (GRANTS_ACCESS_TO / GRANTS_DECRYPT_TO) ─────────────────
+
+def _grants_access_to_edges(
+    di_conn: "psycopg2.connection",
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str,
+) -> List[dict]:
+    """
+    Derive resource → GRANTS_ACCESS_TO → principal edges from resource-based policies.
+
+    Reads iam_resource_policy_rules from the IAM DB to know which resource types
+    carry embedded policies.  Then queries asset_inventory in DI DB to get those
+    resources and parses the policy JSON from emitted_fields.
+    """
+    edges: List[dict] = []
+
+    # Load rules from IAM DB
+    rules = _load_resource_policy_rules(provider)
+    if not rules:
+        return edges
+
+    # Group rules by resource_type to minimise DB round-trips
+    rules_by_type: Dict[str, List[Dict]] = {}
+    for rule in rules:
+        rules_by_type.setdefault(rule["resource_type"], []).append(rule)
+
+    for resource_type, type_rules in rules_by_type.items():
+        # Fetch resources of this type for this scan
+        sql = """
+            SELECT resource_uid, emitted_fields
+            FROM asset_inventory
+            WHERE tenant_id = %s AND scan_run_id = %s
+              AND provider = %s AND resource_type = %s
+        """
+        with di_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (tenant_id, scan_run_id, provider, resource_type))
+            resources = cur.fetchall()
+
+        for res in resources:
+            emitted = res["emitted_fields"]
+            if isinstance(emitted, str):
+                try:
+                    emitted = json.loads(emitted)
+                except (ValueError, TypeError):
+                    emitted = {}
+            emitted = emitted or {}
+            resource_uid = res["resource_uid"]
+
+            for rule in type_rules:
+                policy_field = rule["policy_field"]
+                principal_key = rule.get("principal_key")
+                rel_type = rule.get("relation_type", "GRANTS_ACCESS_TO")
+                category = rule.get("attack_path_category", "data_access")
+
+                policy_raw = emitted.get(policy_field)
+                if not policy_raw:
+                    continue
+
+                # policy may be a JSON string or already a dict
+                if isinstance(policy_raw, str):
+                    try:
+                        policy_raw = json.loads(policy_raw)
+                    except (ValueError, TypeError):
+                        continue
+
+                for principal in _extract_policy_principals(policy_raw, principal_key):
+                    if not principal:
+                        continue
+                    edges.append({
+                        "source_uid":    resource_uid,
+                        "source_type":   resource_type,
+                        "target_uid":    principal,
+                        "target_type":   "iam_principal",
+                        "relation_type": rel_type,
+                        "relation_metadata": {
+                            "policy_field":         policy_field,
+                            "principal_key":        principal_key,
+                            "attack_path_category": category,
+                        },
+                    })
+
+    return edges
+
+
+def _extract_policy_principals(policy: Any, principal_key: Optional[str]) -> List[str]:
+    """
+    Walk an IAM policy document (AWS-style Statement list) and return all Allow
+    principals matching principal_key (AWS, Service, Federated) or all if None.
+    Also handles GCP-style iamPolicy (bindings list) and plain lists.
+    """
+    principals: List[str] = []
+
+    if isinstance(policy, list):
+        # GCP-style: list of {role, members: [...]} bindings
+        for binding in policy:
+            if isinstance(binding, dict):
+                members = binding.get("members") or []
+                for m in members:
+                    principals.append(str(m))
+        return principals
+
+    if not isinstance(policy, dict):
+        return principals
+
+    # AWS-style: {Statement: [{Effect, Principal, Action, Resource}, ...]}
+    statements = policy.get("Statement") or policy.get("statements") or []
+    if not isinstance(statements, list):
+        statements = [statements]
+
+    for stmt in statements:
+        if not isinstance(stmt, dict):
+            continue
+        effect = stmt.get("Effect", "Allow")
+        if effect == "Deny":
+            continue
+
+        principal_block = stmt.get("Principal") or stmt.get("principal")
+        if not principal_block:
+            continue
+
+        if principal_block == "*":
+            principals.append("*")
+            continue
+
+        if isinstance(principal_block, str):
+            principals.append(principal_block)
+            continue
+
+        if isinstance(principal_block, dict):
+            if principal_key:
+                values = principal_block.get(principal_key, [])
+                if isinstance(values, str):
+                    values = [values]
+                principals.extend(values)
+            else:
+                for _k, vals in principal_block.items():
+                    if isinstance(vals, str):
+                        principals.append(vals)
+                    elif isinstance(vals, list):
+                        principals.extend(str(v) for v in vals)
+
+    return principals
+
+
+def _load_resource_policy_rules(provider: str) -> List[Dict]:
+    """Load iam_resource_policy_rules for the given CSP from IAM DB. Returns [] on error."""
+    try:
+        iam_conn = get_iam_conn()
+        sql = """
+            SELECT resource_type, policy_field, principal_key, relation_type, attack_path_category
+            FROM iam_resource_policy_rules
+            WHERE csp = %s AND is_active = TRUE
+        """
+        with iam_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (provider,))
+            rows = [dict(r) for r in cur.fetchall()]
+        iam_conn.close()
+        return rows
+    except Exception as exc:
+        logger.debug("Could not load resource_policy_rules (non-fatal): %s", exc)
+        return []
+
+
+# ── Wildcard CAN_ACCESS edges ────────────────────────────────────────────────────
+
+def _can_access_edges(
+    di_conn: "psycopg2.connection",
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str,
+    managed_policies: List[Any],
+) -> List[dict]:
+    """
+    Derive identity → CAN_ACCESS → resource edges for policies with Resource:*.
+
+    For each managed policy with a wildcard Resource statement, reads
+    iam_action_resource_map to know which resource types the action prefix
+    applies to, then queries asset_inventory for matching resources.
+
+    Caps at 50 CAN_ACCESS edges per identity to avoid graph explosion.
+    """
+    edges: List[dict] = []
+    action_map = _load_action_resource_map(provider)
+    if not action_map:
+        return edges
+
+    for policy in managed_policies:
+        attached_to = getattr(policy, "attached_to_arn", None) or ""
+        if not attached_to:
+            continue
+        attached_type = getattr(policy, "attached_to_type", "role") or "role"
+
+        stmts = getattr(policy, "statements", []) or []
+        for stmt in stmts:
+            # Only wildcard resource statements
+            resources = getattr(stmt, "resources", []) or []
+            has_wildcard = "*" in resources or any(r == "*" for r in resources)
+            if not has_wildcard:
+                continue
+
+            effect = getattr(stmt, "effect", "Allow")
+            if effect != "Allow":
+                continue
+
+            actions = getattr(stmt, "actions", []) or []
+            if "*" in actions:
+                # Allow * with Resource:* — map to all action prefixes (cap to avoid flood)
+                matched_types = _all_resource_types(action_map)
+            else:
+                matched_types = _actions_to_resource_types(actions, action_map)
+
+            for resource_type, category in matched_types.items():
+                # Fetch matching resources (limit 50 per type per identity)
+                sql = """
+                    SELECT resource_uid FROM asset_inventory
+                    WHERE tenant_id = %s AND scan_run_id = %s
+                      AND provider = %s AND resource_type = %s
+                    LIMIT 50
+                """
+                with di_conn.cursor() as cur:
+                    cur.execute(sql, (tenant_id, scan_run_id, provider, resource_type))
+                    target_uids = [row[0] for row in cur.fetchall()]
+
+                for tgt_uid in target_uids:
+                    edges.append({
+                        "source_uid":    attached_to,
+                        "source_type":   f"iam_{attached_type}",
+                        "target_uid":    tgt_uid,
+                        "target_type":   resource_type,
+                        "relation_type": "CAN_ACCESS",
+                        "relation_metadata": {
+                            "attack_path_category": category,
+                            "via_wildcard_resource": True,
+                        },
+                    })
+                    if len(edges) >= 10000:
+                        # Safety cap — log and return early
+                        logger.warning(
+                            "CAN_ACCESS edge cap hit (10000) for scan %s — truncating", scan_run_id
+                        )
+                        return edges
+
+    return edges
+
+
+def _load_action_resource_map(provider: str) -> Dict[str, Any]:
+    """Load iam_action_resource_map for the given CSP. Returns {} on error."""
+    try:
+        iam_conn = get_iam_conn()
+        sql = """
+            SELECT action_prefix, resource_types, attack_path_category
+            FROM iam_action_resource_map
+            WHERE csp = %s AND is_active = TRUE
+        """
+        with iam_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, (provider,))
+            result = {row["action_prefix"]: row for row in cur.fetchall()}
+        iam_conn.close()
+        return result
+    except Exception as exc:
+        logger.debug("Could not load action_resource_map (non-fatal): %s", exc)
+        return {}
+
+
+def _actions_to_resource_types(actions: List[str], action_map: Dict) -> Dict[str, str]:
+    """Map action list to {resource_type: attack_path_category} using prefix matching."""
+    result: Dict[str, str] = {}
+    for action in actions:
+        action_lower = (action or "").lower()
+        for prefix, mapping in action_map.items():
+            if action_lower.startswith(prefix.lower()):
+                category = mapping.get("attack_path_category", "lateral_movement")
+                for rt in (mapping.get("resource_types") or []):
+                    result[rt] = category
+    return result
+
+
+def _all_resource_types(action_map: Dict) -> Dict[str, str]:
+    """Flatten entire action_map to {resource_type: attack_path_category}."""
+    result: Dict[str, str] = {}
+    for mapping in action_map.values():
+        category = mapping.get("attack_path_category", "lateral_movement")
+        for rt in (mapping.get("resource_types") or []):
+            result[rt] = category
+    return result

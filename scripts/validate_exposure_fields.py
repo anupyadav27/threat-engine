@@ -69,6 +69,8 @@ SERVICE_DIR_ALIASES: Dict[str, str] = {
     "apimanagementservice": "apimanagement",
     # OCI (loadbalancer without underscore → load_balancer with underscore)
     "loadbalancer": "load_balancer",
+    # OCI compute instances are under oci.core in SDK but stored in compute discovery dir
+    "core.instance": "compute",
     # IBM VPC resources use "is" service prefix — map via combined key
     "is.load-balancer": "load_balancer",
     "is.instance": "vpc",   # IBM VPC instance; no dedicated YAML yet — placeholder

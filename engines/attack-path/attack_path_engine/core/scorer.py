@@ -98,6 +98,33 @@ _DATA_CLASS_MULT: Dict[str, float] = {
     "public":      0.80,
 }
 
+# ---------------------------------------------------------------------------
+# Edge semantic probability boosts — applied when the outgoing edge from a hop
+# is a confirmed permission/trust relationship rather than inferred topology.
+# IAM and encryption edges carry higher certainty: the permission DOES exist (it
+# was read from the IAM DB or encryption DB), so the attacker CAN traverse it.
+# ---------------------------------------------------------------------------
+_EDGE_SEMANTIC_BOOST: Dict[str, float] = {
+    # Confirmed IAM trust — attacker who controls the source CAN assume the target role
+    "assumes":               1.25,
+    "can_assume":            1.25,
+    # Explicit policy grant — confirmed resource-level permission
+    "grants_access_to":      1.25,
+    "can_access":            1.20,
+    "has_policy":            1.20,
+    # Identity chain hops
+    "member_of":             1.10,
+    "linked_to":             1.10,
+    # KMS key grant → data_exfil is a confirmed decrypt path
+    "grants_decrypt_to":     1.35,
+    # Cross-account peering — direct network path exists
+    "peered_with_external":  1.20,
+    # Worker node → EKS cluster control plane
+    "worker_node_of":        1.15,
+    # Direct infrastructure attachment — confirmed physical data access
+    "mounted_by":            1.10,
+}
+
 
 def probability_score(
     path: RawPath,
@@ -137,8 +164,10 @@ def probability_score(
         entry_type = path.node_types[0]
     p = _ENTRY_BASE_P.get(entry_type.lower(), _DEFAULT_BASE_P)
 
-    # Step 2+3: Per-hop loop — posture signals + CDR/MITRE signals
-    for uid in path.node_uids:
+    # Step 2+3+4: Per-hop loop — posture signals + CDR/MITRE signals + edge semantics
+    edge_types = list(path.edge_types or [])
+
+    for hop_idx, uid in enumerate(path.node_uids):
         posture = posture_lookup.get(uid)
 
         # ── Posture signals ────────────────────────────────────────────────
@@ -182,7 +211,17 @@ def probability_score(
                     max_tactic_boost = boost
             p = min(1.0, p * max_tactic_boost)
 
-    # Step 4: probability never reaches 0.0
+        # ── Edge semantic boost — outgoing edge from this hop ─────────────
+        # edge_types[i] is the edge from node_uids[i] → node_uids[i+1].
+        # IAM/encryption edges carry confirmed permissions (read from DB), so
+        # the attacker CAN traverse them — no guessing needed.
+        if hop_idx < len(edge_types):
+            outgoing_edge = edge_types[hop_idx].lower()
+            edge_boost = _EDGE_SEMANTIC_BOOST.get(outgoing_edge, 1.0)
+            if edge_boost != 1.0:
+                p = min(1.0, p * edge_boost)
+
+    # Step 5: probability never reaches 0.0
     return max(0.0001, p)
 
 

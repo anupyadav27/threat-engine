@@ -1,0 +1,99 @@
+---
+# GCP infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure
+
+csp: gcp
+category: infrastructure
+rules:
+
+  # ── GCE Instance → Disk ──────────────────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: compute.disk
+    relation_type: ATTACHED_TO
+    field_path: "disks[*].source"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: GCE instance attached to persistent disks
+
+  # ── GCE Instance → Subnetwork ────────────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: compute.subnetwork
+    relation_type: PLACED_IN
+    field_path: "networkInterfaces[*].subnetwork"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: GCE instance placed in subnetworks
+
+  # ── GCE Instance → Service Account ──────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "serviceAccounts[*].email"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    description: GCE instance uses service account
+
+  # ── GKE Cluster → Node Pool ──────────────────────────────────────────────────
+  - source_resource_type: container.cluster
+    target_resource_type: container.node_pool
+    relation_type: CONTAINS
+    field_path: "nodePools[*].name"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: GKE cluster contains node pools
+
+  # ── Cloud SQL → VPC Network ───────────────────────────────────────────────────
+  - source_resource_type: sqladmin.instance
+    target_resource_type: compute.network
+    relation_type: PLACED_IN
+    field_path: "settings.ipConfiguration.privateNetwork"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: Cloud SQL instance in VPC network
+
+  # ── Cloud Function → VPC Connector ───────────────────────────────────────────
+  - source_resource_type: cloudfunctions.function
+    target_resource_type: vpcaccess.connector
+    relation_type: ROUTES_VIA
+    field_path: "vpcConnector"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: Cloud Function uses VPC connector
+
+  # ── Cloud Function → Service Account ─────────────────────────────────────────
+  - source_resource_type: cloudfunctions.function
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "serviceAccountEmail"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    description: Cloud Function uses service account
+
+  # ── Cloud Run → Service Account ───────────────────────────────────────────────
+  - source_resource_type: run.service
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "spec.template.spec.serviceAccountName"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    description: Cloud Run service uses service account
+
+  # ── GCS Bucket → KMS Key (CMEK) ──────────────────────────────────────────────
+  - source_resource_type: storage.bucket
+    target_resource_type: cloudkms.crypto_key
+    relation_type: ENCRYPTED_BY
+    field_path: "encryption.defaultKmsKeyName"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    description: GCS bucket encrypted by CMEK key
+
+  # ── Load Balancer → Backend Service ──────────────────────────────────────────
+  - source_resource_type: compute.url_map
+    target_resource_type: compute.backend_service
+    relation_type: ROUTES_TO
+    field_path: "pathMatchers[*].defaultService"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: GCP URL map routes to backend services

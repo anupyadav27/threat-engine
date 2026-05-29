@@ -307,21 +307,26 @@ export default function InventoryPage() {
     );
   }
 
-  // Findings count row: ◆2 ▲5 ▲3 ●1
+  // Alert count badges: [2 CRIT] [5 HIGH] [3 MED]
   function FindingsCounts({ f }) {
-    const total = (f?.critical || 0) + (f?.high || 0) + (f?.medium || 0) + (f?.low || 0);
-    if (!total) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
     const items = [
-      { count: f?.critical || 0, color: '#ef4444', symbol: '◆' },
-      { count: f?.high     || 0, color: '#f97316', symbol: '▲' },
-      { count: f?.medium   || 0, color: '#f59e0b', symbol: '▲' },
-      { count: f?.low      || 0, color: '#3b82f6', symbol: '●' },
+      { count: f?.critical || 0, color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  label: 'CRIT' },
+      { count: f?.high     || 0, color: '#f97316', bg: 'rgba(249,115,22,0.12)', label: 'HIGH' },
+      { count: f?.medium   || 0, color: '#f59e0b', bg: 'rgba(245,158,11,0.12)', label: 'MED'  },
+      { count: f?.low      || 0, color: '#3b82f6', bg: 'rgba(59,130,246,0.12)', label: 'LOW'  },
     ].filter(i => i.count > 0);
+    if (!items.length) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
     return (
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'nowrap', alignItems: 'center' }}>
         {items.map((it, i) => (
-          <span key={i} style={{ fontSize: 11, color: it.color, fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-            {it.symbol}{it.count}
+          <span key={i} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 3,
+            fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4,
+            backgroundColor: it.bg, color: it.color,
+            whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
+            border: `1px solid ${it.color}30`,
+          }}>
+            {it.count} {it.label}
           </span>
         ))}
       </div>

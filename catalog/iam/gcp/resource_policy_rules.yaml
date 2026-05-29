@@ -1,0 +1,63 @@
+---
+# GCP resource-based IAM policy rules
+# Loaded by: catalog/iam/upload_iam_policy_rules.py → iam_resource_policy_rules table
+# GCP uses IAM policies on resources (getIamPolicy/setIamPolicy pattern).
+# These rules describe which resource types carry IAM policies and what edges to derive.
+
+csp: gcp
+rules:
+
+  # ── GCS Bucket IAM Policy ─────────────────────────────────────────────────────
+  - resource_type: storage.bucket
+    policy_field: iamPolicy
+    principal_key: members
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: data_access
+    description: GCS bucket IAM policy grants access to GCP members
+
+  # ── BigQuery Dataset IAM Policy ───────────────────────────────────────────────
+  - resource_type: bigquery.dataset
+    policy_field: access
+    principal_key: userByEmail
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: data_access
+    description: BigQuery dataset access grants access to user email
+
+  - resource_type: bigquery.dataset
+    policy_field: access
+    principal_key: specialGroup
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: data_access
+    description: BigQuery dataset access grants access to special groups (allUsers, allAuthenticatedUsers)
+
+  # ── Cloud KMS Key IAM Policy ──────────────────────────────────────────────────
+  - resource_type: cloudkms.crypto_key
+    policy_field: iamPolicy
+    principal_key: members
+    relation_type: GRANTS_DECRYPT_TO
+    attack_path_category: data_exfil
+    description: Cloud KMS crypto key IAM policy grants decrypt access
+
+  # ── Pub/Sub Topic IAM Policy ──────────────────────────────────────────────────
+  - resource_type: pubsub.topic
+    policy_field: iamPolicy
+    principal_key: members
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: lateral_movement
+    description: Pub/Sub topic IAM policy grants publish access
+
+  # ── Service Account IAM Policy (impersonation) ───────────────────────────────
+  - resource_type: iam.service_account
+    policy_field: iamPolicy
+    principal_key: members
+    relation_type: ASSUMES
+    attack_path_category: privilege_escalation
+    description: GCP service account IAM policy allows members to impersonate (token creator / workload identity)
+
+  # ── Cloud Run Service IAM Policy ─────────────────────────────────────────────
+  - resource_type: run.service
+    policy_field: iamPolicy
+    principal_key: members
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: lateral_movement
+    description: Cloud Run service IAM policy grants invoke access

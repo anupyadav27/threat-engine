@@ -291,7 +291,8 @@ async def view_inventory(
         uid = asset.get("resource_uid", "")
         if not uid:
             continue
-        cs = check_severity_map.get(uid)
+        # batch-severity keyed by short resource id (last segment after '/') or check uid
+        cs = check_severity_map.get(uid) or check_severity_map.get(uid.rsplit("/", 1)[-1])
         if cs:
             existing = asset.get("findings") or {}
             asset["findings"] = {
@@ -332,7 +333,28 @@ async def view_inventory(
             asset["vuln_critical_count"] = rsp.get("vuln_critical_count", 0)
             asset["has_known_exploit"] = rsp.get("has_known_exploit", False)
             asset["is_encrypted_at_rest"] = rsp.get("is_encrypted_at_rest", False)
-            asset["has_active_cdr_actor"] = rsp.get("has_active_cdr_actor", False)
+            # Wire check severity counts from RSP (written by check engine at scan time)
+            _cc = int(rsp.get("check_critical", 0) or 0)
+            _ch = int(rsp.get("check_high",     0) or 0)
+            _cm = int(rsp.get("check_medium",   0) or 0)
+            _cl = int(rsp.get("check_low",      0) or 0)
+            if _cc + _ch + _cm + _cl > 0:
+                existing = asset.get("findings") or {}
+                asset["findings"] = {
+                    "critical": max(int(existing.get("critical", 0) or 0), _cc),
+                    "high":     max(int(existing.get("high",     0) or 0), _ch),
+                    "medium":   max(int(existing.get("medium",   0) or 0), _cm),
+                    "low":      max(int(existing.get("low",      0) or 0), _cl),
+                }
+                f = asset["findings"]
+                if f["critical"] > 0:
+                    asset["severity"] = "critical"
+                elif f["high"] > 0 and asset.get("severity") not in ("critical",):
+                    asset["severity"] = "high"
+                elif f["medium"] > 0 and asset.get("severity") not in ("critical", "high"):
+                    asset["severity"] = "medium"
+                elif f["low"] > 0 and not asset.get("severity"):
+                    asset["severity"] = "low"
 
     # ── Build account->provider mapping from onboarding ──────────────────
     raw_accounts = onboarding_data.get("accounts", [])
@@ -779,6 +801,7 @@ async def view_asset_detail(
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     # ── Sub-route dispatch (greedy :path swallows suffixes) ────────────
+    logger.debug("view_asset_detail: resource_uid=%r ends_with_panel=%s", resource_uid, resource_uid.endswith("/panel"))
     if resource_uid.endswith("/blast-radius"):
         actual_uid = resource_uid[: -len("/blast-radius")]
         return await view_blast_radius(request=request, resource_uid=actual_uid, max_depth=3)
@@ -797,13 +820,20 @@ async def view_asset_detail(
 
     if resource_uid.endswith("/panel"):
         actual_uid = resource_uid[: -len("/panel")]
-        return await view_asset_panel(
-            request=request,
-            resource_uid=actual_uid,
-            findings_status="open",
-            findings_page=1,
-            findings_page_size=50,
-        )
+        try:
+            return await view_asset_panel(
+                request=request,
+                resource_uid=actual_uid,
+                findings_status="open",
+                findings_page=1,
+                findings_page_size=50,
+            )
+        except HTTPException:
+            raise
+        except Exception as _panel_err:
+            import logging as _log
+            _log.getLogger("bff.inventory").error("panel dispatch error: %s", _panel_err, exc_info=True)
+            raise
 
     # Encode resource_uid for use in URL paths — '/' in ARNs must be %2F so
     # FastAPI's {param:path} routes don't split on them.
@@ -1691,8 +1721,16 @@ async def view_asset_panel(
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else {}
 
+    # Fallback: extract engine_tenant_id from auth context if resolve_tenant_id returned None
+    if not tenant_id and auth_ctx_header:
+        try:
+            import json as _json
+            _ctx = _json.loads(auth_ctx_header)
+            tenant_id = _ctx.get("engine_tenant_id") or (_ctx.get("tenant_ids") or [None])[0]
+        except Exception:
+            pass
+
     di_base = ENGINE_URLS["di"]
-    check_base = ENGINE_URLS["check"]
     compliance_base = ENGINE_URLS["compliance"]
 
     from urllib.parse import quote as _qp
@@ -1704,22 +1742,14 @@ async def view_asset_panel(
         "page_size": str(findings_page_size),
     }
 
-    # Fetch asset detail, posture, ALL findings (larger page for Alerts tab extraction),
-    # and compliance snapshot in parallel. The check engine call is omitted — its
-    # resource_uid format (type:region:discovery_id) never matches DI ARN UIDs, so we
-    # derive check_summary and check_findings directly from security_findings.
-    all_findings_params = {
-        "status": findings_status,
-        "page": "1",
-        "page_size": "200",  # pull more so Alerts tab has full check findings list
-    }
+    compliance_params = {"tenant_id": tenant_id} if tenant_id else {}
 
     results = await fetch_many(
         [
             ("di",         f"/api/v1/di/assets/{enc_uid}",          {}),
             ("di",         f"/api/v1/di/assets/{enc_uid}/posture",   {}),
-            ("di",         f"/api/v1/di/assets/{enc_uid}/findings",  all_findings_params),
-            ("compliance", f"/api/v1/compliance/findings/resource/{enc_uid}", {"tenant_id": tenant_id}),
+            ("di",         f"/api/v1/di/assets/{enc_uid}/findings",  findings_params),
+            ("compliance", f"/api/v1/compliance/findings/resource/{enc_uid}", compliance_params),
         ],
         auth_headers=fwd_headers,
     )
@@ -1733,24 +1763,28 @@ async def view_asset_panel(
     # posture — None-safe (may not exist yet)
     posture = posture_raw if isinstance(posture_raw, dict) else {}
 
-    # findings from security_findings table (DI engine)
+    # findings from security_findings table (DI engine) — includes check engine FAIL findings
     findings_data = findings_raw if isinstance(findings_raw, dict) else {}
-    all_findings = findings_data.get("data", [])
+    findings_all = findings_data.get("data", [])
     findings_total = findings_data.get("total", 0)
 
-    # Paginate for the Findings tab (non-check findings)
-    page_start = (findings_page - 1) * findings_page_size
-    findings = all_findings[page_start: page_start + findings_page_size]
+    # Separate check (misconfig) findings from other finding types
+    check_findings = [f for f in findings_all if f.get("finding_type") == "misconfig" or f.get("source_engine") == "check"]
+    findings = findings_all
 
-    # Derive check findings and severity summary from security_findings
-    # (source_engine='check' = misconfiguration findings from check engine)
-    check_findings = [f for f in all_findings if (f.get("source_engine") or "") == "check"]
-    _sev_count: dict = {"critical": 0, "high": 0, "medium": 0, "low": 0}
-    for f in check_findings:
-        sev = (f.get("severity") or "low").lower()
-        if sev in _sev_count:
-            _sev_count[sev] += 1
-    check_summary = {**_sev_count, "total": sum(_sev_count.values())}
+    # Check severity summary — read from resource_security_posture columns written by check engine at scan time
+    check_summary = {
+        "critical": posture.get("check_critical", 0),
+        "high":     posture.get("check_high", 0),
+        "medium":   posture.get("check_medium", 0),
+        "low":      posture.get("check_low", 0),
+        "total":    (
+            posture.get("check_critical", 0) +
+            posture.get("check_high", 0) +
+            posture.get("check_medium", 0) +
+            posture.get("check_low", 0)
+        ),
+    }
 
     # compliance snapshot (best-effort)
     compliance_score = None

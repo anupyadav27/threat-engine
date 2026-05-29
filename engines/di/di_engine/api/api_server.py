@@ -184,7 +184,8 @@ async def batch_posture(
                     unencrypted_pii_store, internet_exposed_with_pii,
                     admin_role_without_mfa, exploitable_exposed_resource,
                     has_priv_escalation_path,
-                    api_publicly_accessible, api_public_no_waf, api_public_no_auth
+                    api_publicly_accessible, api_public_no_waf, api_public_no_auth,
+                    check_critical, check_high, check_medium, check_low
                 FROM resource_security_posture
                 WHERE tenant_id = %s AND resource_uid = ANY(%s)
                 """,

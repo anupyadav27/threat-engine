@@ -1,0 +1,180 @@
+---
+# AWS infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure — describes physical/logical attachment between cloud resources.
+
+csp: aws
+category: infrastructure
+rules:
+
+  # ── EC2 → EBS (volume attachments) ──────────────────────────────────────────
+  - source_resource_type: ec2.instance
+    target_resource_type: ec2.volume
+    relation_type: ATTACHED_TO
+    field_path: "BlockDeviceMappings[*].Ebs.VolumeId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: EC2 instance mounts EBS volume
+
+  # ── EC2 → IAM Instance Profile ───────────────────────────────────────────────
+  - source_resource_type: ec2.instance
+    target_resource_type: iam.instance_profile
+    relation_type: USES_PROFILE
+    field_path: "IamInstanceProfile.Arn"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    description: EC2 instance attached IAM instance profile
+
+  # ── EC2 → Security Group ─────────────────────────────────────────────────────
+  - source_resource_type: ec2.instance
+    target_resource_type: ec2.security_group
+    relation_type: GOVERNED_BY
+    field_path: "SecurityGroups[*].GroupId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: EC2 instance members of security groups
+
+  # ── EC2 → Subnet ────────────────────────────────────────────────────────────
+  - source_resource_type: ec2.instance
+    target_resource_type: ec2.subnet
+    relation_type: PLACED_IN
+    field_path: "SubnetId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: EC2 instance placed in subnet
+
+  # ── RDS Instance → VPC Security Group ───────────────────────────────────────
+  - source_resource_type: rds.db_instance
+    target_resource_type: ec2.security_group
+    relation_type: GOVERNED_BY
+    field_path: "VpcSecurityGroups[*].VpcSecurityGroupId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: RDS DB instance governed by security groups
+
+  # ── RDS Instance → Subnet Group ─────────────────────────────────────────────
+  - source_resource_type: rds.db_instance
+    target_resource_type: rds.subnet_group
+    relation_type: PLACED_IN
+    field_path: "DBSubnetGroup.DBSubnetGroupName"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: RDS instance placed in subnet group
+
+  # ── Lambda → Security Group ──────────────────────────────────────────────────
+  - source_resource_type: lambda.function
+    target_resource_type: ec2.security_group
+    relation_type: GOVERNED_BY
+    field_path: "VpcConfig.SecurityGroupIds[*]"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: Lambda function VPC security groups
+
+  # ── Lambda → Subnet ──────────────────────────────────────────────────────────
+  - source_resource_type: lambda.function
+    target_resource_type: ec2.subnet
+    relation_type: PLACED_IN
+    field_path: "VpcConfig.SubnetIds[*]"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: Lambda function VPC subnets
+
+  # ── ELB Target Group → EC2 ──────────────────────────────────────────────────
+  - source_resource_type: elb.target_group
+    target_resource_type: ec2.instance
+    relation_type: ROUTES_TO
+    field_path: "Targets[*].Id"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: ELB target group routes traffic to EC2 instances
+
+  # ── ALB (Application LB) → Security Group ───────────────────────────────────
+  - source_resource_type: elb.load_balancer
+    target_resource_type: ec2.security_group
+    relation_type: GOVERNED_BY
+    field_path: "SecurityGroups[*]"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: ALB governed by security groups
+
+  # ── EFS Mount Target → Subnet ────────────────────────────────────────────────
+  - source_resource_type: efs.file_system
+    target_resource_type: ec2.subnet
+    relation_type: MOUNTED_IN
+    field_path: "MountTargets[*].SubnetId"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    description: EFS file system mount targets in subnets
+
+  # ── EFS → Security Group ────────────────────────────────────────────────────
+  - source_resource_type: efs.file_system
+    target_resource_type: ec2.security_group
+    relation_type: GOVERNED_BY
+    field_path: "MountTargets[*].SecurityGroups[*]"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    description: EFS mount target security groups
+
+  # ── EKS Node Group → EC2 ─────────────────────────────────────────────────────
+  - source_resource_type: eks.nodegroup
+    target_resource_type: ec2.instance
+    relation_type: CONTAINS
+    field_path: "Resources.AutoScalingGroups[*].Name"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: EKS node group autoscaling group instances
+
+  # ── EKS Cluster → Node Group ──────────────────────────────────────────────────
+  - source_resource_type: eks.cluster
+    target_resource_type: eks.nodegroup
+    relation_type: CONTAINS
+    field_path: "Nodegroups[*]"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: EKS cluster contains node groups
+
+  # ── API Gateway → Lambda ─────────────────────────────────────────────────────
+  - source_resource_type: apigateway.rest_api
+    target_resource_type: lambda.function
+    relation_type: ROUTES_TO
+    field_path: "Integrations[*].Uri"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: API Gateway REST API routes to Lambda backends
+
+  # ── CloudFront → S3 Origin ────────────────────────────────────────────────────
+  - source_resource_type: cloudfront.distribution
+    target_resource_type: s3.bucket
+    relation_type: ROUTES_TO
+    field_path: "Origins.Items[*].DomainName"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    description: CloudFront distribution with S3 bucket origin
+
+  # ── RDS → KMS ─────────────────────────────────────────────────────────────────
+  - source_resource_type: rds.db_instance
+    target_resource_type: kms.key
+    relation_type: ENCRYPTED_BY
+    field_path: "KmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    description: RDS instance encrypted by KMS key
+
+  # ── S3 → KMS ──────────────────────────────────────────────────────────────────
+  - source_resource_type: s3.bucket
+    target_resource_type: kms.key
+    relation_type: ENCRYPTED_BY
+    field_path: "ServerSideEncryptionConfiguration.Rules[*].ApplyServerSideEncryptionByDefault.KMSMasterKeyID"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    description: S3 bucket encrypted by KMS key
+
+  # ── EC2 → VPC ──────────────────────────────────────────────────────────────────
+  - source_resource_type: ec2.instance
+    target_resource_type: ec2.vpc
+    relation_type: PLACED_IN
+    field_path: "VpcId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: EC2 instance placed in VPC

@@ -161,17 +161,11 @@ def main() -> None:
             tenant_id, account_id, provider,
         )
 
-        from engine_common.db_connections import get_dbsec_conn, get_check_conn
+        from engine_common.db_connections import get_dbsec_conn, get_check_conn, get_di_conn
         from dbsec_engine.providers import get_provider
         from dbsec_engine.storage.dbsec_db_writer import save_findings_to_db
 
-        _di_enabled = os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
-        if _di_enabled:
-            from engine_common.db_connections import get_di_conn
-            discoveries_conn = get_di_conn()
-        else:
-            from engine_common.db_connections import get_discoveries_conn
-            discoveries_conn = get_discoveries_conn()
+        discoveries_conn = get_di_conn()
         check_conn = get_check_conn()
         dbsec_conn = get_dbsec_conn()
 

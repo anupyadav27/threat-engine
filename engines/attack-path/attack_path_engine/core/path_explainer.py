@@ -54,41 +54,93 @@ logger = logging.getLogger("attack-path.path_explainer")
 # ---------------------------------------------------------------------------
 
 _TYPE_LABELS: Dict[str, str] = {
+    # ── AWS Compute ──────────────────────────────────────────────────────────
     "ec2.instance":           "EC2 Instance",
-    "s3.bucket":              "S3 Bucket",
-    "rds.instance":           "RDS Database",
-    "rds.db-instance":        "RDS Database",
-    "iam.role":               "IAM Role",
-    "iam.user":               "IAM User",
-    "iam.group":              "IAM Group",
     "lambda.function":        "Lambda Function",
-    "eks.cluster":            "EKS Cluster",
+    "lambda.resource":        "Lambda Function",
     "ecs.cluster":            "ECS Cluster",
     "ecs.service":            "ECS Service",
-    "kms.key":                "KMS Key",
-    "secretsmanager.secret":  "Secrets Manager Secret",
-    "ssm.parameter":          "SSM Parameter",
-    "alb":                    "Application Load Balancer",
-    "nlb":                    "Network Load Balancer",
-    "elb":                    "Classic Load Balancer",
-    "apigateway.restapi":     "API Gateway (REST)",
-    "apigateway.httpapi":     "API Gateway (HTTP)",
-    "cloudfront.distribution": "CloudFront Distribution",
-    "sns.topic":              "SNS Topic",
-    "sqs.queue":              "SQS Queue",
+    "eks.cluster":            "EKS Cluster",
+    # ── AWS Storage / Data ───────────────────────────────────────────────────
+    "s3.bucket":              "S3 Bucket",
+    "s3.resource":            "S3 Bucket",
+    "rds.instance":           "RDS Database",
+    "rds.db-instance":        "RDS Database",
+    "rds.cluster":            "RDS Cluster",
+    "rds.db-cluster":         "RDS Cluster",
     "dynamodb.table":         "DynamoDB Table",
+    "dynamodb.resource":      "DynamoDB Table",
     "redshift.cluster":       "Redshift Cluster",
     "elasticache.cluster":    "ElastiCache Cluster",
     "opensearch.domain":      "OpenSearch Domain",
+    "efs.file-system":        "EFS File System",
+    "ec2.volume":             "EBS Volume",
+    # ── AWS IAM / Identity ──────────────────────────────────────────────────
+    "iam.role":               "IAM Role",
+    "iam.user":               "IAM User",
+    "iam.group":              "IAM Group",
+    "iam.policy":             "IAM Policy",
+    "iam.instance-profile":   "IAM Instance Profile",
+    # ── AWS Security / Secrets ──────────────────────────────────────────────
+    "kms.key":                "KMS Key",
+    "secretsmanager.secret":  "Secrets Manager Secret",
+    "ssm.parameter":          "SSM Parameter",
+    # ── AWS Network ─────────────────────────────────────────────────────────
+    "ec2.security-group":     "Security Group",
+    "ec2.vpc":                "VPC",
+    "vpc.vpc":                "VPC",
+    "ec2.subnet":             "Subnet",
+    "vpc.subnet":             "Subnet",
+    "ec2.network-interface":  "Network Interface",
+    "ec2.internet-gateway":   "Internet Gateway",
+    "vpc.internet-gateway":   "Internet Gateway",
+    "vpc.nat-gateway":        "NAT Gateway",
+    "alb":                    "Application Load Balancer",
+    "nlb":                    "Network Load Balancer",
+    "elb":                    "Classic Load Balancer",
+    "elasticloadbalancingv2.loadbalancer": "Load Balancer",
+    # ── AWS API / Frontend ──────────────────────────────────────────────────
+    "apigateway.restapi":     "API Gateway (REST)",
+    "apigateway.httpapi":     "API Gateway (HTTP)",
+    "cloudfront.distribution": "CloudFront Distribution",
+    # ── AWS Queues / Messaging ──────────────────────────────────────────────
+    "sns.topic":              "SNS Topic",
+    "sqs.queue":              "SQS Queue",
+    # ── AWS Container / ECR ─────────────────────────────────────────────────
     "ecr.repository":         "ECR Repository",
-    "blob.container":         "Azure Blob Container",
+    # ── Azure ────────────────────────────────────────────────────────────────
+    "azure.virtual_machine":  "Azure Virtual Machine",
     "azure.vm":               "Azure Virtual Machine",
+    "azure.blob_container":   "Azure Blob Container",
+    "blob.container":         "Azure Blob Container",
+    "azure.storage_account":  "Azure Storage Account",
+    "azure.sql_database":     "Azure SQL Database",
+    "azure.key_vault":        "Azure Key Vault",
+    "azure.aks_cluster":      "AKS Cluster",
+    "azure.managed_identity": "Azure Managed Identity",
+    "azure.function_app":     "Azure Function App",
+    # ── GCP ──────────────────────────────────────────────────────────────────
+    "gcp.gcs_bucket":         "GCS Bucket",
     "gcs.bucket":             "GCS Bucket",
+    "gcp.compute_instance":   "GCE Instance",
     "gce.instance":           "GCE Instance",
+    "gcp.gke_cluster":        "GKE Cluster",
+    "gcp.iam_service_account": "GCP Service Account",
+    "gcp.cloud_function":     "Cloud Function",
+    "gcp.kms_crypto_key":     "GCP KMS Key",
+    # ── OCI ──────────────────────────────────────────────────────────────────
+    "oci.object_storage_bucket": "OCI Object Storage",
     "oci.object_storage":     "OCI Object Storage",
+    "oci.compute_instance":   "OCI Compute Instance",
+    "oci.autonomous_database": "OCI Autonomous Database",
+    "oci.vault":              "OCI Vault",
+    # ── Kubernetes ───────────────────────────────────────────────────────────
     "k8s.pod":                "Kubernetes Pod",
     "k8s.deployment":         "Kubernetes Deployment",
     "k8s.serviceaccount":     "Kubernetes Service Account",
+    "k8s.secret":             "Kubernetes Secret",
+    "k8s.ingress":            "Kubernetes Ingress",
+    "k8s.clusterrole":        "Kubernetes ClusterRole",
 }
 
 
@@ -242,35 +294,182 @@ def _build_summary(
 # ---------------------------------------------------------------------------
 
 _EDGE_ACTION: Dict[str, str] = {
-    "exposed_via":          "Exploit internet exposure via",
-    "reachable_from":       "Reach resource through open network path",
-    "accesses":             "Access data or API of",
-    "reads":                "Read data from",
-    "writes":               "Write or modify data in",
-    "has_role":             "Assume IAM role attached to",
-    "attached_to":          "Pivot to attached resource",
-    "can_assume":           "Assume role of",
-    "can_access":           "Access",
-    "member_of":            "Gain privileges of group",
-    "uses":                 "Use credentials from",
-    "depends_on":           "Exploit dependency on",
-    "encrypted_by":         "Compromise encryption key protecting",
-    "executes_on":          "Execute code on",
-    "mounts":               "Escape container via mounted volume in",
-    "contains":             "Reach resource inside",
-    "routes_to":            "Route traffic to",
-    "lateral_movement":     "Move laterally to",
-    "privilege_escalation": "Escalate privileges to",
-    "data_access":          "Access data in",
-    "data_flow":            "Exfiltrate data through",
-    "exposure":             "Exploit exposed",
-    "execution":            "Execute on",
+    # ── Exposure / Reachability ──────────────────────────────────────────────
+    "exposed_via":           "Exploit internet exposure via",
+    "exposes":               "Enter through internet-exposed",
+    "reachable_from":        "Reach resource through open network path",
+    "internet_connected":    "Exploit internet-exposed",
+    # ── Data access ─────────────────────────────────────────────────────────
+    "accesses":              "Access data or API of",
+    "reads":                 "Read data from",
+    "writes":                "Write or modify data in",
+    "stores":                "Read/write stored data in",
+    "stores_data_in":        "Exfiltrate data stored in",
+    # ── IAM / Identity (original) ───────────────────────────────────────────
+    "has_role":              "Assume IAM role attached to",
+    "can_assume":            "Assume role of",
+    "assumes":               "Assume identity of",
+    "uses":                  "Use credentials from",
+    "member_of":             "Gain privileges of group",
+    "depends_on":            "Exploit dependency on",
+    # ── IAM / Identity (per-engine writers) ─────────────────────────────────
+    "can_access":            "Access resource via IAM permission",
+    "grants_access_to":      "Gain resource access through policy grant from",
+    "grants_decrypt_to":     "Decrypt and exfiltrate data via KMS grant from",
+    "has_policy":            "Escalate privileges through attached policy on",
+    "linked_to":             "Pivot through linked identity via",
+    # ── Infrastructure / Attachment ─────────────────────────────────────────
+    "attached_to":           "Access data on attached volume",
+    "mounted_by":            "Read filesystem data from mounted volume in",
+    "contains":              "Reach resource inside",
+    "executes_on":           "Execute code on",
+    "mounts":                "Escape container via mounted volume in",
+    "runs_on":               "Execute workload on",
+    "worker_node_of":        "Control workloads running on cluster",
+    # ── Network topology (per-engine writers) ───────────────────────────────
+    "routes_to":             "Route traffic to",
+    "has_endpoint":          "Reach service through exposed endpoint",
+    "connected_via":         "Traverse network connection to",
+    "peered_with":           "Cross VPC boundary via peering to",
+    "peered_with_external":  "Reach external network via cross-account peering to",
+    "resolves_to":           "Follow DNS resolution to",
+    "connects_to":           "Connect directly to",
+    "in_vpc":                "Move within VPC containing",
+    "hosted_in":             "Access via host subnet containing",
+    # ── Attack path categories ───────────────────────────────────────────────
+    "lateral_movement":      "Move laterally to",
+    "privilege_escalation":  "Escalate privileges to",
+    "data_access":           "Access data in",
+    "data_flow":             "Exfiltrate data through",
+    "exposure":              "Exploit exposed",
+    "execution":             "Execute on",
+    # ── Encryption / Audit ──────────────────────────────────────────────────
+    "encrypted_by":          "Compromise encryption key protecting",
 }
 
 
 def _edge_action(edge_type: str, target_label: str) -> str:
     action = _EDGE_ACTION.get(edge_type.lower(), "Access")
     return f"{action} {target_label}"
+
+
+# ---------------------------------------------------------------------------
+# Edge context decoration
+# ---------------------------------------------------------------------------
+# Explains WHY a specific relationship traversal is dangerous, using source
+# and target posture together. Distinct from risk_signals (which describe the
+# node in isolation) — edge_context answers "what does THIS connection expose?".
+# ---------------------------------------------------------------------------
+
+_RISK_ORDER = {"critical": 3, "high": 2, "medium": 1, "low": 0}
+
+
+def _bump_risk(current: str, candidate: str) -> str:
+    return candidate if _RISK_ORDER.get(candidate, 0) > _RISK_ORDER.get(current, 0) else current
+
+
+def _edge_context_signals(
+    edge_type: str,
+    src_posture: Any,
+    tgt_posture: Any,
+) -> Dict[str, Any]:
+    """Return edge-level danger context for a traversal step.
+
+    Uses source and target PostureRow to explain WHY this edge is risky,
+    independent of what's already shown in node risk_signals.
+
+    Returns {} when no edge-level signals apply (clean traversal).
+    Returns {"risk_level": str, "signals": [str]} otherwise.
+    """
+    et = edge_type.lower()
+    signals: List[str] = []
+    risk = "low"
+
+    # ── Target signals: what does this edge give access to? ─────────────────
+    if et in ("attached_to", "mounted_by"):
+        tgt_enc = getattr(tgt_posture, "is_encrypted_at_rest", True) if tgt_posture else True
+        if not tgt_enc:
+            signals.append("Attached storage is not encrypted at rest — data readable in plaintext")
+            risk = _bump_risk(risk, "high")
+        tgt_dc = getattr(tgt_posture, "data_classification", None) if tgt_posture else None
+        if tgt_dc in ("pii", "financial", "credentials"):
+            signals.append(f"Attached storage contains {tgt_dc.upper()} data")
+            risk = _bump_risk(risk, "critical")
+
+    elif et in ("assumes", "can_assume"):
+        tgt_cj = getattr(tgt_posture, "crown_jewel_type", "") if tgt_posture else ""
+        if tgt_cj == "identity":
+            signals.append("Target is a privileged identity crown jewel — full privilege escalation path")
+            risk = _bump_risk(risk, "critical")
+        tgt_mis = getattr(tgt_posture, "critical_misconfig_count", 0) if tgt_posture else 0
+        if tgt_mis > 0:
+            signals.append(f"Target role has {tgt_mis} critical misconfiguration(s)")
+            risk = _bump_risk(risk, "high")
+
+    elif et in ("grants_access_to", "can_access"):
+        tgt_dc = getattr(tgt_posture, "data_classification", None) if tgt_posture else None
+        if tgt_dc in ("pii", "financial", "credentials"):
+            signals.append(f"Policy grants access to {tgt_dc.upper()} data resource")
+            risk = _bump_risk(risk, "critical")
+        elif tgt_dc == "internal":
+            signals.append("Policy grants access to internal data resource")
+            risk = _bump_risk(risk, "high")
+        tgt_cj = getattr(tgt_posture, "crown_jewel_type", "") if tgt_posture else ""
+        if tgt_cj:
+            signals.append(f"Target is a crown jewel ({tgt_cj.replace('_', ' ')})")
+            risk = _bump_risk(risk, "high")
+
+    elif et == "grants_decrypt_to":
+        signals.append("KMS key grants external decrypt — all data encrypted with this key is exposed")
+        risk = _bump_risk(risk, "critical")
+
+    elif et == "has_policy":
+        tgt_mis = getattr(tgt_posture, "critical_misconfig_count", 0) if tgt_posture else 0
+        if tgt_mis > 0:
+            signals.append(f"Policy resource has {tgt_mis} critical misconfiguration(s)")
+            risk = _bump_risk(risk, "medium")
+
+    elif et == "member_of":
+        tgt_cj = getattr(tgt_posture, "crown_jewel_type", "") if tgt_posture else ""
+        if tgt_cj == "identity":
+            signals.append("Group membership grants privileged identity access")
+            risk = _bump_risk(risk, "high")
+
+    elif et == "peered_with_external":
+        signals.append("Traversal exits tenant boundary via cross-account VPC peering")
+        risk = _bump_risk(risk, "high")
+
+    elif et in ("peered_with", "connected_via"):
+        src_waf = getattr(src_posture, "waf_protected", True) if src_posture else True
+        if not src_waf:
+            signals.append("Cross-VPC connection from resource without WAF protection")
+            risk = _bump_risk(risk, "medium")
+
+    elif et == "worker_node_of":
+        tgt_mis = getattr(tgt_posture, "critical_misconfig_count", 0) if tgt_posture else 0
+        if tgt_mis > 0:
+            signals.append(f"EKS cluster has {tgt_mis} critical misconfiguration(s)")
+            risk = _bump_risk(risk, "high")
+
+    elif et == "has_endpoint":
+        tgt_dc = getattr(tgt_posture, "data_classification", None) if tgt_posture else None
+        if tgt_dc in ("pii", "financial", "credentials"):
+            signals.append(f"Service endpoint exposes {tgt_dc.upper()} data")
+            risk = _bump_risk(risk, "high")
+
+    # ── Source signals: how capable is the attacker at the source hop? ───────
+    if src_posture:
+        src_epss = getattr(src_posture, "max_epss", None)
+        if src_epss is not None and src_epss > 0.70:
+            signals.append(f"Source has high-EPSS CVE ({src_epss:.2f}) — exploitation is likely")
+            risk = _bump_risk(risk, "high")
+        if getattr(src_posture, "has_active_cdr_actor", False):
+            signals.append("Active CDR threat actor confirmed on source resource — traversal is live")
+            risk = _bump_risk(risk, "critical")
+
+    if not signals:
+        return {}
+    return {"risk_level": risk, "signals": signals}
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +561,15 @@ def explain_path(
         mitigations = _hop_mitigations(risk_signals)
         all_mitigations.extend(mitigations)
 
-        steps.append({
+        # Edge context: explains why the outgoing edge from this hop is dangerous.
+        # Uses source (current) and target (next) posture together.
+        edge_ctx: Dict[str, Any] = {}
+        if edge and i < len(node_uids) - 1:
+            next_uid = node_uids[i + 1]
+            next_posture = posture_lookup.get(next_uid)
+            edge_ctx = _edge_context_signals(edge, posture, next_posture)
+
+        step: Dict[str, Any] = {
             "step": i + 1,
             "uid": uid,
             "resource_type": rtype,
@@ -374,7 +581,10 @@ def explain_path(
             "mitre_tactic": tactic_str,
             "risk_signals": risk_signals,
             "relation_to_next": relation_to_next,
-        })
+        }
+        if edge_ctx:
+            step["edge_context"] = edge_ctx
+        steps.append(step)
 
     # Build impact statement
     cj_type = getattr(crown_posture, "crown_jewel_type", "") or "data"

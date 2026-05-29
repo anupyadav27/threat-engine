@@ -217,6 +217,15 @@ def write_path_nodes(
             # Re-insert hop nodes
             rows = []
             for p in batch:
+                # Build hop_index → edge_context from path_explainer output.
+                # explanation.steps[i]["step"] is 1-indexed; hop_index is 0-indexed.
+                expl_steps = (p.explanation or {}).get("steps", [])
+                edge_ctx_by_hop: dict = {
+                    s["step"] - 1: s["edge_context"]
+                    for s in expl_steps
+                    if s.get("edge_context")
+                }
+
                 for hop_index, (uid, ntype, etype) in enumerate(
                     zip(p.node_uids, p.node_types, p.edge_types + [""])
                 ):
@@ -240,6 +249,8 @@ def write_path_nodes(
                         if t not in (ev.get("threat_detections") or [])
                     ]
 
+                    edge_ctx = edge_ctx_by_hop.get(hop_index)
+
                     rows.append((
                         p.path_id,
                         tenant_id,
@@ -257,6 +268,7 @@ def write_path_nodes(
                         psycopg2.extras.Json(threat_detections),
                         bool(ev.get("cdr_actor_active", False)),
                         ev.get("cdr_actor_uid"),
+                        psycopg2.extras.Json(edge_ctx) if edge_ctx else None,
                     ))
 
             if rows:
@@ -267,7 +279,8 @@ def write_path_nodes(
                         path_id, tenant_id, node_uid, node_name, node_type,
                         hop_index, edge_to_next, edge_category, traversal_reason,
                         policy_statement, sg_rule, misconfigs, cves,
-                        threat_detections, cdr_actor_active, cdr_actor_uid
+                        threat_detections, cdr_actor_active, cdr_actor_uid,
+                        edge_context
                     )
                     VALUES %s
                     """,

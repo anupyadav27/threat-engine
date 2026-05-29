@@ -18,7 +18,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import threading
 import time
 import uuid
 from typing import Any, Dict, List, Optional
@@ -51,18 +50,8 @@ router = APIRouter()
 
 audit_logger = logging.getLogger("audit")
 
-# In-memory job tracking for async graph builds (lost on pod restart — by design)
-_graph_build_jobs: Dict[str, Dict] = {}
-
-# CVE stat fields restricted to org_admin and above
-_GRAPH_CVE_SENSITIVE_FIELDS = frozenset({"cve_nodes", "has_cve_edges"})
 
 
-def _strip_graph_stats_for_role(stats: Dict[str, Any], role_level: int) -> Dict[str, Any]:
-    """Remove CVE-count fields from graph build stats for viewer/analyst roles."""
-    if role_level > 2:
-        return {k: v for k, v in stats.items() if k not in _GRAPH_CVE_SENSITIVE_FIELDS}
-    return stats
 
 
 # ── Pydantic models ───────────────────────────────────────────────────────────
@@ -448,108 +437,6 @@ async def trigger_scan(
 
 # ── Security Graph Build (migrated from engine-threat) ───────────────────────
 
-@router.post(
-    "/api/v1/graph/build",
-    dependencies=[Depends(require_permission("attack_path:read"))],
-)
-async def build_security_graph(request: Request) -> Dict[str, Any]:
-    """Trigger an async Neo4j security graph build for the authenticated tenant.
-
-    Returns 202 with a ``job_id``. Poll
-    ``GET /api/v1/graph/build/status/{job_id}`` to track completion.
-
-    tenant_id is derived exclusively from AuthContext — never from the request body.
-    """
-    body: Dict = {}
-    try:
-        body = await request.json()
-    except Exception:
-        pass  # body is optional
-
-    tenant_id = _resolve_tenant(request)
-    if not tenant_id or tenant_id == "default-tenant":
-        raise HTTPException(status_code=403, detail="No active tenant in session")
-
-    scan_run_id: Optional[str] = body.get("scan_run_id")
-
-    job_id = str(uuid.uuid4())
-    _graph_build_jobs[job_id] = {"status": "running", "started_at": time.time()}
-
-    def _run() -> None:
-        started = time.time()
-        try:
-            from ..graph.graph_builder import SecurityGraphBuilder
-            builder = SecurityGraphBuilder()
-            try:
-                stats = builder.build_graph(tenant_id=tenant_id, scan_run_id=scan_run_id)
-            finally:
-                builder.close()
-            duration_ms = int((time.time() - started) * 1000)
-            _graph_build_jobs[job_id].update({"status": "completed", "stats": stats})
-            audit_logger.info(
-                "graph_build_complete",
-                extra={
-                    "tenant_id": tenant_id,
-                    "scan_run_id": scan_run_id,
-                    "job_id": job_id,
-                    "duration_ms": duration_ms,
-                    "total_nodes": stats.get("total_nodes", 0),
-                    "total_relationships": stats.get("total_relationships", 0),
-                    "cve_nodes": stats.get("cve_nodes", 0),
-                    "exposes_edges": stats.get("exposes_edges", 0),
-                    "inferred_edges": stats.get("inferred_edges", 0),
-                },
-            )
-        except Exception as exc:
-            duration_ms = int((time.time() - started) * 1000)
-            _graph_build_jobs[job_id].update({"status": "failed", "error": str(exc)})
-            audit_logger.error(
-                "graph_build_failed",
-                extra={
-                    "tenant_id": tenant_id,
-                    "scan_run_id": scan_run_id,
-                    "job_id": job_id,
-                    "duration_ms": duration_ms,
-                    "error": str(exc),
-                },
-            )
-
-    threading.Thread(target=_run, daemon=True).start()
-    return {"job_id": job_id, "status": "running"}
-
-
-@router.get(
-    "/api/v1/graph/build/status/{job_id}",
-    dependencies=[Depends(require_permission("attack_path:read"))],
-)
-async def get_graph_build_status(job_id: str, request: Request) -> Dict[str, Any]:
-    """Poll the status of a graph build job.
-
-    Returns:
-        ``{"status": "running", "started_at": <epoch>}``
-        ``{"status": "completed", "stats": {...}}``
-        ``{"status": "failed", "error": "<msg>"}``
-
-    404 if the job_id is unknown (pod was restarted — job state is in-memory).
-    """
-    job = _graph_build_jobs.get(job_id)
-    if job is None:
-        raise HTTPException(status_code=404, detail="job not found")
-
-    # Strip CVE fields for viewer/analyst
-    if job.get("stats"):
-        raw = request.headers.get("X-Auth-Context") or ""
-        role_level = 4
-        try:
-            ctx = json.loads(raw)
-            role_level = ctx.get("role_level", 4)
-        except Exception:
-            pass
-        job = {**job, "stats": _strip_graph_stats_for_role(job["stats"], role_level)}
-
-    return job
-
-
 # ── Threat-compat endpoints (BFF migration shim) ─────────────────────────────
 #
 # These expose the same URL paths the old engine-threat served so that
@@ -593,7 +480,7 @@ async def threat_ui_data(
                 row_params.append(resolved_scan_run_id)
 
             cur.execute(
-                "SELECT resource_uid, severity, path_score, confidence_level,"
+                "SELECT path_id, severity, path_score, confidence_level,"
                 " crown_jewel_uid, entry_point_uid, misconfig_count, threat_count,"
                 " has_active_cdr_actor, first_seen_at, last_seen_at"
                 " FROM attack_paths"
