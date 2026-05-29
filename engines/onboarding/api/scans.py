@@ -36,12 +36,25 @@ except ImportError:
 router = APIRouter(prefix="/api/v1", tags=["scans"])
 
 
-@router.get("/scans/recent")
+@router.get(
+    "/scans/recent",
+    dependencies=[Depends(require_permission("scans:read"))],
+)
 async def get_recent_scans(
-    tenant_id: str = Query(..., description="Tenant identifier"),
     limit: int = Query(10, ge=1, le=50, description="Number of scans to return"),
+    tenant_id_param: Optional[str] = Query(None, alias="tenant_id", description="Fallback for legacy BFF callers"),
+    auth: Any = Depends(get_auth_context),
 ):
-    """Return recent scan orchestration runs ordered by started_at descending."""
+    """Return recent scan orchestration runs ordered by started_at descending.
+
+    tenant_id is resolved from AuthContext when available (preferred path via gateway).
+    Falls back to the tenant_id query param for legacy BFF callers that do not forward
+    X-Auth-Context in internal service-to-service calls.
+    """
+    tenant_id: str = (getattr(auth, "engine_tenant_id", None) or getattr(auth, "tenant_id", None) or tenant_id_param or "").strip()
+    if not tenant_id:
+        raise HTTPException(status_code=422, detail="tenant_id could not be resolved")
+
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
@@ -247,7 +260,7 @@ async def get_scan_history(
         )
 
     try:
-        from engine_onboarding.database.scan_run_operations import list_scan_runs
+        from engine_onboarding.database.scan_run_operations import list_scan_runs, count_scan_runs
 
         offset = (page - 1) * page_size
         rows = list_scan_runs(
@@ -267,14 +280,7 @@ async def get_scan_history(
                     r[ts_key] = val.isoformat()
             scans.append(r)
 
-        # Count total without offset for pagination metadata.
-        total_rows = list_scan_runs(
-            account_id=account_id,
-            tenant_id=tenant_id,
-            limit=10_000,
-            offset=0,
-        )
-        total = len(total_rows)
+        total = count_scan_runs(account_id=account_id, tenant_id=tenant_id)
 
         return {
             "scans":     scans,

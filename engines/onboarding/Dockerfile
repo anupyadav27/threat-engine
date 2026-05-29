@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy onboarding module (keep old import path for backward compat)
 COPY engines/onboarding/ ./engine_onboarding/
 COPY shared/common/ ./engine_common/
+COPY shared/auth/ ./engine_auth/
 
 # Set Python path
 ENV PYTHONPATH=/app

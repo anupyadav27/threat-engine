@@ -63,6 +63,9 @@ class CloudAccountItem(BaseModel):
     accountCategory: Optional[str] = Field(
         None, description="cloud|onprem|saas|k8s — was account_type"
     )
+    account_type: Optional[str] = Field(
+        None, description="snake_case alias of accountCategory for frontend compatibility"
+    )
     accountStatus: Optional[str] = None
     onboardingStatus: Optional[str] = None
     credentialRef: Optional[str] = Field(None, description="SM path — non-empty means credentials stored")
@@ -98,6 +101,7 @@ def _to_camel(row: dict) -> dict:
         "accountIdentifier":          row.get("account_identifier"),
         "accountName":                row.get("account_name"),
         "accountCategory":            row.get("account_type") or row.get("account_category"),
+        "account_type":               row.get("account_type") or row.get("account_category"),
         "accountStatus":              row.get("account_status"),
         "onboardingStatus":           row.get("account_onboarding_status")
                                        or row.get("onboarding_status"),

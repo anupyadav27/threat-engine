@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Zap, RefreshCw, Plus, AlertTriangle } from 'lucide-react';
 import AccountCard from '@/components/accounts/AccountCard';
+import OnboardingWizard from '@/components/domain/OnboardingWizard';
 import { fetchView } from '@/lib/api';
 import { useTenant } from '@/lib/tenant-context';
 
@@ -15,6 +16,7 @@ export default function AccountsPage() {
   const [scanning, setScanning] = useState(false);
   const [scanMsg, setScanMsg] = useState('');
   const [error, setError] = useState('');
+  const [configuringAccount, setConfiguringAccount] = useState(null);
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
@@ -55,6 +57,15 @@ export default function AccountsPage() {
     }
   };
 
+  function handleConfigure(account) {
+    setConfiguringAccount(account);
+  }
+
+  function handleConfigureComplete() {
+    setConfiguringAccount(null);
+    fetchAccounts();
+  }
+
   return (
     <div className="p-6 space-y-5">
       {/* Header */}
@@ -70,11 +81,13 @@ export default function AccountsPage() {
 
         <div className="flex items-center gap-2">
           {scanMsg && (
-            <span className="text-xs px-2 py-1 rounded-lg"
+            <span
+              className="text-xs px-2 py-1 rounded-lg"
               style={{
                 backgroundColor: scanMsg.startsWith('Failed') ? 'rgba(239,68,68,0.12)' : 'rgba(34,197,94,0.12)',
                 color: scanMsg.startsWith('Failed') ? '#f87171' : '#22c55e',
-              }}>
+              }}
+            >
               {scanMsg}
             </span>
           )}
@@ -84,9 +97,7 @@ export default function AccountsPage() {
             className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl disabled:opacity-40 hover:opacity-90 transition-opacity"
             style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#fbbf24', border: '1px solid rgba(245,158,11,0.3)' }}
           >
-            {scanning
-              ? <RefreshCw size={13} className="animate-spin" />
-              : <Zap size={13} />}
+            {scanning ? <RefreshCw size={13} className="animate-spin" /> : <Zap size={13} />}
             Scan All Now
           </button>
           <button
@@ -101,8 +112,10 @@ export default function AccountsPage() {
 
       {/* Error */}
       {error && (
-        <div className="flex items-center gap-2 p-3 rounded-xl border text-sm"
-          style={{ borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171' }}>
+        <div
+          className="flex items-center gap-2 p-3 rounded-xl border text-sm"
+          style={{ borderColor: 'rgba(239,68,68,0.3)', backgroundColor: 'rgba(239,68,68,0.08)', color: '#f87171' }}
+        >
           <AlertTriangle size={14} /> {error}
         </div>
       )}
@@ -110,13 +123,13 @@ export default function AccountsPage() {
       {/* Loading skeleton */}
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[1,2,3].map(i => (
+          {[1, 2, 3].map(i => (
             <div key={i} className="h-40 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
           ))}
         </div>
       )}
 
-      {/* Account grid */}
+      {/* Empty state */}
       {!loading && accounts.length === 0 && !error && (
         <div className="text-center py-16 space-y-3">
           <div className="text-4xl">☁️</div>
@@ -131,6 +144,7 @@ export default function AccountsPage() {
         </div>
       )}
 
+      {/* Account grid */}
       {!loading && accounts.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {accounts.map(account => (
@@ -138,9 +152,24 @@ export default function AccountsPage() {
               key={account.account_id}
               account={account}
               onRefresh={fetchAccounts}
+              onConfigure={handleConfigure}
             />
           ))}
         </div>
+      )}
+
+      {/* Capability configure wizard — opened when user clicks "Configure" on a dormant card */}
+      {configuringAccount && (
+        <OnboardingWizard
+          initialConfig={{
+            accountId:   configuringAccount.account_id,
+            accountType: configuringAccount.account_type,
+            accountName: configuringAccount.account_name,
+            tenantId:    configuringAccount.tenant_id,
+          }}
+          onComplete={handleConfigureComplete}
+          onCancel={() => setConfiguringAccount(null)}
+        />
       )}
     </div>
   );

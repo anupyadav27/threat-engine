@@ -194,7 +194,7 @@ def list_cloud_accounts(
 def get_active_accounts_for_tenant(tenant_id: str) -> List[Dict[str, Any]]:
     """Return all cloud accounts for the tenant that are eligible for scanning.
 
-    Eligible means: not deleted, not INACTIVE, and credential_validation_status = 'pass'.
+    Eligible means: not deleted, not INACTIVE, and credential_validation_status = 'valid'.
     All other accounts are returned in a separate skipped list by the caller.
 
     Args:

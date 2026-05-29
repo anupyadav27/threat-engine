@@ -1,27 +1,49 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
-  ArrowLeft, ArrowRight, Copy, Check, Shield, Database, Network,
-  AlertTriangle, CheckCircle, Crosshair, Zap, ChevronDown, ChevronRight,
-  Plus, Minus, RefreshCw, Box, ClipboardCheck, Globe, ExternalLink,
-  KeyRound, Server, HardDrive, MessageSquare, Activity, Brain, MapPin, Tag,
+  ArrowLeft,
+  ArrowRight,
+  Copy,
+  Check,
+  Shield,
   Lock,
+  Database,
+  Network,
+  AlertTriangle,
+  CheckCircle,
+  Crosshair,
+  Zap,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Minus,
+  RefreshCw,
+  Box,
+  Key,
+  ClipboardCheck,
+  Globe,
+  ExternalLink,
+  KeyRound,
+  Server,
+  HardDrive,
+  MessageSquare,
+  Activity,
+  Brain,
 } from 'lucide-react';
 import { getFromEngine, fetchView } from '@/lib/api';
-import { RESOURCE_DOMAINS } from '@/lib/inventory-taxonomy';
+import {
+  RESOURCE_DOMAINS,
+} from '@/lib/inventory-taxonomy';
 import DataTable from '@/components/shared/DataTable';
+import SeverityBadge from '@/components/shared/SeverityBadge';
 import StatusIndicator from '@/components/shared/StatusIndicator';
+import CloudServiceIcon from '@/components/shared/CloudServiceIcon';
 import DriftTimeline from '@/components/shared/DriftTimeline';
 import ComplianceFindingDetail from '@/components/shared/ComplianceFindingDetail';
 import PostureTabs from './PostureTabs';
-import CspIcon from '@/components/shared/CspIcon';
-import {
-  SeverityBadge, FindingsBar, AttackPathBadge, CrownJewelBadge,
-  ChokepointBadge, ExposureBadge, RiskScore,
-} from '@/components/shared/SecurityBadges';
 
 const DOMAIN_ICON_MAP = {
   KeyRound, Network, Shield, Server, Box, Zap, HardDrive, Database,
@@ -67,6 +89,9 @@ export default function AssetDetailPage() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
   const [copiedId, setCopiedId] = useState(false);
+  const [cdrData, setCiemData] = useState(null);
+  const [cdrLoading, setCiemLoading] = useState(false);
+  const [cdrError, setCiemError] = useState(null); // null | 'forbidden' | 'error'
 
   // Fetch asset details via BFF (parallel cross-engine enrichment), with
   // blast-radius as a separate call since it's a heavier graph query.
@@ -86,30 +111,33 @@ export default function AssetDetailPage() {
 
         const bffData = bffRes.status === 'fulfilled' ? bffRes.value : null;
 
-        // Fallback: call DI engine via gateway when BFF fails
+        // Fallback to direct engine calls if BFF fails
         if (!bffData || bffData.error) {
-          const assetRes = await Promise.allSettled([
-            getFromEngine('gateway', `/api/v1/di/assets/${encoded}`),
+          const [assetRes, driftRes] = await Promise.allSettled([
+            getFromEngine('inventory', `/api/v1/inventory/assets/${encoded}`),
+            getFromEngine('inventory', `/api/v1/inventory/assets/${encoded}/drift`, { limit: 20 }),
           ]);
 
-          const assetData = assetRes[0].status === 'fulfilled' ? assetRes[0].value : null;
+          const assetData = assetRes.status === 'fulfilled' ? assetRes.value : null;
           if (!assetData || assetData.error) {
             setError(assetData?.error || 'Asset not found');
             setLoading(false);
             return;
           }
           const base = assetData.asset || assetData;
+          const driftData = driftRes.status === 'fulfilled' ? driftRes.value : null;
           const blastRaw = blastRes.status === 'fulfilled' ? blastRes.value : null;
 
           setAsset({
             ...base,
             resource_id: base.resource_uid || base.resource_id || assetId,
-            resource_name: base.resource_name || base.resource_uid?.split('/').pop() || assetId,
+            resource_name: base.metadata?.name || base.resource_uid?.split('/').pop() || base.resource_id || assetId,
             resource_type: base.resource_type || '',
-            service: base.service || '',
+            service: base.service || (base.resource_type ? base.resource_type.split('::')[1]?.toLowerCase() : '') || '',
             provider: (base.provider || 'aws').toLowerCase(),
             tags: base.tags || {},
-            posture: {},
+            config: (base.config && Object.keys(base.config).length > 0) ? base.config : {},
+            drift_info: driftData?.drift_info || base.drift_info || null,
             blast_radius: normalizeBlastData(blastRaw, assetId),
           });
           setLoading(false);
@@ -138,7 +166,6 @@ export default function AssetDetailPage() {
           compliance: bffData.compliance_findings || [],
           drift_info: bffData.drift || base.drift_info || null,
           blast_radius: normalizeBlastData(blastRaw, assetId),
-          posture: bffData.posture || {},
         });
       } catch (err) {
         setError(err?.message || 'Failed to load asset details');
@@ -149,6 +176,31 @@ export default function AssetDetailPage() {
 
     loadAsset();
   }, [assetId]);
+
+  // Fetch CDR data on-demand when the CDR tab is activated
+  useEffect(() => {
+    if (activeTab !== 'cdr' || !assetId || cdrData !== null || cdrLoading) return;
+    setCiemLoading(true);
+    setCiemError(null);
+    const encoded = encodeURIComponent(assetId);
+    fetchView(`inventory/asset/${encoded}/cdr`)
+      .then((data) => {
+        if (data?.detail?.toLowerCase().includes('analyst')) {
+          setCiemError('forbidden');
+        } else {
+          setCiemData(data);
+        }
+        setCiemLoading(false);
+      })
+      .catch((err) => {
+        if (err?.status === 403 || err?.response?.status === 403) {
+          setCiemError('forbidden');
+        } else {
+          setCiemError('error');
+        }
+        setCiemLoading(false);
+      });
+  }, [activeTab, assetId, cdrData, cdrLoading]);
 
   // Copy to clipboard helper
   const copyToClipboard = (text) => {
@@ -551,132 +603,12 @@ export default function AssetDetailPage() {
     }
   };
 
-  const posture = asset.posture || {};
-  const sidebarCardStyle = { backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' };
-
   return (
-    <div style={{ display: 'flex', gap: 20, alignItems: 'flex-start' }}>
-      {/* ── LEFT SIDEBAR ── sticky identity + signals panel */}
-      <aside style={{ width: 220, flexShrink: 0, position: 'sticky', top: 72, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Identity card */}
-        <div className="rounded-xl border p-4" style={sidebarCardStyle}>
-          <div className="flex items-center gap-2 mb-3">
-            <CspIcon provider={asset.provider} size={20} />
-            <div style={{ minWidth: 0 }}>
-              <p className="font-semibold text-sm truncate" style={{ color: 'var(--text-primary)' }} title={asset.resource_name}>
-                {asset.resource_name}
-              </p>
-              <p className="text-[10px] truncate" style={{ color: 'var(--text-muted)' }}>{asset.resource_type}</p>
-            </div>
-          </div>
-          <div className="space-y-1.5 text-xs" style={{ color: 'var(--text-secondary)' }}>
-            <div className="flex items-center gap-1.5">
-              <MapPin className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
-              <span className="truncate">{asset.region || '—'}</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <Tag className="w-3 h-3 flex-shrink-0" style={{ color: 'var(--text-muted)' }} />
-              <span className="truncate">{(asset.service || '').toUpperCase() || '—'}</span>
-            </div>
-            {asset.account_id && (
-              <p className="font-mono text-[10px] pt-0.5" style={{ color: 'var(--text-muted)' }}>
-                ···{String(asset.account_id).slice(-6)}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Risk Score */}
-        <div className="rounded-xl border p-4" style={sidebarCardStyle}>
-          <p className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Risk Score</p>
-          <div className="flex items-center gap-2">
-            <span
-              className="text-3xl font-bold tabular-nums"
-              style={{ color: getSeverityColor(posture.overall_posture_score >= 70 ? 'critical' : posture.overall_posture_score >= 50 ? 'high' : posture.overall_posture_score >= 30 ? 'medium' : 'low') }}
-            >
-              {posture.overall_posture_score ?? asset.risk_score ?? '—'}
-            </span>
-            <span className="text-xs" style={{ color: 'var(--text-muted)' }}>/100</span>
-          </div>
-          {posture.posture_vector && (
-            <p className="text-[10px] font-mono mt-1 truncate" style={{ color: 'var(--text-muted)' }} title={posture.posture_vector}>
-              {posture.posture_vector}
-            </p>
-          )}
-        </div>
-
-        {/* Signals */}
-        <div className="rounded-xl border p-4" style={sidebarCardStyle}>
-          <p className="text-[10px] uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Signals</p>
-          <div className="space-y-2">
-            {[
-              { label: 'Internet Exposed',   value: posture.is_internet_exposed,   danger: true  },
-              { label: 'On Attack Path',      value: posture.is_on_attack_path,     danger: true  },
-              { label: 'Crown Jewel',         value: posture.is_crown_jewel,        danger: false },
-              { label: 'Choke Point',         value: posture.is_choke_point,        danger: false },
-              { label: 'Admin Role',          value: posture.is_admin_role,         danger: true  },
-              { label: 'Wildcard Policy',     value: posture.role_has_wildcard_policy, danger: true },
-              { label: 'Active CDR Actor',    value: posture.has_active_cdr_actor,  danger: true  },
-              { label: 'Encrypted at Rest',   value: posture.is_encrypted_at_rest,  danger: false, invert: true },
-              { label: 'MFA Enforced',        value: posture.mfa_enforced,          danger: false, invert: true },
-            ].filter(({ value }) => value !== null && value !== undefined).map(({ label, value, danger, invert }) => {
-              const isActive = Boolean(value);
-              const isRed = invert ? !isActive : (isActive && danger);
-              const isGreen = invert ? isActive : (!danger && isActive);
-              const dotColor = isRed ? 'var(--accent-danger)' : isGreen ? 'var(--accent-success)' : isActive ? '#60a5fa' : 'var(--text-muted)';
-              return (
-                <div key={label} className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] truncate" style={{ color: 'var(--text-secondary)' }}>{label}</span>
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: isActive ? dotColor : 'var(--bg-tertiary)', border: `1px solid ${isActive ? dotColor : 'var(--border-primary)'}` }}
-                  />
-                </div>
-              );
-            })}
-            {posture.blast_radius_count > 0 && (
-              <div className="flex items-center justify-between gap-2 pt-1 mt-1 border-t" style={{ borderColor: 'var(--border-primary)' }}>
-                <span className="text-[11px]" style={{ color: 'var(--text-secondary)' }}>Blast Radius</span>
-                <span className="text-[11px] font-semibold tabular-nums" style={{ color: 'var(--accent-warning)' }}>
-                  {posture.blast_radius_count}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Findings summary */}
-        {(asset.findings?.critical > 0 || asset.findings?.high > 0 || asset.findings?.medium > 0 || asset.findings?.low > 0) && (
-          <div className="rounded-xl border p-4" style={sidebarCardStyle}>
-            <p className="text-[10px] uppercase tracking-wide mb-3" style={{ color: 'var(--text-muted)' }}>Findings</p>
-            <FindingsBar findings={asset.findings} />
-          </div>
-        )}
-
-        {/* Timeline */}
-        <div className="rounded-xl border p-4" style={sidebarCardStyle}>
-          <p className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--text-muted)' }}>Timeline</p>
-          <div className="space-y-2 text-[11px]">
-            {[
-              { label: 'First Seen',    value: asset.created_at || asset.first_seen_at },
-              { label: 'Last Scanned',  value: asset.last_scanned || asset.last_seen_at },
-              { label: 'Last Modified', value: asset.last_modified },
-            ].map(({ label, value }) => value && (
-              <div key={label}>
-                <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-                <p style={{ color: 'var(--text-secondary)' }}>{new Date(value).toLocaleDateString()}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </aside>
-
-      {/* ── RIGHT MAIN CONTENT ─────────────────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0 }} className="space-y-4">
-
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-start gap-3">
-        <button
+      <div className="flex items-start justify-between">
+        <div className="flex items-start gap-4 flex-1">
+          <button
             onClick={() => router.push('/inventory')}
             className="mt-1 p-1 rounded-lg transition-colors"
             style={{ backgroundColor: 'transparent' }}
@@ -725,28 +657,90 @@ export default function AssetDetailPage() {
           </div>
         </div>
 
+        {/* Quick Info Cards */}
+        <div className="grid grid-cols-2 gap-3 min-w-max">
+          <div
+            className="rounded-lg p-3 border"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              Risk Score
+            </p>
+            <p
+              className="text-2xl font-bold"
+              style={{ color: getSeverityColor(asset.risk_score >= 70 ? 'critical' : asset.risk_score >= 50 ? 'high' : asset.risk_score >= 30 ? 'medium' : 'low') }}
+            >
+              {asset.risk_score}%
+            </p>
+          </div>
+          <div
+            className="rounded-lg p-3 border"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              Misconfigurations
+            </p>
+            <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+              {(asset.findings?.critical || 0) + (asset.findings?.high || 0) + (asset.findings?.medium || 0)}
+            </p>
+          </div>
+          <div
+            className="rounded-lg p-3 border"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              Owner
+            </p>
+            <p className="text-sm font-semibold" style={{ color: 'var(--text-secondary)' }}>
+              {asset.owner || '—'}
+            </p>
+          </div>
+          <div
+            className="rounded-lg p-3 border"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+              Account
+            </p>
+            <p className="text-sm font-semibold font-mono" style={{ color: 'var(--text-secondary)' }}>
+              {asset.account_id}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Tabs */}
       <div style={{ borderBottomColor: 'var(--border-primary)' }} className="border-b">
-        <div className="flex gap-1 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-          {[
-            { id: 'overview',      label: 'Overview'     },
-            { id: 'blast-radius',  label: 'Blast Radius' },
-            { id: 'compliance',    label: 'Compliance'   },
-            { id: 'drift',         label: 'Drift'        },
-            { id: 'configuration', label: 'Config'       },
-            { id: 'posture',       label: 'Posture'      },
-          ].map(({ id, label }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 whitespace-nowrap ${
-                activeTab === id ? 'border-blue-500' : 'border-transparent'
-              }`}
-              style={{ color: activeTab === id ? 'var(--accent-primary)' : 'var(--text-tertiary)' }}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="flex gap-1">
+          {['overview', 'configuration', 'misconfigurations', 'threats', 'cdr', 'blast-radius', 'compliance', 'drift', 'posture'].map(
+            (tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+                  activeTab === tab ? 'border-blue-500' : 'border-transparent'
+                }`}
+                style={{
+                  color:
+                    activeTab === tab ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                }}
+              >
+                {tab === 'blast-radius' ? 'Blast Radius' : tab === 'cdr' ? 'CDR' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            )
+          )}
         </div>
       </div>
 
@@ -880,8 +874,40 @@ export default function AssetDetailPage() {
             )}
           </div>
 
+          {/* Metadata */}
+          <div
+            className="rounded-lg p-6 border"
+            style={{
+              backgroundColor: 'var(--bg-card)',
+              borderColor: 'var(--border-primary)',
+            }}
+          >
+            <h3 className="text-lg font-semibold mb-4" style={{ color: 'var(--text-primary)' }}>
+              Timeline
+            </h3>
+            <div className="space-y-3 text-sm">
+              <div>
+                <p style={{ color: 'var(--text-tertiary)' }}>Created</p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  {asset.created_at ? new Date(asset.created_at).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p style={{ color: 'var(--text-tertiary)' }}>Last Modified</p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  {asset.last_modified ? new Date(asset.last_modified).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p style={{ color: 'var(--text-tertiary)' }}>Last Scanned</p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  {asset.last_scanned ? new Date(asset.last_scanned).toLocaleDateString() : 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+        </div>
       )}
 
       {activeTab === 'configuration' && (() => {
@@ -897,7 +923,7 @@ export default function AssetDetailPage() {
           return String(v);
         };
 
-        const emitted = asset.emitted_fields || {};
+        const emitted = asset.metadata?.emitted_fields || {};
         const entries = Object.entries(emitted).filter(([k]) => !isSkip(k));
 
         return (
@@ -936,6 +962,37 @@ export default function AssetDetailPage() {
         );
       })()}
 
+      {activeTab === 'misconfigurations' && (
+        <div
+          className="rounded-lg p-6 border"
+          style={{
+            backgroundColor: 'var(--bg-card)',
+            borderColor: 'var(--border-primary)',
+          }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+              Misconfigurations
+            </h2>
+            <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">
+              {asset.findings_detail?.length || 0} misconfigurations
+            </span>
+          </div>
+          {asset.findings_detail && asset.findings_detail.length > 0 ? (
+            <DataTable
+              data={asset.findings_detail}
+              columns={findingsColumns}
+              pageSize={10}
+              loading={loading}
+              emptyMessage="No misconfigurations found"
+            />
+          ) : (
+            <div className="text-center py-8" style={{ color: 'var(--text-tertiary)' }}>
+              No misconfigurations found
+            </div>
+          )}
+        </div>
+      )}
 
       {activeTab === 'compliance' && (
         <div
@@ -983,6 +1040,208 @@ export default function AssetDetailPage() {
         <DriftTimeline drift={asset.drift_info} service={asset.service} />
       )}
 
+      {activeTab === 'threats' && (
+        <div className="space-y-4">
+          {/* Threat Severity Summary */}
+          {asset.threat_severity && (
+            <div className="grid grid-cols-4 gap-3">
+              {[
+                { label: 'Critical', key: 'critical', color: 'var(--accent-danger)' },
+                { label: 'High', key: 'high', color: 'var(--accent-warning)' },
+                { label: 'Medium', key: 'medium', color: '#f59e0b' },
+                { label: 'Low', key: 'low', color: 'var(--accent-success)' },
+              ].map((item) => (
+                <div
+                  key={item.key}
+                  className="rounded-lg p-4 border"
+                  style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+                >
+                  <div className="text-2xl font-bold mb-1" style={{ color: item.color }}>
+                    {asset.threat_severity[item.key] || 0}
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                    {item.label} Threats
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Cross-navigation links to Threats module */}
+          <div
+            className="flex items-center gap-4 rounded-lg px-4 py-3 border"
+            style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}
+          >
+            <span className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
+              Explore:
+            </span>
+            <Link
+              href={`/attack-paths`}
+              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              Attack Paths <ArrowRight className="w-3 h-3" />
+            </Link>
+            <button
+              onClick={() => setActiveTab('blast-radius')}
+              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              Blast Radius <ArrowRight className="w-3 h-3" />
+            </button>
+            <Link
+              href="/attack-paths"
+              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
+              style={{ color: 'var(--accent-primary)' }}
+            >
+              Attack Paths <ArrowRight className="w-3 h-3" />
+            </Link>
+          </div>
+
+          <div
+            className="rounded-lg p-6 border"
+            style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Zap className="w-5 h-5" style={{ color: 'var(--accent-warning)' }} />
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+                  Threat Findings
+                </h2>
+              </div>
+              <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">
+                {asset.threats?.length || 0} threats
+              </span>
+            </div>
+            {asset.threats && asset.threats.length > 0 ? (
+              <DataTable
+                data={asset.threats}
+                columns={threatColumns}
+                pageSize={10}
+                loading={loading}
+                emptyMessage="No threats found"
+              />
+            ) : (
+              <div className="text-center py-8" style={{ color: 'var(--text-tertiary)' }}>
+                No threat findings for this resource
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'cdr' && (
+        <div className="rounded-xl border p-6 space-y-5" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+          <div className="flex items-center gap-2 mb-2">
+            <Key className="w-5 h-5" style={{ color: 'var(--accent-primary)' }} />
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>CDR / Identity Risk</h2>
+          </div>
+
+          {cdrLoading && (
+            <div className="space-y-2 animate-pulse">
+              <div className="h-16 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }} />
+              {[1,2,3].map((n) => <div key={n} className="h-10 rounded" style={{ backgroundColor: 'var(--bg-secondary)' }} />)}
+            </div>
+          )}
+
+          {cdrError === 'forbidden' && (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Lock className="w-10 h-10" style={{ color: 'var(--text-muted)' }} />
+              <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
+                You need Analyst access to view identity entitlements
+              </p>
+              <Link
+                href="/settings/access"
+                className="text-sm font-medium hover:opacity-80"
+                style={{ color: 'var(--accent-primary)' }}
+              >
+                Request Access →
+              </Link>
+            </div>
+          )}
+
+          {cdrError === 'error' && (
+            <div className="flex items-center gap-2 py-6 justify-center" style={{ color: 'var(--text-muted)' }}>
+              <AlertTriangle className="w-5 h-5" />
+              <span className="text-sm">Could not load identity data. Try again later.</span>
+            </div>
+          )}
+
+          {!cdrLoading && !cdrError && cdrData && (
+            <>
+              {/* KPI strip */}
+              <div className="flex gap-4 flex-wrap">
+                <div className="px-4 py-3 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Total Identities</p>
+                  <p className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>{cdrData.totalIdentities ?? 0}</p>
+                </div>
+                <div className="px-4 py-3 rounded-lg" style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                  <p className="text-xs mb-0.5" style={{ color: 'var(--text-muted)' }}>Over-Privileged</p>
+                  <p className="text-2xl font-bold" style={{ color: cdrData.overPrivilegedCount > 0 ? '#ef4444' : 'var(--text-primary)' }}>
+                    {cdrData.overPrivilegedCount ?? 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* Identity table */}
+              {cdrData.identities?.length > 0 ? (
+                <div className="overflow-x-auto rounded-lg border" style={{ borderColor: 'var(--border-primary)' }}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
+                        {['Identity ARN', 'Type', 'Privilege', 'Last Used', 'Risk Score'].map((h) => (
+                          <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {cdrData.identities.map((identity, idx) => {
+                        const privColors = { admin: '#ef4444', power: '#f97316', readonly: 'var(--text-muted)' };
+                        return (
+                          <tr key={identity.identity_arn || idx} className="border-t" style={{ borderColor: 'var(--border-primary)' }}>
+                            <td className="px-4 py-3 font-mono text-xs truncate max-w-xs" style={{ color: 'var(--text-secondary)' }} title={identity.identity_arn}>
+                              {identity.identity_arn}
+                            </td>
+                            <td className="px-4 py-3 text-xs capitalize" style={{ color: 'var(--text-secondary)' }}>{identity.identity_type}</td>
+                            <td className="px-4 py-3">
+                              <span className="text-xs font-semibold capitalize" style={{ color: privColors[identity.privilege_level] || 'var(--text-secondary)' }}>
+                                {identity.privilege_level}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
+                              {identity.last_used_days != null ? `${identity.last_used_days}d ago` : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-xs font-bold tabular-nums" style={{ color: identity.risk_score >= 75 ? '#ef4444' : identity.risk_score >= 50 ? '#f97316' : 'var(--text-secondary)' }}>
+                                {identity.risk_score}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm py-6 text-center" style={{ color: 'var(--text-muted)' }}>
+                  No identity activity found for this resource
+                </p>
+              )}
+
+              {cdrData.truncated && (
+                <Link
+                  href={`/cdr?resource_uid=${encodeURIComponent(assetId)}`}
+                  className="inline-flex items-center gap-1 text-sm font-medium hover:opacity-80"
+                  style={{ color: 'var(--accent-primary)' }}
+                >
+                  See all in CDR <ArrowRight className="w-4 h-4" />
+                </Link>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {activeTab === 'blast-radius' && (
         <BlastRadiusView
           blastData={asset.blast_radius}
@@ -997,7 +1256,6 @@ export default function AssetDetailPage() {
           resourceType={asset.resource_type || ''}
         />
       )}
-      </div>
     </div>
   );
 }

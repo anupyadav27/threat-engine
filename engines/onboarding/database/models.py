@@ -322,8 +322,8 @@ class ScanRun(Base):
         }
     overall_status auto-set to "completed" when all engines_requested are done.
     """
-    # NOTE (2026-05-03): Was incorrectly declared as 'scan_runs'.
-    # Confirmed: RDS table is 'scan_orchestration' — used by all Argo templates and engines.
+    # scan_runs IS the correct RDS table name — used by all live code and Argo templates.
+    # (An earlier comment here incorrectly claimed the table was 'scan_orchestration' — that is stale.)
     __tablename__ = 'scan_runs'
 
     scan_run_id     = Column(UUID(as_uuid=True), primary_key=True,

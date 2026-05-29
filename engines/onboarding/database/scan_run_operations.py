@@ -205,6 +205,40 @@ def mark_scan_run_started(scan_run_id: str) -> None:
         conn.close()
 
 
+def count_scan_runs(
+    account_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    customer_id: Optional[str] = None,
+    status: Optional[str] = None,
+) -> int:
+    """Return COUNT(*) of scan_runs matching the given filters."""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        query = "SELECT COUNT(*) FROM scan_runs WHERE 1=1"
+        params: List[Any] = []
+
+        if account_id:
+            query += " AND account_id = %s"
+            params.append(account_id)
+        if tenant_id:
+            query += " AND tenant_id = %s"
+            params.append(tenant_id)
+        if customer_id:
+            query += " AND customer_id = %s"
+            params.append(customer_id)
+        if status:
+            query += " AND overall_status = %s"
+            params.append(status)
+
+        cur.execute(query, params)
+        row = cur.fetchone()
+        return row[0] if row else 0
+    finally:
+        cur.close()
+        conn.close()
+
+
 def mark_scan_run_completed(
     scan_run_id: str,
     success: bool,

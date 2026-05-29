@@ -159,7 +159,7 @@ async def run_all_scans(
             skipped.append(SkippedAccount(account_id=account_id, reason="INACTIVE credential"))
             continue
 
-        if cred_status.lower() != "pass":
+        if cred_status.lower() not in ("valid", "pass"):
             skipped.append(
                 SkippedAccount(
                     account_id=account_id,

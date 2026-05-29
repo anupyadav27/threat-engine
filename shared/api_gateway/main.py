@@ -115,7 +115,7 @@ SERVICE_ROUTES = {
     "onboarding": {
         "url": os.getenv("ONBOARDING_ENGINE_URL", "http://engine-onboarding:8008"),
         "prefix": "/api/v1/cloud-accounts",
-        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules", "/api/v1/agent", "/api/v1/onboarding"],
+        "prefixes": ["/api/v1/cloud-accounts", "/api/v1/scan-runs", "/api/v1/scans", "/api/v1/accounts", "/api/v1/tenants", "/api/v1/schedules", "/api/v1/agent", "/api/v1/onboarding"],
         "health_endpoint": "/api/v1/health"
     },
     "compliance": {

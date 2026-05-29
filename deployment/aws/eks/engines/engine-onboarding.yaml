@@ -25,7 +25,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
       - name: engine-onboarding
-        image: yadavanup84/threat-engine-onboarding-api:v-onboarding-auth1
+        image: yadavanup84/threat-engine-onboarding-api:v-onboarding-fix4
         imagePullPolicy: Always
         ports:
         - containerPort: 8008
@@ -57,42 +57,6 @@ spec:
             configMapKeyRef:
               name: platform-config
               key: aws-account-id
-        - name: DYNAMODB_TENANTS_TABLE
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: dynamodb-tenants-table
-              optional: true
-        - name: DYNAMODB_PROVIDERS_TABLE
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: dynamodb-providers-table
-              optional: true
-        - name: DYNAMODB_ACCOUNTS_TABLE
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: dynamodb-accounts-table
-              optional: true
-        - name: DYNAMODB_SCHEDULES_TABLE
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: dynamodb-schedules-table
-              optional: true
-        - name: DYNAMODB_EXECUTIONS_TABLE
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: dynamodb-executions-table
-              optional: true
-        - name: DYNAMODB_SCAN_RESULTS_TABLE
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: dynamodb-scan-results-table
-              optional: true
         - name: X_INTERNAL_SECRET
           valueFrom:
             secretKeyRef:
@@ -235,69 +199,67 @@ spec:
   selector:
     app: engine-onboarding
 ---
-# BUG-07 fix: Celery beat scheduler Deployment — fires the weekly credential
-# expiry health-check task.  MUST remain replicas: 1 (singleton); multiple
-# beat pods would submit the same task multiple times.
-apiVersion: apps/v1
-kind: Deployment
+# Weekly credential expiry health-check CronJob.
+# Replaces the former Celery beat Deployment — no Celery broker or worker is
+# deployed in this cluster. The task function is invoked directly via Python.
+# Schedule: every Monday at 03:00 UTC (matches original celery_app.py beat_schedule).
+apiVersion: batch/v1
+kind: CronJob
 metadata:
-  name: engine-onboarding-celery-beat
+  name: onboarding-credential-health-check
   namespace: threat-engine-engines
   labels:
-    app: engine-onboarding-celery-beat
+    app: onboarding-credential-health-check
     tier: engine
 spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: engine-onboarding-celery-beat
-  template:
-    metadata:
-      labels:
-        app: engine-onboarding-celery-beat
-        tier: engine
+  schedule: "0 3 * * 1"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
     spec:
-      serviceAccountName: engine-sa
-      containers:
-      - name: celery-beat
-        image: yadavanup84/threat-engine-onboarding-api:v-onboarding-auth1
-        command: ["celery", "-A", "engine_onboarding.celery_app", "beat", "--loglevel=info"]
-        envFrom:
-        - configMapRef:
-            name: threat-engine-db-config
-        - secretRef:
-            name: threat-engine-db-passwords
-        env:
-        - name: AWS_REGION
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: aws-region
-        - name: DATABASE_URL
-          valueFrom:
-            configMapKeyRef:
-              name: platform-config
-              key: database-url
-        - name: SHARED_DB_NAME
-          value: "threat_engine_onboarding"
-        - name: DB_SCHEMA
-          value: "public"
-        - name: FROM_EMAIL
-          valueFrom:
-            secretKeyRef:
-              name: threat-engine-secrets
-              key: FROM_EMAIL
-              optional: true
-        - name: PLATFORM_ADMIN_EMAIL
-          valueFrom:
-            secretKeyRef:
-              name: threat-engine-secrets
-              key: PLATFORM_ADMIN_EMAIL
-              optional: true
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "100m"
-          limits:
-            memory: "512Mi"
-            cpu: "200m"
+      template:
+        metadata:
+          labels:
+            app: onboarding-credential-health-check
+            tier: engine
+        spec:
+          serviceAccountName: engine-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: credential-health-check
+            image: yadavanup84/threat-engine-onboarding-api:v-onboarding-fix4
+            command:
+              - python
+              - -c
+              - "from engine_onboarding.tasks.credential_health_check import run_credential_health_check; run_credential_health_check()"
+            envFrom:
+            - configMapRef:
+                name: threat-engine-db-config
+            - secretRef:
+                name: threat-engine-db-passwords
+            env:
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: platform-config
+                  key: aws-region
+            - name: FROM_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-secrets
+                  key: FROM_EMAIL
+                  optional: true
+            - name: PLATFORM_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-secrets
+                  key: PLATFORM_ADMIN_EMAIL
+                  optional: true
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "100m"
+              limits:
+                memory: "512Mi"
+                cpu: "200m"

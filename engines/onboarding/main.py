@@ -9,7 +9,7 @@ import uvicorn
 import asyncio
 import os
 
-from engine_onboarding.api import cloud_accounts_router, health_router, internal_router, tenants_router, schedules_router, scan_runs_router, scans_adhoc_router, reference_router
+from engine_onboarding.api import cloud_accounts_router, health_router, internal_router, tenants_router, schedules_router, scan_runs_router, scans_adhoc_router, reference_router, scans_router
 try:
     from engine_onboarding.api.agents import router as agents_router
     _AGENTS_ROUTER_AVAILABLE = True
@@ -118,6 +118,7 @@ app.include_router(cloud_accounts_router)
 app.include_router(schedules_router)
 app.include_router(scan_runs_router)
 app.include_router(scans_adhoc_router)
+app.include_router(scans_router)
 if _AGENTS_ROUTER_AVAILABLE and agents_router:
     app.include_router(agents_router)
 

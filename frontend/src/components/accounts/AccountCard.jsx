@@ -1,22 +1,109 @@
 'use client';
 
 import { useState } from 'react';
-import { Play, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, Loader2, MoreHorizontal } from 'lucide-react';
+import { Play, Calendar, Clock, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { PROVIDER_COLORS } from '@/lib/catalog';
 import ScheduleModal from '@/components/onboarding/ScheduleModal';
 
 const STATUS_STYLES = {
-  active:      { icon: CheckCircle2,  color: '#22c55e',  label: 'Active' },
-  inactive:    { icon: AlertCircle,   color: '#f59e0b',  label: 'Inactive' },
-  error:       { icon: XCircle,       color: '#ef4444',  label: 'Error' },
-  validating:  { icon: Loader2,       color: '#60a5fa',  label: 'Validating' },
-  pending:     { icon: Clock,         color: '#94a3b8',  label: 'Pending' },
+  active:      { icon: CheckCircle2, color: '#22c55e', label: 'Active' },
+  inactive:    { icon: AlertCircle,  color: '#f59e0b', label: 'Inactive' },
+  error:       { icon: XCircle,      color: '#ef4444', label: 'Error' },
+  validating:  { icon: Loader2,      color: '#60a5fa', label: 'Validating' },
+  pending:     { icon: Clock,        color: '#94a3b8', label: 'Pending' },
 };
 
-export default function AccountCard({ account, onRefresh }) {
+const DORMANT_META = {
+  vulnerability: { icon: '🔍', label: 'Vulnerability Scanner', desc: 'Agent-based CVE scanning & SBOM' },
+  database:      { icon: '🗄️', label: 'Database Security',     desc: 'CIS benchmark checks for DB engines' },
+  code_security: { icon: '🔒', label: 'Code Security',         desc: 'SAST / DAST / IaC scanning via Git' },
+  middleware:    { icon: '⚙️', label: 'Middleware Monitor',    desc: 'Application middleware security' },
+};
+
+function isDormantAccount(account) {
+  if (account.account_type === 'cloud_csp') return false;
+  const cvs = account.credential_validation_status;
+  return !cvs || cvs === 'pending' || cvs === 'not_configured';
+}
+
+// ── Dormant capability card ───────────────────────────────────────────────────
+
+function DormantCard({ account, onConfigure }) {
+  const meta = DORMANT_META[account.account_type] || { icon: '📦', label: account.account_type, desc: '' };
+
+  return (
+    <div
+      className="rounded-xl border p-4 space-y-3 transition-shadow"
+      style={{
+        backgroundColor: 'var(--bg-card)',
+        borderColor: 'rgba(148,163,184,0.2)',
+        borderStyle: 'dashed',
+        opacity: 0.82,
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center text-base flex-shrink-0"
+            style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)' }}
+          >
+            {meta.icon}
+          </div>
+          <div className="min-w-0">
+            <div className="text-sm font-semibold truncate" style={{ color: 'var(--text-primary)' }}>
+              {account.account_name || meta.label}
+            </div>
+            <div className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+              {meta.label}
+            </div>
+          </div>
+        </div>
+        <span
+          className="text-[10px] px-2 py-0.5 rounded-full font-medium flex-shrink-0"
+          style={{
+            backgroundColor: 'rgba(148,163,184,0.1)',
+            color: '#94a3b8',
+            border: '1px solid rgba(148,163,184,0.2)',
+          }}
+        >
+          Not Configured
+        </span>
+      </div>
+
+      {/* Description */}
+      <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>
+        {meta.desc}. Provisioned automatically — configure credentials to activate scanning.
+      </p>
+
+      {/* Configure button */}
+      <div className="pt-1 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+        <button
+          onClick={() => onConfigure?.(account)}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium hover:opacity-90 transition-opacity"
+          style={{
+            backgroundColor: 'rgba(139,92,246,0.12)',
+            color: '#a78bfa',
+            border: '1px solid rgba(139,92,246,0.25)',
+          }}
+        >
+          Configure →
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Active account card ───────────────────────────────────────────────────────
+
+export default function AccountCard({ account, onRefresh, onConfigure }) {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [runningNow, setRunningNow] = useState(false);
   const [runMsg, setRunMsg] = useState('');
+
+  if (isDormantAccount(account)) {
+    return <DormantCard account={account} onConfigure={onConfigure} />;
+  }
 
   const providerColor = PROVIDER_COLORS[account.provider] || '#6366f1';
   const statusStyle = STATUS_STYLES[account.account_status] || STATUS_STYLES.pending;
@@ -81,12 +168,16 @@ export default function AccountCard({ account, onRefresh }) {
 
       {/* Meta row */}
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-          style={{ backgroundColor: `${providerColor}15`, color: providerColor }}>
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+          style={{ backgroundColor: `${providerColor}15`, color: providerColor }}
+        >
           {account.provider?.toUpperCase()}
         </span>
-        <span className="text-[10px] px-1.5 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>
+        <span
+          className="text-[10px] px-1.5 py-0.5 rounded"
+          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}
+        >
           {account.account_type}
         </span>
         {account.last_scan_at && (
@@ -102,7 +193,12 @@ export default function AccountCard({ account, onRefresh }) {
           <Calendar size={11} />
           <span>{account.schedule.cron_expression}</span>
           {!account.schedule.enabled && (
-            <span className="px-1 rounded text-[9px]" style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>paused</span>
+            <span
+              className="px-1 rounded text-[9px]"
+              style={{ backgroundColor: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}
+            >
+              paused
+            </span>
           )}
         </div>
       )}
@@ -129,7 +225,10 @@ export default function AccountCard({ account, onRefresh }) {
         </button>
 
         {runMsg && (
-          <span className="text-[11px] ml-auto" style={{ color: runMsg === 'Scan triggered' ? '#22c55e' : '#ef4444' }}>
+          <span
+            className="text-[11px] ml-auto"
+            style={{ color: runMsg === 'Scan triggered' ? '#22c55e' : '#ef4444' }}
+          >
             {runMsg}
           </span>
         )}

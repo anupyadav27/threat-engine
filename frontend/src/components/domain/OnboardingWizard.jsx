@@ -1,18 +1,15 @@
 'use client';
 /**
- * OnboardingWizard — multi-step cloud/agent account onboarding
+ * OnboardingWizard — cloud account onboarding (cloud_csp primary flow)
  *
- * Account types:
- *   cloud_csp      — Cloud providers (AWS, Azure, GCP, OCI, AliCloud, IBM, K8s)
- *   database       — Self-hosted DB engines (postgres, mysql, mssql, mongodb, oracle)
- *   vulnerability  — Agent-based CVE / SBOM scanning (phones-home via token)
- *   code_security  — SAST / DAST / IaC scanning from a Git repository (GitHub/GitLab/Bitbucket)
- *   middleware     — Application middleware security monitoring (agent-based)
+ * The wizard is cloud-first: it always onboards a Cloud Provider account
+ * (AWS, Azure, GCP, OCI, AliCloud, IBM, K8s).  After launch, dormant
+ * capability records for Vulnerability, Database, Code Security, and
+ * Middleware are auto-provisioned so the user can activate them later
+ * without re-entering workspace/tenant context.
  *
- * Flows:
- *   cloud_csp / database  : 1 → 2 (credentials) → 3 (validate) → 4 (schedule) → 5 (summary)
- *   code_security         : 1 → 2 (git repo) → 3 (validate git) → 4 (schedule) → 5 (summary)
- *   vulnerability / middleware : 1 → 2 (agent install) → 4 (schedule) → 5 (summary)
+ * Flow: 1 (workspace + provider) → 2 (credentials) → 3 (validate)
+ *       → 4 (schedule) → 5 (summary + launch)
  */
 
 import { useState, useEffect } from 'react';
@@ -358,7 +355,7 @@ function Field({ def, value, onChange }) {
 
 // ── Step 1: Account type + provider selection ─────────────────────────────────
 
-function Step1({ form, setForm, onWorkspaceCreated, localTenants, providers, accountTypeOptions }) {
+function Step1({ form, setForm, onWorkspaceCreated, localTenants, providers, accountTypeOptions, activateMode }) {
   const isAgentType      = AGENT_ACCOUNT_TYPES.has(form.accountType);
   const isCodeSecurity   = form.accountType === 'code_security';
   const showCloudOrDb    = form.accountType === 'cloud_csp' || form.accountType === 'database';
@@ -379,10 +376,29 @@ function Step1({ form, setForm, onWorkspaceCreated, localTenants, providers, acc
     setForm(f => ({ ...f, accountType: key, provider: '', authMethod: '', credentials: {} }));
   }
 
+  const DORMANT_LABELS = { vulnerability: 'Vulnerability Scanner', database: 'Database Security', code_security: 'Code Security', middleware: 'Middleware Monitor' };
+
   return (
     <div className="space-y-5">
-      {/* Tenant */}
-      <div>
+      {/* Activate-mode banner — replaces workspace + account name when configuring a dormant account */}
+      {activateMode && (
+        <div className="flex items-start gap-3 p-3 rounded-lg"
+          style={{ backgroundColor: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)' }}>
+          <span className="text-base">⚙️</span>
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+              Configuring {DORMANT_LABELS[form.accountType] || form.accountType}
+            </p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+              Account: <span className="font-medium">{form.accountName}</span>
+              {' · '}Select your provider and enter credentials below.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tenant — hidden in activate mode (pre-filled) */}
+      {!activateMode && <div>
         <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Workspace <span className="text-red-400">*</span>
         </label>
@@ -409,55 +425,22 @@ function Step1({ form, setForm, onWorkspaceCreated, localTenants, providers, acc
             </button>
           </p>
         )}
-      </div>
+      </div>}
 
-      {/* Account name */}
+      {/* Account name — hidden in activate mode (pre-filled) */}
+      {!activateMode && (
       <div>
         <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
           Account Name <span className="text-red-400">*</span>
         </label>
         <input type="text" value={form.accountName} onChange={e => setForm(f => ({ ...f, accountName: e.target.value }))}
-          placeholder="e.g. Production AWS, Dev Vulnerability Scanner"
+          placeholder="e.g. Production AWS, Dev GCP, Staging Azure"
           className="w-full px-3 py-2 rounded-lg text-sm outline-none"
           style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-primary)', color: 'var(--text-primary)' }} />
       </div>
-
-      {/* Account type grid */}
-      <div>
-        <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
-          Account Type <span className="text-red-400">*</span>
-        </label>
-        <div className="grid grid-cols-3 gap-2">
-          {accountTypeOptions.map(opt => {
-            const selected = form.accountType === opt.key;
-            return (
-              <button key={opt.key} onClick={() => selectType(opt.key)}
-                className="flex flex-col gap-1 p-3 rounded-lg text-left transition-all"
-                style={{
-                  border: `2px solid ${selected ? 'var(--accent-primary)' : 'var(--border-primary)'}`,
-                  backgroundColor: selected ? 'rgba(59,130,246,0.08)' : 'var(--bg-tertiary)',
-                }}>
-                <span className="text-lg">{opt.icon}</span>
-                <span className="text-xs font-bold" style={{ color: selected ? 'var(--accent-primary)' : 'var(--text-primary)' }}>
-                  {opt.label}
-                </span>
-                <span className="text-[9px] leading-tight" style={{ color: 'var(--text-muted)' }}>{opt.desc}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Agent types: no further config needed in Step 1 */}
-      {isAgentType && form.accountType && (
-        <div className="flex items-start gap-3 p-3 rounded-lg text-xs"
-          style={{ backgroundColor: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.2)', color: 'var(--text-secondary)' }}>
-          <span className="text-base">📦</span>
-          <span>An install command will be generated in the next step. Deploy the agent in your target environment to begin scanning.</span>
-        </div>
       )}
 
-      {/* Provider grid — cloud_csp, database, or code_security (VCS) */}
+      {/* Provider grid — cloud provider selection */}
       {showProviders && (
         <div>
           <label className="block text-xs font-medium mb-2" style={{ color: 'var(--text-secondary)' }}>
@@ -601,7 +584,7 @@ function Step2({ form, setForm, providers }) {
 
 // ── Step 2 (agent types): Agent setup — create account + issue token ──────────
 
-function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken, setAgentToken, accountTypeOptions }) {
+function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken, setAgentToken, accountTypeOptions, preExistingAccountId }) {
   const [phase, setPhase]   = useState('creating'); // creating | ready | error
   const [error, setError]   = useState(null);
   const [copied, setCopied] = useState(false);
@@ -610,24 +593,33 @@ function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken,
     let cancelled = false;
     async function setup() {
       try {
-        // 1. Create account record
-        const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
-          customer_id:  customerId,
-          tenant_id:    form.tenantId,
-          account_name: form.accountName,
-          account_type: form.accountType,
-          provider:     'agent',
-        });
-        if (cancelled) return;
-        if (created.error || !created.account_id) {
-          setError(created.error || 'Failed to create account');
-          setPhase('error');
-          return;
-        }
-        const aid = created.account_id;
-        setAccountId(aid);
+        let aid = preExistingAccountId || accountId;
 
-        // 2. Issue agent bootstrap token
+        if (!aid) {
+          // Normal flow: create account record
+          const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', {
+            customer_id:  customerId,
+            tenant_id:    form.tenantId,
+            account_name: form.accountName,
+            account_type: form.accountType,
+            provider:     'agent',
+          });
+          if (cancelled) return;
+          if (created.error || !created.account_id) {
+            setError(created.error || 'Failed to create account');
+            setPhase('error');
+            return;
+          }
+          aid = created.account_id;
+          setAccountId(aid);
+        } else {
+          // Activate mode: account already exists, just re-issue the token
+          if (!cancelled) setAccountId(aid);
+        }
+
+        if (cancelled) return;
+
+        // Issue agent bootstrap token
         const tokenResp = await postToEngine('onboarding', `/api/v1/cloud-accounts/${aid}/agent-token`, {
           account_id:  aid,
           customer_id: customerId,
@@ -685,7 +677,7 @@ function AgentSetupStep({ form, customerId, accountId, setAccountId, agentToken,
           <p className="text-sm font-medium text-green-400">{typeLabel} account created</p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
             Account ID: <span className="font-mono">{accountId?.slice(0, 8)}…</span>
-            {' · '}Token expires in <span className="font-medium">{agentToken?.ttl_minutes || 15} minutes</span>
+            {' · '}Token expires in <span className="font-medium">{agentToken?.token_expires_in ? Math.round(agentToken.token_expires_in / 60) : 30} minutes</span>
           </p>
         </div>
       </div>
@@ -1034,14 +1026,17 @@ function Step5({ form, schedule, accountId, result, launching, launchError, prov
 
 // ── Wizard shell ──────────────────────────────────────────────────────────────
 
-export default function OnboardingWizard({ onComplete = () => {}, onCancel = () => {} }) {
+export default function OnboardingWizard({ onComplete = () => {}, onCancel = () => {}, initialConfig = null }) {
   const { customerId } = useTenant();
 
-  const [step, setStep] = useState(1);
+  // initialConfig = { accountId, accountType, accountName, tenantId } when activating a dormant account
+  const isActivateAgentType = !!(initialConfig && AGENT_ACCOUNT_TYPES.has(initialConfig.accountType));
+
+  const [step, setStep] = useState(isActivateAgentType ? 2 : 1);
   const [form, setForm] = useState({
-    tenantId:    '',
-    accountName: '',
-    accountType: '',
+    tenantId:    initialConfig?.tenantId    || '',
+    accountName: initialConfig?.accountName || '',
+    accountType: initialConfig ? initialConfig.accountType : 'cloud_csp',
     provider:    '',
     authMethod:  '',
     credentials: {},
@@ -1120,7 +1115,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   // Step 3 state (validation flow — CSP / DB / secops)
   const [validationSteps, setValidationSteps] = useState([]);
   const [result, setResult]                   = useState(null);
-  const [accountId, setAccountId]             = useState(null);
+  const [accountId, setAccountId]             = useState(initialConfig?.accountId || null);
 
   // Step 2 state (agent flow)
   const [agentToken, setAgentToken] = useState(null);
@@ -1148,41 +1143,48 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
     setResult(null);
 
     try {
-      // Build the account payload — VCS providers always send account_type=code_security
       const isVcs = VCS_PROVIDER_SET.has(form.provider);
-      const accountPayload = isVcs
-        ? {
-            customer_id:     customerId,
-            tenant_id:       form.tenantId,
-            account_name:    form.accountName,
-            account_type:    'code_security',               // hardcoded — not user-editable
-            provider:        form.provider,                  // github | gitlab | bitbucket
-            credential_type: form.authMethod,
-            auth_config: {
-              repo_url:       form.credentials.repo_url || '',
-              default_branch: form.credentials.default_branch || 'main',
-              vcs_platform:   form.provider,
-              scan_types:     ['sast'],
-            },
-          }
-        : {
-            customer_id:  customerId,
-            tenant_id:    form.tenantId,
-            account_name: form.accountName,
-            account_type: form.accountType,
-            provider:     form.provider,
-          };
 
-      const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', accountPayload);
+      // In activate mode accountId is already set — skip account creation
+      let aid = accountId;
 
-      if (created.error || !created.account_id) {
-        updateVStep(0, { status: 'error', detail: created.error || 'No account_id returned' });
-        setResult({ success: false, message: created.error || 'Failed to create account', errors: [] });
-        return;
+      if (!aid) {
+        // Normal flow: create the account record first
+        const accountPayload = isVcs
+          ? {
+              customer_id:     customerId,
+              tenant_id:       form.tenantId,
+              account_name:    form.accountName,
+              account_type:    'code_security',
+              provider:        form.provider,
+              credential_type: form.authMethod,
+              auth_config: {
+                repo_url:       form.credentials.repo_url || '',
+                default_branch: form.credentials.default_branch || 'main',
+                vcs_platform:   form.provider,
+                scan_types:     ['sast'],
+              },
+            }
+          : {
+              customer_id:  customerId,
+              tenant_id:    form.tenantId,
+              account_name: form.accountName,
+              account_type: form.accountType,
+              provider:     form.provider,
+            };
+
+        const created = await postToEngine('onboarding', '/api/v1/cloud-accounts', accountPayload);
+
+        if (created.error || !created.account_id) {
+          updateVStep(0, { status: 'error', detail: created.error || 'No account_id returned' });
+          setResult({ success: false, message: created.error || 'Failed to create account', errors: [] });
+          return;
+        }
+
+        aid = created.account_id;
+        setAccountId(aid);
       }
 
-      const aid = created.account_id;
-      setAccountId(aid);
       updateVStep(0, { status: 'done', detail: `ID: ${aid.slice(0, 8)}…` });
       updateVStep(1, { status: 'running' });
 
@@ -1229,6 +1231,22 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
       if (sched.error) throw new Error(sched.error);
 
+      // Auto-provision dormant capability accounts — only for new cloud_csp accounts, not activate mode.
+      if (!initialConfig) Promise.allSettled([
+        { type: 'vulnerability', provider: 'agent',    label: 'Vulnerability Scanner' },
+        { type: 'database',      provider: 'postgres',  label: 'Database Security' },
+        { type: 'code_security', provider: 'github',    label: 'Code Security' },
+        { type: 'middleware',    provider: 'agent',     label: 'Middleware Monitor' },
+      ].map(cap =>
+        postToEngine('onboarding', '/api/v1/cloud-accounts', {
+          customer_id:   customerId,
+          tenant_id:     form.tenantId,
+          account_name:  `${form.accountName} — ${cap.label}`,
+          account_type:  cap.type,
+          provider:      cap.provider,
+        })
+      ));
+
       onComplete({
         accountId,
         scheduleId:  sched.schedule_id,
@@ -1272,13 +1290,9 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
   }
 
   // Validation rules for the Next button
-  const step1Valid = (() => {
-    if (!form.tenantId || !form.accountName.trim() || !form.accountType) return false;
-    if (isAgentType) return true;
-    // code_security: provider (github/gitlab/bitbucket) AND auth method both required
-    if (isCodeSecurity) return !!(form.provider && form.authMethod);
-    return !!(form.provider && form.authMethod);
-  })();
+  const step1Valid = initialConfig
+    ? !!(form.provider && form.authMethod)  // workspace + name pre-filled from initialConfig
+    : !!(form.tenantId && form.accountName.trim() && form.provider && form.authMethod);
 
   const step2Valid = isAgentType
     ? true  // agent setup auto-runs; button always enabled to proceed
@@ -1288,12 +1302,12 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
 
   const step4Valid = schedule.engines_requested.length > 0 && schedule.cron_expression.trim();
 
-  // Dynamic title for the header
-  const wizardTitle = (() => {
-    if (!form.accountType) return 'Add Account';
-    const opt = acctTypeOptions.find(o => o.key === form.accountType);
-    return `Add ${opt?.label || ''} Account`;
-  })();
+  const ACTIVATE_LABELS = { vulnerability: 'Vulnerability Scanner', database: 'Database Security', code_security: 'Code Security', middleware: 'Middleware Monitor' };
+  const wizardTitle = initialConfig
+    ? `Configure ${ACTIVATE_LABELS[form.accountType] || form.accountType}`
+    : form.provider
+      ? `Connect ${PROVIDERS[form.provider]?.name || 'Cloud'} Account`
+      : 'Connect Cloud Account';
 
   // Display index for the step indicator (position in stepConfig array)
   function displayIndex(n) {
@@ -1348,7 +1362,8 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
               localTenants={localTenants}
               onWorkspaceCreated={handleWorkspaceSignal}
               providers={PROVIDERS}
-              accountTypeOptions={acctTypeOptions} />
+              accountTypeOptions={acctTypeOptions}
+              activateMode={!!initialConfig} />
           )}
 
           {step === 2 && isAgentType && (
@@ -1360,6 +1375,7 @@ export default function OnboardingWizard({ onComplete = () => {}, onCancel = () 
               agentToken={agentToken}
               setAgentToken={setAgentToken}
               accountTypeOptions={acctTypeOptions}
+              preExistingAccountId={initialConfig?.accountId}
             />
           )}
 

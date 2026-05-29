@@ -727,50 +727,20 @@ def _get_validator(provider: str, credential_type: str):
     raise ValueError(f"Unsupported provider: {provider}")
 
 
-# ── Agent registration token endpoints (BLOCK-04 hardened) ───────────────────
-# PKCE S256 validation is required before issuing any agent token.  The caller
-# must supply X-PKCE-Verifier whose SHA-256 (S256) matches the code_challenge
-# stored during the wizard init flow.
-
-import base64 as _base64
-
-
-def _validate_pkce_verifier(code_challenge: str, code_verifier: str) -> bool:
-    """Validate a PKCE S256 code_challenge against the supplied code_verifier.
-
-    Accepts both base64url (canonical S256) and hex-digest forms for
-    compatibility with the existing agents.py bootstrap flow.
-
-    Args:
-        code_challenge: Stored challenge — base64url or hex SHA-256.
-        code_verifier: Raw verifier supplied via X-PKCE-Verifier header.
-
-    Returns:
-        True when the verifier is valid for the stored challenge.
-    """
-    digest = hashlib.sha256(code_verifier.encode()).digest()
-    b64_computed = _base64.urlsafe_b64encode(digest).rstrip(b"=").decode()
-    hex_computed = hashlib.sha256(code_verifier.encode()).hexdigest()
-    return b64_computed == code_challenge or hex_computed == code_challenge
-
+# ── Agent registration token endpoints ───────────────────────────────────────
 
 @router.post("/{account_id}/agent-token", status_code=201)
 async def issue_agent_token(
     account_id: str,
     auth: Any = Depends(get_auth_context),
     _perm: Any = Depends(require_permission("cloud_accounts:write")),
-    x_pkce_verifier: Optional[str] = Header(None, alias="X-PKCE-Verifier"),
 ):
-    """Issue a secure agent installation token (PKCE S256-hardened, BLOCK-04).
-
-    The caller must supply ``X-PKCE-Verifier`` — the raw verifier whose
-    SHA-256 (S256) was registered as the code_challenge.  Missing or invalid
-    verifier returns 400.
+    """Issue a secure agent installation token for the given cloud account.
 
     Security contract:
     - Raw UUID4 token returned in HTTP response body only (never logged).
     - Raw token stored in AWS Secrets Manager at ``threat-engine/account/{id}``.
-    - SHA-256 hash stored in ``agent_registrations.agent_token_hash`` only.
+    - SHA-256 hash stored in ``agent_registrations.token_hash`` only.
     - Raw token NEVER written to PostgreSQL.
     """
     account = get_cloud_account(account_id)
@@ -791,19 +761,9 @@ async def issue_agent_token(
 
     tenant_id: str = tenant_id_from_auth or account.get("tenant_id", "")
 
-    # AC1: Validate verifier only when the account has a stored code_challenge.
-    # When no challenge was registered (wizard flow), RBAC auth is sufficient protection.
-    stored_challenge: Optional[str] = account.get("pkce_code_challenge")
-    if stored_challenge:
-        if not x_pkce_verifier or not _validate_pkce_verifier(stored_challenge, x_pkce_verifier.strip()):
-            logger.warning(
-                "PKCE verifier mismatch for account %s — token issuance denied", account_id
-            )
-            raise HTTPException(status_code=400, detail="Invalid PKCE verifier")
-
-    # AC2: Generate raw token (UUID4) — NEVER stored in DB.
+    # Generate raw token (UUID4) — NEVER stored in DB.
     raw_token = str(uuid.uuid4())
-    # AC3: Store SHA-256 hash only in agent_registrations.
+    # Store SHA-256 hash only in agent_registrations — raw token never in DB.
     token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
 
     from engine_onboarding.database.cloud_accounts_operations import create_agent_registration
@@ -827,7 +787,7 @@ async def issue_agent_token(
     registration_id = reg["registration_id"]
     agent_id = reg["agent_id"]
 
-    # AC2: Persist raw token in AWS Secrets Manager — scoped by tenant + account.
+    # Persist raw token in AWS Secrets Manager — scoped by tenant + account.
     try:
         from engine_onboarding.storage.secrets_manager_storage import secrets_manager_storage
         secrets_manager_storage.store_agent_token(account_id, raw_token, tenant_id=tenant_id)

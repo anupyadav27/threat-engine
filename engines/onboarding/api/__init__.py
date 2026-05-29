@@ -9,6 +9,7 @@ from engine_onboarding.api.schedules import router as schedules_router
 from engine_onboarding.api.scan_runs import router as scan_runs_router
 from engine_onboarding.api.scans_adhoc import router as scans_adhoc_router
 from engine_onboarding.api.reference import router as reference_router
+from engine_onboarding.api.scans import router as scans_router
 
 __all__ = [
     'cloud_accounts_router',
@@ -19,5 +20,6 @@ __all__ = [
     'scan_runs_router',
     'scans_adhoc_router',
     'reference_router',
+    'scans_router',
 ]
 

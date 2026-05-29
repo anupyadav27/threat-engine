@@ -4,6 +4,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import GlobalFilterBar from './GlobalFilterBar';
 import SecOpsFilterBar from './SecOpsFilterBar';
 import PreLoader from '@/components/shared/PreLoader';
 import ErrorBoundary from '@/components/shared/ErrorBoundary';
@@ -25,8 +26,13 @@ export default function AppShell({ children }) {
   const isAuthRoute = pathname.startsWith('/auth/');
 
   // SecOps overview pages: show the scan-oriented filter bar
+  // Detail pages (/secops/<uuid>, /secops/dast/<id>, /secops/sca/<id>, etc.)
+  // have their own in-page filters and the global bar adds no value there.
   const SECOPS_OVERVIEW_PAGES = ['/secops', '/secops/projects', '/secops/reports'];
-  const isSecOpsOverview = SECOPS_OVERVIEW_PAGES.includes(pathname);
+  const isSecOpsOverview    = SECOPS_OVERVIEW_PAGES.includes(pathname);
+  const isSecOpsRoute       = pathname.startsWith('/secops');
+  // Vulnerability pages have their own agent-scoped filters — skip the global bar
+  const isVulnerabilityRoute = pathname.startsWith('/vulnerability');
 
   // Redirect to login if not authenticated and not on auth route
   useEffect(() => {
@@ -102,7 +108,12 @@ export default function AppShell({ children }) {
         }}
       >
         <Header />
-        {isSecOpsOverview && <SecOpsFilterBar />}
+        {isSecOpsOverview
+          ? <SecOpsFilterBar />
+          : (!isSecOpsRoute && !isVulnerabilityRoute)
+            ? <GlobalFilterBar />
+            : null   /* detail/vulnerability pages: no global bar, pages have their own filters */
+        }
         <main
           className="flex-1 p-6 transition-colors duration-200 min-w-0 overflow-x-hidden"
           style={{ backgroundColor: 'var(--bg-primary)' }}

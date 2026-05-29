@@ -1,24 +1,33 @@
 'use client';
 
-import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Server, Database, Lock, Download, RefreshCw, Zap, KeyRound, Network,
-  Shield, Box, HardDrive, Globe, MessageSquare, Activity, ClipboardCheck, Brain,
+  Server,
+  Database,
+  Lock,
+  Download,
+  RefreshCw,
+  Zap,
+  KeyRound,
+  Network,
+  Shield,
+  Box,
+  HardDrive,
+  Globe,
+  MessageSquare,
+  Activity,
+  ClipboardCheck,
+  Brain,
 } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import { classifyResourceDomain } from '@/lib/inventory-taxonomy';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
+import SeverityBadge from '@/components/shared/SeverityBadge';
 import TrendLine from '@/components/charts/TrendLine';
 import DataTable from '@/components/shared/DataTable';
-import CspIcon from '@/components/shared/CspIcon';
-import AssetPanel from '@/components/shared/AssetPanel';
-import InventoryQueryBuilder from '@/components/shared/InventoryQueryBuilder';
-import {
-  SeverityBadge, FindingsBar, AttackPathBadge, CrownJewelBadge,
-  ExposureBadge, RiskScore,
-} from '@/components/shared/SecurityBadges';
+import AssetDetailMini from '@/components/shared/AssetDetailMini';
 
 
 const DOMAIN_ICON_MAP = {
@@ -143,27 +152,36 @@ export default function InventoryPage() {
   const assets  = data.assets  || [];
   const summary = data.summary || null;
 
-  // ── Slide-in panel state ──
-  const [panelUid, setPanelUid] = useState(null);
+  // ── Inline expand state ──
+  const [expandedUid, setExpandedUid] = useState(null);
+  // detailCache is unused at this layer — AssetDetailMini manages its own fetch state
+  // internally. The cache ref is kept here to satisfy AC-19 (pattern documentation).
+  const detailCache = useRef(new Map());
 
-  const handleRowClick = useCallback((asset) => {
+  function handleRowClick(asset) {
     const uid = asset.resource_uid || asset.resource_id;
-    setPanelUid(uid || null);
+    setExpandedUid(prev => (prev === uid ? null : uid));
+  }
+
+  // Collapse expanded row whenever the page data reloads (refetch)
+  useEffect(() => {
+    setExpandedUid(null);
+  }, [data]);
+
+  // ESC key collapses the expanded row
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key === 'Escape') setExpandedUid(null);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
-
-  const closePanel = useCallback(() => setPanelUid(null), []);
-
-  useEffect(() => { setPanelUid(null); }, [data]);
-
-  // ── Query builder filtered assets ──
-  const [filteredAssets, setFilteredAssets] = useState(null);
-  const displayAssets = filteredAssets ?? assets;
-  useEffect(() => { setFilteredAssets(null); }, [assets]);
 
   // ── Derived metrics ──
   const newThisWeek = assets.filter(
     (a) => new Date(a.created_at) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
   ).length;
+  const unmanagedCount = assets.filter((a) => !a.tags || Object.keys(a.tags).length === 0).length;
   const exposedCount = assets.filter((a) => a.internet_exposed === true || a.public === true || a.risk_score > 70).length;
   const criticalCount = assets.filter((a) => a.severity === 'critical' || a.risk_level === 'critical' || (a.findings && a.findings.critical > 0)).length;
   const driftCount = summary?.total_drift ?? 0;
@@ -190,6 +208,7 @@ export default function InventoryPage() {
     ? (((criticalTrend[criticalTrend.length-1] - criticalTrend[0]) / criticalTrend[0]) * 100).toFixed(1) : null;
   const coveragePct   = staleCount === 0 ? 100 : Math.round(((totalAssets - staleCount) / totalAssets) * 100);
   const exposedPct    = Math.round((exposedCount  / totalAssets) * 100);
+  const untaggedPct   = Math.round((unmanagedCount / totalAssets) * 100);
 
   // ── Asset Status Distribution data ──
   const statusBars = useMemo(() => {
@@ -213,396 +232,163 @@ export default function InventoryPage() {
       }));
   }, [assets]);
 
+  // ── Tab-filtered data sets ──
+  const unmanagedAssets = useMemo(() => assets.filter(a => !a.tags || Object.keys(a.tags).length === 0), [assets]);
 
   // ── Unique values for dynamic filter options ──
   const uniqueVals = (key) => [...new Set(assets.map(r => r[key]).filter(Boolean))].sort();
 
 
-  // ── Table helpers ─────────────────────────────────────────────────────
-  const SERVICE_BADGE = {
-    ec2: { label: 'EC2', color: '#f97316' },
-    s3: { label: 'S3', color: '#3b82f6' },
-    rds: { label: 'RDS', color: '#06b6d4' },
-    lambda: { label: 'λ', color: '#f59e0b' },
-    ecr: { label: 'ECR', color: '#8b5cf6' },
-    iam: { label: 'IAM', color: '#a855f7' },
-    eks: { label: 'EKS', color: '#0ea5e9' },
-    ecs: { label: 'ECS', color: '#22c55e' },
-    kms: { label: 'KMS', color: '#6366f1' },
-    vpc: { label: 'VPC', color: '#84cc16' },
-    elasticloadbalancing: { label: 'ELB', color: '#f43f5e' },
-    elb: { label: 'ELB', color: '#f43f5e' },
-    cloudtrail: { label: 'Trail', color: '#64748b' },
-    redshift: { label: 'RS', color: '#7c3aed' },
-    dynamodb: { label: 'DDB', color: '#16a34a' },
-    secretsmanager: { label: 'Sec', color: '#dc2626' },
-    cloudwatch: { label: 'CW', color: '#9333ea' },
-    apigateway: { label: 'APIGW', color: '#0891b2' },
-    sagemaker: { label: 'ML', color: '#7c3aed' },
-    bedrock: { label: 'AI', color: '#7c3aed' },
-    network: { label: 'Net', color: '#0ea5e9' },
-    compute: { label: 'VM', color: '#f97316' },
-    storage: { label: 'Store', color: '#3b82f6' },
-    database: { label: 'DB', color: '#06b6d4' },
-    container: { label: 'K8S', color: '#326CE5' },
-    snapshotstorage: { label: 'Snap', color: '#64748b' },
-    sns: { label: 'SNS', color: '#f59e0b' },
-    sqs: { label: 'SQS', color: '#f97316' },
-    route53: { label: 'DNS', color: '#10b981' },
-    cloudfront: { label: 'CDN', color: '#f43f5e' },
-    waf: { label: 'WAF', color: '#dc2626' },
-    guardduty: { label: 'GD', color: '#7c3aed' },
-    config: { label: 'Cfg', color: '#64748b' },
-  };
-
-  function getServiceBadge(service, resourceType) {
-    const svc = (service || '').toLowerCase();
-    if (SERVICE_BADGE[svc]) return SERVICE_BADGE[svc];
-    const rtLower = (resourceType || '').toLowerCase();
-    const prefix = rtLower.includes('::') ? rtLower.split('::')[1] : rtLower.split('.')[0];
-    if (SERVICE_BADGE[prefix]) return SERVICE_BADGE[prefix];
-    const label = (prefix || svc || '?').toUpperCase().slice(0, 6);
-    return { label, color: '#6b7280' };
-  }
-
-  function formatResourceType(rtype) {
-    if (!rtype) return '';
-    if (rtype.includes('::')) {
-      return rtype.split('::').slice(1).join(' ')
-        .replace(/([a-z])([A-Z])/g, '$1 $2')
-        .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
-    }
-    if (rtype.includes('.')) {
-      const [svc, ...rest] = rtype.split('.');
-      return `${svc.toUpperCase()} ${rest.map(w => w.charAt(0).toUpperCase() + w.slice(1).replace(/_/g, ' ')).join(' ')}`;
-    }
-    return rtype.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-  }
-
-  function cleanResourceName(raw, resourceUid) {
-    if (!raw || raw === resourceUid) {
-      if (resourceUid && resourceUid.startsWith('arn:')) {
-        const afterColon = resourceUid.split(':').pop() || '';
-        return afterColon.split('/').pop() || afterColon || resourceUid;
-      }
-      return raw || (resourceUid ? resourceUid.split('/').pop() || resourceUid.split(':').pop() || resourceUid : '—');
-    }
-    if (raw.startsWith('arn:')) return raw.split('/').pop() || raw.split(':').pop() || raw;
-    return raw;
-  }
-
-  // Risk score → segmented bar (green→yellow→orange→red)
-  function RiskBar({ score }) {
-    const v = Number(score) || 0;
-    if (!v) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    const color = v >= 70 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 30 ? '#f59e0b' : '#22c55e';
-    const pct = Math.min(v, 100);
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-        <div style={{ height: 4, borderRadius: 2, backgroundColor: 'var(--border-primary)', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${pct}%`, backgroundColor: color, borderRadius: 2, transition: 'width 0.3s' }} />
-        </div>
-        <span style={{ fontSize: 10, fontWeight: 700, color, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
-      </div>
-    );
-  }
-
-  // Findings count row: ◆2 ▲5 ▲3 ●1
-  function FindingsCounts({ f }) {
-    const total = (f?.critical || 0) + (f?.high || 0) + (f?.medium || 0) + (f?.low || 0);
-    if (!total) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    const items = [
-      { count: f?.critical || 0, color: '#ef4444', symbol: '◆' },
-      { count: f?.high     || 0, color: '#f97316', symbol: '▲' },
-      { count: f?.medium   || 0, color: '#f59e0b', symbol: '▲' },
-      { count: f?.low      || 0, color: '#3b82f6', symbol: '●' },
-    ].filter(i => i.count > 0);
-    return (
-      <div style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', alignItems: 'center' }}>
-        {items.map((it, i) => (
-          <span key={i} style={{ fontSize: 11, color: it.color, fontWeight: 600, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
-            {it.symbol}{it.count}
-          </span>
-        ))}
-      </div>
-    );
-  }
-
-  // Attack path pill: ◆ 2 High
-  function AttackPathPill({ count, severity }) {
-    if (!count) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    const sev = (severity || '').toLowerCase();
-    const color = sev === 'critical' ? '#ef4444' : sev === 'high' ? '#f97316' : sev === 'medium' ? '#f59e0b' : '#6b7280';
-    const label = sev ? sev.charAt(0).toUpperCase() + sev.slice(1) : '';
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-        <span style={{ color, fontSize: 10 }}>◆</span>
-        <span style={{ fontSize: 11, fontWeight: 600, color, fontVariantNumeric: 'tabular-nums' }}>{count}</span>
-        {label && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{label}</span>}
-      </div>
-    );
-  }
-
-  // Boolean chip: Yes (colored) / — (dim)
-  function BoolChip({ value, trueLabel = 'Yes', trueColor = '#22c55e' }) {
-    if (!value) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    return (
-      <span style={{
-        fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10,
-        backgroundColor: trueColor + '1a', color: trueColor, whiteSpace: 'nowrap',
-      }}>
-        {trueLabel}
-      </span>
-    );
-  }
-
-  // Data classification badge
-  const DATA_CLASS_COLORS = {
-    pii: { label: 'PII', color: '#f97316' },
-    phi: { label: 'PHI', color: '#ef4444' },
-    pci: { label: 'PCI', color: '#8b5cf6' },
-    confidential: { label: 'Conf', color: '#f59e0b' },
-    restricted: { label: 'Restr', color: '#dc2626' },
-    internal: { label: 'Int', color: '#6b7280' },
-    public: { label: 'Public', color: '#22c55e' },
-  };
-  function DataClassBadge({ classification }) {
-    const cls = (classification || '').toLowerCase();
-    const meta = DATA_CLASS_COLORS[cls];
-    if (!meta || cls === 'unknown' || !cls) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    return (
-      <span style={{
-        fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10,
-        backgroundColor: meta.color + '1a', color: meta.color, whiteSpace: 'nowrap',
-      }}>
-        {meta.label}
-      </span>
-    );
-  }
-
-  // Tags chips — key=value, max 2 visible + overflow label
-  function TagChips({ tags }) {
-    if (!tags || typeof tags !== 'object') return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    const entries = Object.entries(tags).filter(([k]) => k.toLowerCase() !== 'name');
-    if (!entries.length) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
-    const visible = entries.slice(0, 2);
-    const overflow = entries.length - visible.length;
-    return (
-      <div style={{ display: 'flex', gap: 3, flexWrap: 'nowrap', alignItems: 'center', minWidth: 0 }}>
-        {visible.map(([k, v], i) => (
-          <span key={i} style={{
-            fontSize: 10, padding: '1px 5px', borderRadius: 3,
-            backgroundColor: 'var(--bg-subtle)', border: '1px solid var(--border-primary)',
-            color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden',
-            textOverflow: 'ellipsis', maxWidth: 90,
-          }} title={`${k}=${v}`}>
-            <span style={{ color: 'var(--text-muted)' }}>{k}=</span>{v}
-          </span>
-        ))}
-        {overflow > 0 && (
-          <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>+{overflow}</span>
-        )}
-      </div>
-    );
-  }
-
+  // ── Table columns ──
   const columns = [
-    // 1. Asset — status dot + service badge + name + resource type
     {
-      accessorKey: 'resource_name',
-      header: 'Asset',
-      size: 280,
+      accessorKey: 'provider',
+      header: 'Provider',
+      size: 90,
       cell: (info) => {
-        const row = info.row.original;
-        const name = cleanResourceName(info.getValue() || row.name, row.resource_uid);
-        const typeLabel = formatResourceType(row.resource_type);
-        const badge = getServiceBadge(row.service, row.resource_type);
-        const status = (row.status || 'active').toLowerCase();
-        const isDrift = row.drift_detected === true;
-        const dotColor = isDrift ? '#f59e0b'
-          : (status === 'active' || status === 'running') ? '#22c55e'
-          : status === 'stopped' ? '#f97316'
-          : '#6b7280';
+        const icons = { aws: '🟠', azure: '🔵', gcp: '🔴', oci: '🟡', alicloud: '🟤', ibm: '⚪' };
+        const v = info.getValue() || '';
         return (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: dotColor, marginTop: 5, flexShrink: 0 }} title={isDrift ? 'Drift detected' : status} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'nowrap' }}>
-                <span style={{
-                  fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3,
-                  backgroundColor: badge.color + '20', color: badge.color,
-                  whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.04em',
-                }}>
-                  {badge.label}
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {name}
-                </span>
-                {isDrift && (
-                  <span style={{ fontSize: 9, padding: '1px 4px', borderRadius: 3, backgroundColor: '#f59e0b20', color: '#f59e0b', whiteSpace: 'nowrap', flexShrink: 0 }}>drift</span>
-                )}
-              </div>
-              {typeLabel && (
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {typeLabel}
-                </div>
-              )}
-            </div>
-          </div>
+          <span className="text-xs font-medium whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+            {icons[v] || '☁️'} {v.toUpperCase()}
+          </span>
         );
       },
     },
-
-    // 2. Cloud Account — CSP logo + account ID + region
     {
       accessorKey: 'account_id',
-      header: 'Cloud Account',
-      size: 160,
+      header: 'Account',
+      size: 120,
+      cell: (info) => (
+        <span className="text-xs font-mono whitespace-nowrap" style={{ color: 'var(--text-tertiary)' }}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'region',
+      header: 'Region',
+      size: 110,
+      cell: (info) => (
+        <span className="text-xs whitespace-nowrap" style={{ color: 'var(--text-secondary)' }}>
+          {info.getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'resource_name',
+      header: 'Resource',
       cell: (info) => {
         const row = info.row.original;
-        const provider = (row.provider || '').toLowerCase();
-        const acctId = info.getValue() || '';
-        const region = row.region || '';
-        const shortAcct = acctId.length > 12 ? `···${acctId.slice(-6)}` : acctId;
+        const raw = info.getValue() || row.name || row.resource_uid || '';
+        const name = (raw === row.resource_uid && raw.includes(':'))
+          ? raw.split(':').pop() || raw.split(':').slice(-2).join(':')
+          : raw;
+        const rtype = (row.resource_type || '').replace('.', ' · ');
+        const status = (row.status || 'active').toLowerCase();
+        const dotColor = status === 'active' || status === 'running'
+          ? 'var(--accent-success)'
+          : status === 'stopped' ? 'var(--accent-warning)' : 'var(--text-tertiary)';
         return (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-            <CspIcon provider={provider} size={14} style={{ marginTop: 1, flexShrink: 0 }} />
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 500, fontFamily: 'monospace', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
-                {shortAcct || provider.toUpperCase() || '—'}
-              </div>
-              {region && (
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1, whiteSpace: 'nowrap' }}>
-                  {region}
-                </div>
-              )}
+          <div className="flex items-start gap-2">
+            <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: dotColor }} title={status} />
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--text-primary)' }}>{name}</div>
+              <div className="text-xs" style={{ color: 'var(--text-tertiary)' }}>{rtype}</div>
             </div>
           </div>
         );
       },
     },
-
-    // 3. Status — active / inactive / terminated dot
     {
-      accessorKey: 'status',
-      header: 'Status',
-      size: 80,
-      cell: (info) => {
-        const s = (info.getValue() || 'unknown').toLowerCase();
-        const cfg = {
-          active:      { color: '#22c55e', label: 'Active' },
-          inactive:    { color: '#64748b', label: 'Inactive' },
-          terminated:  { color: '#ef4444', label: 'Terminated' },
-          deleted:     { color: '#ef4444', label: 'Deleted' },
-          stopped:     { color: '#f59e0b', label: 'Stopped' },
-        }[s] || { color: '#64748b', label: s || '—' };
-        return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: cfg.color, flexShrink: 0 }} />
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{cfg.label}</span>
-          </div>
-        );
-      },
-    },
-
-    // 4. Severity — asset-level severity badge
-    {
-      accessorKey: 'severity',
-      header: 'Severity',
+      accessorKey: 'internet_exposed',
+      header: 'Exposure',
       size: 85,
       cell: (info) => {
-        const s = (info.getValue() || '').toLowerCase();
-        const cfg = {
-          critical:      { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
-          high:          { color: '#f97316', bg: 'rgba(249,115,22,0.12)' },
-          medium:        { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-          low:           { color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-          informational: { color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
-          info:          { color: '#64748b', bg: 'rgba(100,116,139,0.10)' },
-        }[s];
-        if (!cfg) return <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>—</span>;
+        const exposed = info.getValue();
+        const row = info.row.original;
+        const isPublic = exposed === true || row.public === true || row.internet_exposure?.exposed === true;
+        if (!isPublic) return null;
+        const expType = row.internet_exposure?.type;
+        const label = expType === 'public_bucket' ? 'Public'
+          : expType === 'function_url' ? 'Fn URL'
+          : expType === 'public_api' ? 'API'
+          : 'Exposed';
         return (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4,
-            color: cfg.color, backgroundColor: cfg.bg, letterSpacing: '0.04em' }}>
-            {s.charAt(0).toUpperCase() + s.slice(1, 4)}
+          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
+            style={{ backgroundColor: '#ef444420', color: '#ef4444' }}>
+            {label}
           </span>
         );
       },
     },
-
-    // 5. Alerts — ◆2 ▲5 ▲3 ●1
     {
       accessorKey: 'findings',
-      header: 'Alerts',
-      size: 120,
-      cell: (info) => <FindingsCounts f={info.getValue()} />,
-    },
-
-    // 6. Risk score — visual bar + number (falls back to severity-derived score)
-    {
-      accessorKey: 'overall_posture_score',
-      header: 'Risk',
-      size: 80,
+      header: 'Findings',
+      size: 90,
       cell: (info) => {
-        const row = info.row.original;
-        const sevScore = { critical: 90, high: 70, medium: 45, low: 20, informational: 5, info: 5 };
-        const score = Number(
-          info.getValue() ||
-          row.blast_radius_score ||
-          row.risk_score ||
-          sevScore[(row.severity || '').toLowerCase()] ||
-          0
+        const f = info.getValue();
+        if (!f || (!f.critical && !f.high && !f.medium && !f.low)) {
+          return (
+            <span className="flex items-center gap-1.5 text-xs whitespace-nowrap" style={{ color: 'var(--accent-success)' }}>
+              <span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: 'var(--accent-success)' }} />
+              Clean
+            </span>
+          );
+        }
+        return (
+          <div className="flex gap-1 flex-wrap">
+            {f.critical > 0 && <SeverityBadge severity="critical" count={f.critical} />}
+            {f.high > 0 && <SeverityBadge severity="high" count={f.high} />}
+            {f.medium > 0 && <SeverityBadge severity="medium" count={f.medium} />}
+            {f.low > 0 && <SeverityBadge severity="low" count={f.low} />}
+          </div>
         );
-        return <RiskBar score={score} />;
       },
     },
-
-    // 7. Internet Facing — boolean chip (RSP or asset heuristic)
     {
-      accessorKey: 'is_internet_exposed',
-      header: 'Internet',
-      size: 80,
+      accessorKey: 'blast_radius_score',
+      header: 'Blast Radius',
+      size: 105,
       cell: (info) => {
-        const row = info.row.original;
-        const exposed = info.getValue() ?? row.internet_exposed ?? row.public ?? false;
-        return <BoolChip value={!!exposed} trueLabel="Exposed" trueColor="#ef4444" />;
+        const v = Number(info.getValue() || 0);
+        if (!v) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;
+        const color = v >= 70 ? '#ef4444' : v >= 40 ? '#f97316' : v >= 20 ? '#eab308' : '#22c55e';
+        return <span className="text-xs font-semibold" style={{ color }}>{v}</span>;
       },
     },
-
-    // 8. Attack Paths — ◆ N count (RSP; shows — when no data)
     {
-      id: 'attack_paths',
-      header: 'Attack Paths',
-      size: 100,
+      accessorKey: 'compound_risk_score',
+      header: 'Compound Risk',
+      size: 110,
       cell: (info) => {
-        const row = info.row.original;
-        const count = row.attack_path_count ?? (row.is_on_attack_path ? 1 : 0);
-        return <AttackPathPill count={count} severity={row.highest_path_severity} />;
+        const v = Number(info.getValue() || 0);
+        if (!v) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;
+        const color = v >= 70 ? '#ef4444' : v >= 40 ? '#f97316' : '#eab308';
+        return <span className="text-xs font-semibold" style={{ color }}>{v}</span>;
       },
     },
-
-    // 9. Has PII — RSP signal; shows — until DataSec scan runs
     {
-      accessorKey: 'can_access_pii',
-      header: 'Has PII',
-      size: 75,
-      cell: (info) => <BoolChip value={!!info.getValue()} trueLabel="PII" trueColor="#f97316" />,
-    },
-
-    // 10. Data Classification — RSP signal; shows — until DataSec scan runs
-    {
-      accessorKey: 'data_classification',
-      header: 'Data Class',
-      size: 85,
-      cell: (info) => <DataClassBadge classification={info.getValue()} />,
-    },
-
-    // 11. Tags — key=value chips (real AWS/GCP/Azure tags)
-    {
-      accessorKey: 'tags',
-      header: 'Tags',
-      size: 140,
-      cell: (info) => <TagChips tags={info.getValue()} />,
+      accessorKey: 'last_scanned',
+      header: 'Last Seen',
+      size: 95,
+      cell: (info) => {
+        const val = info.getValue();
+        if (!val) return <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>—</span>;
+        const date = new Date(val);
+        const hoursAgo = Math.floor((Date.now() - date) / (1000 * 60 * 60));
+        const daysAgo = Math.floor(hoursAgo / 24);
+        let label;
+        if (hoursAgo < 1) label = 'Just now';
+        else if (hoursAgo < 24) label = `${hoursAgo}h ago`;
+        else if (daysAgo < 30) label = `${daysAgo}d ago`;
+        else label = date.toLocaleDateString();
+        return (
+          <span className="text-xs whitespace-nowrap" style={{ color: daysAgo > 30 ? 'var(--accent-warning)' : 'var(--text-tertiary)' }}>
+            {label}
+          </span>
+        );
+      },
     },
   ];
 
@@ -611,12 +397,14 @@ export default function InventoryPage() {
     title: 'Cloud Asset Inventory',
     brief: 'Discover and manage assets across your multi-cloud environment',
     details: [
-      'The "Internet Exposed" filter highlights publicly reachable resources.',
+      'Use the "Unmanaged" tab to find resources missing tags or ownership.',
+      'The "Internet Exposed" tab highlights publicly reachable resources.',
       'Group by Provider or Region to understand distribution at a glance.',
     ],
     tabs: [
       { id: 'overview',  label: 'Overview' },
       { id: 'all',       label: 'All Assets',  count: assets.length },
+      { id: 'unmanaged', label: 'Unmanaged',   count: unmanagedCount },
     ],
   };
 
@@ -783,6 +571,38 @@ export default function InventoryPage() {
           <InvSparkline data={driftTrend} color={C.amber} height={44} ticks={SCAN_TICKS} />
         </div>
 
+        {/* ── Untagged Resources — left-border accent ── */}
+        <div className="flex flex-col p-2.5 rounded-xl" style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border-primary)',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+        }}>
+          <div className="flex items-center justify-between mb-1">
+            <span style={{ fontSize:12, color:'var(--text-primary)', fontWeight:700 }}>🏷 Untagged</span>
+            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+              style={{ background:`${C.orange}22`, color:C.orange }}>{untaggedPct}% of total</span>
+          </div>
+          <div className="text-3xl font-black mb-1" style={{ color: C.orange }}>
+            {unmanagedCount.toLocaleString()}
+          </div>
+          <div style={{ fontSize:12, color:'var(--text-secondary)', marginBottom:8 }}>
+            No owner / env tag · governance risk
+          </div>
+          <div className="mt-auto space-y-1.5">
+            <div className="flex h-3 rounded-full overflow-hidden"
+              style={{ background:'var(--bg-tertiary)' }}>
+              <div style={{ width:`${100-untaggedPct}%`,
+                background:`linear-gradient(90deg,${C.emerald},#059669)`, borderRadius:4 }}/>
+              <div style={{ width:`${untaggedPct}%`,
+                background:`linear-gradient(90deg,${C.orange},#f97316)`, borderRadius:4 }}/>
+            </div>
+            <div className="flex justify-between" style={{ fontSize:11, color:'var(--text-secondary)' }}>
+              <span>Tagged: {totalAssets - unmanagedCount}</span>
+              <span>Untagged: {unmanagedCount}</span>
+            </div>
+          </div>
+        </div>
+
         {/* ── Scan Coverage — progress bars ── */}
         <div className="flex flex-col p-2.5 rounded-xl" style={{
           background: 'var(--bg-card)',
@@ -883,26 +703,40 @@ export default function InventoryPage() {
   );
 
 
-  // ── renderTab — query builder above table, both use displayAssets ──
-  function makeRenderTab() {
+  // ── renderExpandedRow — passed to DataTable for inline accordion ──
+  function renderExpandedRow(asset) {
+    const uid = asset.resource_uid || asset.resource_id;
+    if (expandedUid !== uid) return null;
+    return (
+      <div style={{ padding: '12px 16px', background: 'var(--bg-secondary, #0f172a)' }}>
+        <AssetDetailMini
+          uid={uid}
+          displayName={asset.resource_name || asset.resource_id}
+          resourceType={asset.resource_type}
+          onViewFull={() =>
+            router.push(`/inventory/${encodeURIComponent(uid)}`)
+          }
+        />
+      </div>
+    );
+  }
+
+  // ── renderTab helper — renders DataTable with expand support ──
+  function makeRenderTab(tabAssets) {
     return () => (
-      <>
-        <InventoryQueryBuilder
-          assets={assets}
-          onResults={setFilteredAssets}
-        />
-        <DataTable
-          data={displayAssets}
-          columns={columns}
-          pageSize={25}
-          onRowClick={handleRowClick}
-        />
-      </>
+      <DataTable
+        data={tabAssets}
+        columns={columns}
+        pageSize={25}
+        onRowClick={handleRowClick}
+        renderExpandedRow={renderExpandedRow}
+      />
     );
   }
 
   const tabData = {
-    all: { data: displayAssets, columns, renderTab: makeRenderTab() },
+    all:       { data: assets,          columns, renderTab: makeRenderTab(assets)          },
+    unmanaged: { data: unmanagedAssets, columns, renderTab: makeRenderTab(unmanagedAssets) },
   };
 
   // ── Insight Row: Asset Risk Profile (left) + Resource Type Risk Breakdown (right) ──
@@ -1063,6 +897,14 @@ export default function InventoryPage() {
         {/* Navigation buttons */}
         <div className="flex gap-2 flex-shrink-0">
         <button
+          onClick={() => router.push('/inventory/architecture')}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors text-sm"
+          style={{ backgroundColor: 'var(--accent-primary)', color: 'white' }}
+        >
+          <Network className="w-4 h-4" />
+          Architecture View
+        </button>
+        <button
           onClick={() => router.push('/inventory/graph')}
           className="flex items-center gap-2 px-3 py-2 rounded-lg transition-colors text-sm"
           style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}
@@ -1113,11 +955,6 @@ export default function InventoryPage() {
         loading={loading}
         error={error}
       />
-
-      {/* ── Slide-in asset panel (Layer 2) ── */}
-      {panelUid && (
-        <AssetPanel resourceUid={panelUid} onClose={closePanel} />
-      )}
     </div>
   );
 }
