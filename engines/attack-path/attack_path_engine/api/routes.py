@@ -376,10 +376,10 @@ async def list_choke_points(
                     choke_node_uid AS node_uid,
                     COUNT(DISTINCT group_id) AS paths_blocked_if_fixed,
                     AVG(path_score) AS avg_path_score,
-                    COUNT(*) FILTER (WHERE severity = 'critical') AS critical_count,
-                    COUNT(*) FILTER (WHERE severity = 'high') AS high_count,
-                    COUNT(*) FILTER (WHERE severity = 'medium') AS medium_count,
-                    COUNT(*) FILTER (WHERE severity = 'low') AS low_count
+                    COUNT(*) FILTER (WHERE LOWER(severity) = 'critical') AS critical_count,
+                    COUNT(*) FILTER (WHERE LOWER(severity) = 'high') AS high_count,
+                    COUNT(*) FILTER (WHERE LOWER(severity) = 'medium') AS medium_count,
+                    COUNT(*) FILTER (WHERE LOWER(severity) = 'low') AS low_count
                 FROM attack_paths
                 WHERE tenant_id = %s
                   AND status = 'active'
@@ -495,10 +495,10 @@ async def threat_ui_data(
             cur.execute(
                 "SELECT"
                 " COUNT(*) AS total,"
-                " COUNT(*) FILTER (WHERE severity = 'critical') AS critical,"
-                " COUNT(*) FILTER (WHERE severity = 'high') AS high,"
-                " COUNT(*) FILTER (WHERE severity = 'medium') AS medium,"
-                " COUNT(*) FILTER (WHERE severity = 'low') AS low,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'critical') AS critical,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'high') AS high,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'medium') AS medium,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'low') AS low,"
                 " COUNT(*) FILTER (WHERE has_active_cdr_actor = TRUE) AS cdr_confirmed,"
                 " AVG(path_score)::NUMERIC(5,1) AS avg_path_score"
                 " FROM attack_paths"
@@ -540,10 +540,10 @@ async def threat_summary(request: Request) -> Dict[str, Any]:
             cur.execute(
                 "SELECT"
                 " COUNT(*) AS total_detections,"
-                " COUNT(*) FILTER (WHERE severity = 'critical') AS critical_count,"
-                " COUNT(*) FILTER (WHERE severity = 'high') AS high_count,"
-                " COUNT(*) FILTER (WHERE severity = 'medium') AS medium_count,"
-                " COUNT(*) FILTER (WHERE severity = 'low') AS low_count,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'critical') AS critical_count,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'high') AS high_count,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'medium') AS medium_count,"
+                " COUNT(*) FILTER (WHERE LOWER(severity) = 'low') AS low_count,"
                 " COUNT(*) FILTER (WHERE has_active_cdr_actor = TRUE) AS cdr_confirmed_count,"
                 " COUNT(DISTINCT crown_jewel_uid) FILTER (WHERE crown_jewel_uid IS NOT NULL) AS crown_jewels_at_risk,"
                 " COUNT(DISTINCT choke_node_uid) FILTER (WHERE choke_node_uid IS NOT NULL) AS choke_point_count"
@@ -591,10 +591,10 @@ async def threat_findings_for_resource(
             )
             findings = [dict(r) for r in cur.fetchall()]
         return {"findings": findings, "total": len(findings), "severity_counts": {
-            "critical": sum(1 for f in findings if f.get("severity") == "critical"),
-            "high": sum(1 for f in findings if f.get("severity") == "high"),
-            "medium": sum(1 for f in findings if f.get("severity") == "medium"),
-            "low": sum(1 for f in findings if f.get("severity") == "low"),
+            "critical": sum(1 for f in findings if (f.get("severity") or "").lower() == "critical"),
+            "high": sum(1 for f in findings if (f.get("severity") or "").lower() == "high"),
+            "medium": sum(1 for f in findings if (f.get("severity") or "").lower() == "medium"),
+            "low": sum(1 for f in findings if (f.get("severity") or "").lower() == "low"),
         }}
     finally:
         put_conn(conn)
@@ -789,7 +789,7 @@ def _fetch_attack_paths(
     params: List[Any] = [tenant_id]
 
     if severity:
-        filters.append("severity = %s")
+        filters.append("LOWER(severity) = LOWER(%s)")
         params.append(severity)
     if entry_point_type:
         filters.append("entry_point_type = %s")
@@ -818,8 +818,8 @@ def _fetch_attack_paths(
         kpi_sql = (
             "SELECT"
             " COUNT(*) AS total,"
-            " COUNT(*) FILTER (WHERE severity = 'critical') AS critical,"
-            " COUNT(*) FILTER (WHERE severity = 'high') AS high,"
+            " COUNT(*) FILTER (WHERE LOWER(severity) = 'critical') AS critical,"
+            " COUNT(*) FILTER (WHERE LOWER(severity) = 'high') AS high,"
             " COUNT(DISTINCT choke_node_uid) FILTER (WHERE choke_node_uid IS NOT NULL) AS choke_points,"
             " MAX(EXTRACT(EPOCH FROM (NOW() - first_seen_at)) / 86400)::INTEGER AS longest_open_days,"
             " COUNT(*) FILTER (WHERE has_active_cdr_actor = TRUE) AS paths_with_active_cdr,"

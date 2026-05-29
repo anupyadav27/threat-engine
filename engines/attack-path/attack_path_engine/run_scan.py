@@ -702,7 +702,7 @@ def run_attack_path_scan(
         from .core.deduplicator import deduplicate
         final_paths = deduplicate(scored_paths, posture_lookup)
         metrics["final_path_count"] = len(final_paths)
-        critical_count = sum(1 for p in final_paths if p.severity == "critical")
+        critical_count = sum(1 for p in final_paths if (p.severity or "").upper() == "CRITICAL")
         metrics["critical_path_count"] = critical_count
         _jlog(
             "dedup_complete",

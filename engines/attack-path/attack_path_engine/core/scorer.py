@@ -270,15 +270,15 @@ def severity_bucket(score: int) -> str:
     """Map integer score to severity string.
 
     Returns:
-        "critical" (>= 80), "high" (60-79), "medium" (40-59), or "low" (< 40).
+        "CRITICAL" (>= 80), "HIGH" (60-79), "MEDIUM" (40-59), or "LOW" (< 40).
     """
     if score >= 80:
-        return "critical"
+        return "CRITICAL"
     if score >= 60:
-        return "high"
+        return "HIGH"
     if score >= 40:
-        return "medium"
-    return "low"
+        return "MEDIUM"
+    return "LOW"
 
 
 def _chain_type(path: RawPath, posture_lookup: Dict[str, PostureRow]) -> str:

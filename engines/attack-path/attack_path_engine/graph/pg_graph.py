@@ -98,6 +98,18 @@ _ATTACK_RELEVANT_TYPES: Set[str] = {
     "connected_via",        # Transit gateway / direct connect
     "worker_node_of",       # EC2 is a worker node of an EKS cluster
     "can_access",           # Explicit IAM allow (already in set, kept for clarity)
+    # Topology edges that enable multi-hop lateral movement chains.
+    # An attacker who compromises resource A can traverse to resource B if:
+    #   - A HAS_PROFILE B → A can use B's IAM permissions (privilege escalation)
+    #   - A IN_VPC/IN_SUBNET B → A has L3 network access to other resources in same zone
+    #   - A CONTAINED_BY/PLACED_IN B → inverse containment; bridges resource → zone → resource chains
+    #   - A ASSOCIATED_WITH B → explicit association between resources (e.g. Lambda → VPC config)
+    "has_profile",          # EC2 instance has IAM instance profile → role assumption chain
+    "in_vpc",               # Resource in VPC → lateral movement within VPC boundary
+    "in_subnet",            # Resource in subnet → L3-level lateral movement path
+    "contained_by",         # Inverse of CONTAINS; enables bidirectional topology traversal
+    "placed_in",            # Resource placed in network zone (region/AZ/subnet)
+    "associated_with",      # Generic resource association (Lambda↔VPC, SG↔resource, etc.)
 }
 
 
