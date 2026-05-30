@@ -442,6 +442,96 @@ class SequenceDetector:
         except Exception as exc:
             logger.warning("Could not write exfil posture signal: %s", exc)
 
+    def _write_pivot_posture_signal(self, pivot_actors: List[str], account_id: str) -> None:
+        """Set is_on_attack_path=True + attack_entry_point_category='identity_pivot' for pivot actors."""
+        if not pivot_actors:
+            return
+        try:
+            inv_conn = self._get_inventory_conn()
+            try:
+                with inv_conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE resource_security_posture
+                        SET is_on_attack_path = TRUE,
+                            is_attack_entry_point = TRUE,
+                            attack_entry_point_category = 'identity_pivot',
+                            updated_at = NOW()
+                        WHERE tenant_id = %s
+                          AND account_id = %s
+                          AND resource_uid = ANY(%s::text[])
+                        """,
+                        (self.tenant_id, account_id, pivot_actors),
+                    )
+                inv_conn.commit()
+                logger.info(
+                    "pivot posture signal: set identity_pivot on %d actors (updated=%d rows)",
+                    len(pivot_actors), inv_conn.cursor().rowcount if hasattr(inv_conn.cursor(), "rowcount") else -1,
+                )
+            finally:
+                inv_conn.close()
+        except Exception as exc:
+            logger.warning("Could not write identity_pivot posture signal: %s", exc)
+
+    def _write_secrets_posture_signal(self, secrets_actors: List[str], account_id: str) -> None:
+        """Set secrets_in_env_vars=True for actors that staged secrets from Secrets Manager."""
+        if not secrets_actors:
+            return
+        try:
+            inv_conn = self._get_inventory_conn()
+            try:
+                with inv_conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE resource_security_posture
+                        SET secrets_in_env_vars = TRUE,
+                            updated_at = NOW()
+                        WHERE tenant_id = %s
+                          AND account_id = %s
+                          AND resource_uid = ANY(%s::text[])
+                        """,
+                        (self.tenant_id, account_id, secrets_actors),
+                    )
+                inv_conn.commit()
+                logger.info(
+                    "secrets posture signal: set secrets_in_env_vars=True for %d actors",
+                    len(secrets_actors),
+                )
+            finally:
+                inv_conn.close()
+        except Exception as exc:
+            logger.warning("Could not write secrets_staging posture signal: %s", exc)
+
+    def _write_hijack_posture_signal(self, hijack_actors: List[str], account_id: str) -> None:
+        """Set is_on_attack_path=True + attack_entry_point_category='compute_hijack' for hijack actors."""
+        if not hijack_actors:
+            return
+        try:
+            inv_conn = self._get_inventory_conn()
+            try:
+                with inv_conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE resource_security_posture
+                        SET is_on_attack_path = TRUE,
+                            attack_entry_point_category = 'compute_hijack',
+                            updated_at = NOW()
+                        WHERE tenant_id = %s
+                          AND account_id = %s
+                          AND resource_uid = ANY(%s::text[])
+                        """,
+                        (self.tenant_id, account_id, hijack_actors),
+                    )
+                inv_conn.commit()
+                logger.info(
+                    "hijack posture signal: set compute_hijack on %d actors",
+                    len(hijack_actors),
+                )
+            finally:
+                inv_conn.close()
+        except Exception as exc:
+            logger.warning("Could not write compute_hijack posture signal: %s", exc)
+
     def detect(self, account_id: str, region: str) -> Dict[str, Any]:
         """Run sequence detection against 24h CDR event window. Returns stats."""
         cdr_conn = self._get_cdr_conn()
@@ -459,6 +549,9 @@ class SequenceDetector:
 
             all_findings: List[Dict] = []
             exfil_actors: List[str] = []
+            pivot_actors: List[str] = []
+            secrets_actors: List[str] = []
+            hijack_actors: List[str] = []
 
             for actor, events in events_by_actor.items():
                 for template in _SEQUENCE_TEMPLATES:
@@ -467,8 +560,15 @@ class SequenceDetector:
                     )
                     if finding:
                         all_findings.append(finding)
-                        if template["rule_id"] == RULE_S3_EXFIL:
+                        rule = template["rule_id"]
+                        if rule == RULE_S3_EXFIL:
                             exfil_actors.append(actor)
+                        elif rule == RULE_IDENTITY_PIVOT:
+                            pivot_actors.append(actor)
+                        elif rule == RULE_SECRETS_STAGE:
+                            secrets_actors.append(actor)
+                        elif rule == RULE_COMPUTE_HIJACK:
+                            hijack_actors.append(actor)
                         logger.info(
                             "Sequence matched: %s for actor %s",
                             template["rule_id"], actor[:32]
@@ -479,11 +579,17 @@ class SequenceDetector:
             cdr_conn.close()
 
         self._write_exfil_posture_signal(exfil_actors, account_id)
+        self._write_pivot_posture_signal(pivot_actors, account_id)
+        self._write_secrets_posture_signal(secrets_actors, account_id)
+        self._write_hijack_posture_signal(hijack_actors, account_id)
 
         stats = {
             "total_findings": written,
             "sequences_matched": len(all_findings),
             "exfil_actors_flagged": len(exfil_actors),
+            "pivot_actors_flagged": len(pivot_actors),
+            "secrets_actors_flagged": len(secrets_actors),
+            "hijack_actors_flagged": len(hijack_actors),
         }
         logger.info("Sequence detector: %s", stats)
         return stats

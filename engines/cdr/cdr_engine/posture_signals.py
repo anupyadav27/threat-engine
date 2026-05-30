@@ -133,6 +133,7 @@ def _aggregate_cdr_signals(cdr_scan_run_id: str, tenant_id: str) -> dict[str, di
                 WHERE scan_run_id = %s
                   AND tenant_id = %s
                   AND resource_uid IS NOT NULL
+                  AND resource_uid != ''
                 GROUP BY resource_uid, resource_type
             """, (cdr_scan_run_id, tenant_id))
 
