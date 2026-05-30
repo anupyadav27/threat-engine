@@ -507,6 +507,18 @@ def main():
         except Exception as _ps_err:
             logger.warning("CDR posture signal write skipped: %s", _ps_err)
 
+        # Write OBSERVED_ACCESS behavioral edges to asset_relationships (non-fatal)
+        try:
+            from cdr_engine.behavioral_edges import write_behavioral_edges
+            write_behavioral_edges(
+                cdr_scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+            )
+        except Exception as _be_err:
+            logger.warning("CDR behavioral edges write skipped: %s", _be_err)
+
         # Write CDR OPEN findings to shared security_findings table (non-fatal)
         # actor_principal is PII — store only actor_hash = sha256(actor_principal)[:32]
         try:
