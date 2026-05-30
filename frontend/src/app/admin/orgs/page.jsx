@@ -116,7 +116,7 @@ function CreateOrgModal({ onClose, onCreated }) {
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div
-        className="rounded-xl border p-6 w-full max-w-md"
+        className="rounded-xl border p-6 w-full max-w-md max-h-[90vh] overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
         onClick={e => e.stopPropagation()}
       >

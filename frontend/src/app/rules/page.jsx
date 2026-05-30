@@ -51,8 +51,8 @@ function BulkSuppressModal({ selectedRules, onClose, onSuccess }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-[440px] rounded-2xl border shadow-2xl" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+      <div className="w-[440px] rounded-2xl border shadow-2xl flex flex-col max-h-[90vh]" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-center justify-between p-5 border-b flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
           <div className="flex items-center gap-2">
             <Ban className="w-4 h-4" style={{ color: '#f97316' }} />
             <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
@@ -61,7 +61,7 @@ function BulkSuppressModal({ selectedRules, onClose, onSuccess }) {
           </div>
           <button onClick={onClose}><X className="w-4 h-4" style={{ color: 'var(--text-muted)' }} /></button>
         </div>
-        <div className="p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           <div className="rounded-lg p-3 text-xs" style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--text-muted)' }}>
             {selectedRules.length} rule ID{selectedRules.length !== 1 ? 's' : ''} will be suppressed individually.
           </div>
@@ -85,7 +85,7 @@ function BulkSuppressModal({ selectedRules, onClose, onSuccess }) {
             </div>
           )}
         </div>
-        <div className="flex justify-end gap-3 p-5 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex justify-end gap-3 p-5 border-t flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-muted)' }}>Cancel</button>
           <button onClick={handleSubmit} disabled={loading}
             className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2"

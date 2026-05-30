@@ -38,16 +38,17 @@ function CreateTenantModal({ onClose, onCreated }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="rounded-xl p-6 w-full max-w-md shadow-2xl" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
-        <div className="flex items-center justify-between mb-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]" style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
+        <div className="flex items-center justify-between p-6 pb-5 flex-shrink-0">
           <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>Create Workspace</h2>
           <button onClick={onClose} className="p-1 rounded hover:bg-white/10">
             <X className="w-4 h-4" style={{ color: 'var(--text-secondary)' }} />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto px-6 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
               Workspace Name <span className="text-red-400">*</span>
@@ -86,8 +87,9 @@ function CreateTenantModal({ onClose, onCreated }) {
           {error && (
             <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">{error}</p>
           )}
+        </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+        <div className="flex justify-end gap-3 px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm" style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
               Cancel
             </button>
