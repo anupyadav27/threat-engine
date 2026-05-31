@@ -379,6 +379,14 @@ class CrownJewelClassifier:
                         svc = (service or "").lower()
                         rtype = (resource_type or "").lower()
 
+                        # Hard-skip sub-resource types in the compound denylist even when
+                        # di_resource_catalog lists them under an encryption/storage category.
+                        # Without this guard, key_rotation_status and key_policy get loaded
+                        # into _catalog_types and bypass the denylist check in _auto_classify().
+                        rtype_dot = rtype.replace("_", ".")
+                        if rtype in _COMPOUND_TYPE_DENYLIST or rtype_dot in _COMPOUND_TYPE_DENYLIST:
+                            continue
+
                         # Build all key variants to match both naming conventions:
                         #   - "service.resource-type" (dot notation, DI engine format)
                         #   - "service_resource_type" (underscore, CloudQuery/boto3 format)
