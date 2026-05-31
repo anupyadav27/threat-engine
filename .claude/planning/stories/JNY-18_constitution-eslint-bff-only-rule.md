@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase H
 P2 — Codifies the rule that the rest of Phase H enforces. Without this gate, future PRs can re-introduce the same bypasses we just removed in JNY-17.
 
 ## Status
-draft
+done — .eslintrc.json no-direct-engine-fetch rule (warn, flips to error after deferred bypasses migrate), allowed-bypasses.js allowlist, CSPM_CONSTITUTION.md §4.5 UI-Backend Contract section
 
 ## Team Assignment (RACI)
 

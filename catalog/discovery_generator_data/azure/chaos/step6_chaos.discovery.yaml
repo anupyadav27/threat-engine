@@ -1,7 +1,3 @@
-# Discovery YAML — chaos (Azure)
-# Generated: 2026-04-15T10:39:29Z
-# Source: step1b_operation_registry.json (qualified ops + dependency chains)
-# Actions use {category}.{method} format for SDK method resolution
 version: '1.0'
 provider: azure
 service: chaos
@@ -9,107 +5,96 @@ services:
   client: chaos
   module: azure.mgmt.chaos
 discovery:
-  # ── experiments.list [root] ──
-  - discovery_id: azure.chaos.experiments.list
-    calls:
-      - action: experiments.list
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        system_data: '{{ item.system_data }}'
-  # ── experiments.list_all [root] ──
-  - discovery_id: azure.chaos.experiments.list_all
-    calls:
-      - action: experiments.list_all
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        action_type: '{{ item.action_type }}'
-        display: '{{ item.display }}'
-        is_data_action: '{{ item.is_data_action }}'
-        origin: '{{ item.origin }}'
-  # ════════════════════════════════════════
-  # Dependent operations (for_each + params)
-  # ════════════════════════════════════════
-  # ── capabilities.list [dependent] ──
-  - discovery_id: azure.chaos.capabilities.list
-    for_each: azure.chaos.targets.list
-    calls:
-      - action: capabilities.list
-        save_as: response
-        on_error: continue
-        params:
-          parent_resource_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        properties: '{{ item.properties }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        system_data: '{{ item.system_data }}'
-  # ── experiments.get_execution [dependent] ──
-  - discovery_id: azure.chaos.experiments.get_execution
-    for_each: azure.chaos.experiments.list_all
-    calls:
-      - action: experiments.get_execution
-        save_as: response
-        on_error: continue
-        params:
-          experiment_name: '{{ item.name }}'
-          execution_id: '{{ item.id }}'
-    emit:
-      as: item
-      item:
-        identity: '{{ response.identity }}'
-        type: '{{ response.type }}'
-        properties: '{{ response.properties }}'
-        location: '{{ response.location }}'
-        sku: '{{ response.sku }}'
-        name: '{{ response.name }}'
-        provisioning_state: '{{ response.provisioning_state }}'
-        zones: '{{ response.zones }}'
-        kind: '{{ response.kind }}'
-        id: '{{ response.id }}'
-        tags: '{{ response.tags }}'
-  # ── experiments.list_all_executions [dependent] ──
-  - discovery_id: azure.chaos.experiments.list_all_executions
-    for_each: azure.chaos.experiments.list_all
-    calls:
-      - action: experiments.list_all_executions
-        save_as: response
-        on_error: continue
-        params:
-          experiment_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        status: '{{ item.status }}'
-        id: '{{ item.id }}'
-        started_at: '{{ item.started_at }}'
-        stopped_at: '{{ item.stopped_at }}'
-        system_data: '{{ item.system_data }}'
-
-  # ── Unwired dependent ops (no root producer found) ──
-  # SKIP: azure.chaos.capabilitytypes.list — required_params: ['location', 'target_type_name']
-  # SKIP: azure.chaos.targets.list — required_params: ['parent_provider_namespace', 'parent_resource_type', 'parent_resource_name']
-  # SKIP: azure.chaos.targettypes.list — required_params: ['location']
+- discovery_id: azure.chaos.experiments.list
+  calls:
+  - action: experiments.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.chaos.experiments.list_all
+  calls:
+  - action: experiments.list_all
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      action_type: '{{ item.action_type }}'
+      display: '{{ item.display }}'
+      is_data_action: '{{ item.is_data_action }}'
+      origin: '{{ item.origin }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.chaos.capabilities.list
+  for_each: azure.chaos.targets.list
+  calls:
+  - action: capabilities.list
+    save_as: response
+    on_error: continue
+    params:
+      parent_resource_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      properties: '{{ item.properties }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.chaos.experiments.get_execution
+  for_each: azure.chaos.experiments.list_all
+  calls:
+  - action: experiments.get_execution
+    save_as: response
+    on_error: continue
+    params:
+      experiment_name: '{{ item.name }}'
+      execution_id: '{{ item.id }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.chaos.experiments.list_all_executions
+  for_each: azure.chaos.experiments.list_all
+  calls:
+  - action: experiments.list_all_executions
+    save_as: response
+    on_error: continue
+    params:
+      experiment_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      status: '{{ item.status }}'
+      id: '{{ item.id }}'
+      started_at: '{{ item.started_at }}'
+      stopped_at: '{{ item.stopped_at }}'
+      system_data: '{{ item.system_data }}'

@@ -1,0 +1,77 @@
+# =============================================================================
+# IEDS Tier 2 — Kubernetes Services (LoadBalancer / NodePort)
+# =============================================================================
+
+rules:
+
+  - rule_id: IEDS-T2-K8S-001
+    tier: 2
+    csp: k8s
+    resource_type: v1.service
+    origin_type: internet
+    title: "Kubernetes Service of type LoadBalancer is internet-facing"
+    description: >
+      Kubernetes Services of type LoadBalancer provision a cloud load balancer
+      with a public IP. Any pod targeted by this service is potentially
+      reachable from the internet.
+    severity: high
+    required_emitted_fields:
+      - spec
+    exposure_conditions:
+      - field: spec.type
+        operator: eq
+        value: LoadBalancer
+
+  - rule_id: IEDS-T2-K8S-002
+    tier: 2
+    csp: k8s
+    resource_type: v1.service
+    origin_type: internet
+    title: "Kubernetes Service of type NodePort exposes host port to internet"
+    description: >
+      NodePort services bind a port on every cluster node. If nodes have public
+      IPs and the security group / firewall allows the NodePort range (30000-32767),
+      the service is internet-accessible.
+    severity: medium
+    required_emitted_fields:
+      - spec
+    exposure_conditions:
+      - field: spec.type
+        operator: eq
+        value: NodePort
+
+  - rule_id: IEDS-T2-K8S-003
+    tier: 2
+    csp: k8s
+    resource_type: v1.service
+    origin_type: internet
+    title: "Kubernetes LoadBalancer service has an external IP assigned"
+    description: >
+      LoadBalancer-type Services with an assigned external IP (runtime field status.loadBalancer.ingress)
+      are internet-facing. The status field is not emitted by the discovery YAML (runtime-only).
+      Gap: IEDS-GAP-K8S-001 — add status.loadBalancer.ingress to service discovery emit.
+      Required field uses 'spec' as placeholder since status is not yet emitted.
+    severity: high
+    required_emitted_fields:
+      - spec
+    exposure_conditions:
+      - field: spec.type
+        operator: eq
+        value: LoadBalancer
+
+  - rule_id: IEDS-T2-K8S-004
+    tier: 2
+    csp: k8s
+    resource_type: networking.k8s.io.ingress
+    origin_type: internet
+    title: "Kubernetes Ingress has routing rules (internet-facing)"
+    description: >
+      Kubernetes Ingresses with spec.rules defined are internet-facing when
+      backed by an internet-facing LoadBalancer controller.
+      Gap: IEDS-GAP-K8S-002 — add status.loadBalancer.ingress to ingress discovery emit.
+    severity: high
+    required_emitted_fields:
+      - spec
+    exposure_conditions:
+      - field: spec.rules
+        operator: not_empty

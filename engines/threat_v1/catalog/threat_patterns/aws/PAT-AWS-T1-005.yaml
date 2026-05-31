@@ -1,0 +1,29 @@
+id: PAT-AWS-T1-005
+version: 1
+description: "ECS task definition with privileged containers and plaintext secrets in environment variables — instant credential harvest."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Execution]
+mitre_techniques: [T1552.001, T1610]
+tactic_chain_order: [Execution, Credential Access]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_ecs_task_definition]
+  conditions:
+    check_rules_failing:
+      - aws.ecs.container_instance.no_privileged_containers_configured
+      - aws.ecs.container_instance.container_env_no_plaintext_secrets_configured
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "ECS task with privileged=true and DB password in env vars"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "ECS task with non-privileged containers using Secrets Manager refs"
+    expected_tier: 1
+    expected_severity: low

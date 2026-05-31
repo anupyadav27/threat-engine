@@ -26,7 +26,7 @@ spec:
       serviceAccountName: engine-sa
       containers:
         - name: engine-risk
-          image: yadavanup84/engine-risk:v-risk-enterprise2
+          image: yadavanup84/engine-risk:v-risk-cj3
           imagePullPolicy: Always
           ports:
             - containerPort: 8009
@@ -68,7 +68,7 @@ spec:
                   name: threat-engine-db-config
                   key: DB_PORT
             - name: DISCOVERY_DB_NAME
-              value: "threat_engine_discoveries"
+              value: "threat_engine_di"
             - name: DISCOVERY_DB_USER
               value: "postgres"
             - name: DISCOVERY_DB_PASSWORD
@@ -108,7 +108,7 @@ spec:
                   name: threat-engine-db-config
                   key: DB_PORT
             - name: THREAT_DB_NAME
-              value: "threat_engine_threat"
+              value: "threat_engine_di"
             - name: THREAT_DB_USER
               value: "postgres"
             - name: THREAT_DB_PASSWORD
@@ -172,9 +172,9 @@ spec:
             - name: AI_SECURITY_DB_NAME
               value: "threat_engine_ai_security"
             - name: CIEM_DB_NAME
-              value: "threat_engine_ciem"
+              value: "threat_engine_cdr"
             - name: INVENTORY_DB_NAME
-              value: "threat_engine_inventory"
+              value: "threat_engine_di"
             # External DB (EPSS/CVE cache) — optional, failure is non-fatal
             - name: EXTERNAL_DB_HOST
               valueFrom:
@@ -212,7 +212,7 @@ spec:
               value: "risk"
             # ── Scanner Job config ──────────────────────────────────────────
             - name: RISK_SCANNER_IMAGE
-              value: "yadavanup84/engine-risk:v-risk-enterprise2"
+              value: "yadavanup84/engine-risk:v-risk-cj3"
             - name: SCANNER_CPU_REQUEST
               value: "500m"
             - name: SCANNER_MEM_REQUEST
@@ -225,6 +225,22 @@ spec:
               value: "threat-engine-engines"
             - name: SCANNER_SERVICE_ACCOUNT
               value: "engine-sa"
+          # ── DI engine feature flag + DB credentials ────────────
+            - name: DI_ENGINE_ENABLED
+              value: "true"
+            - name: DI_DB_HOST
+              value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+            - name: DI_DB_PORT
+              value: "5432"
+            - name: DI_DB_NAME
+              value: "threat_engine_di"
+            - name: DI_DB_USER
+              value: "postgres"
+            - name: DI_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: threat-engine-db-passwords
+                  key: DI_DB_PASSWORD
           resources:
             requests:
               cpu: "100m"

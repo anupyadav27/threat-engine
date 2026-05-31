@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useParams, useRouter } from 'next/navigation';
 import { Shield, Eye, EyeOff, Lock, ChevronRight, AlertCircle, CheckCircle, Users } from 'lucide-react';
 
@@ -109,19 +110,8 @@ export default function InviteAcceptPage() {
       <div style={{ width: '100%', maxWidth: 440 }}>
 
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 36 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 11,
-            background: 'linear-gradient(135deg,#2563eb,#6366f1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 0 24px rgba(99,102,241,0.4)',
-          }}>
-            <Shield size={22} color="white" />
-          </div>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 800, color: '#f1f5f9', letterSpacing: '0.05em' }}>THREAT ENGINE</div>
-            <div style={{ fontSize: 10, color: '#818cf8', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Cloud Security Platform</div>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 36 }}>
+          <img src="https://d1fp5dwui44wle.cloudfront.net/logo.svg" alt="Onam Security" style={{ width: 160, objectFit: 'contain' }} />
         </div>
 
         {/* ── Invalid invite ── */}

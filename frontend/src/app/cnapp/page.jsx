@@ -27,7 +27,7 @@ const C = {
 // ── Pillar metadata ────────────────────────────────────────────────────────────
 const PILLAR_META = {
   cspm:    { label: 'CSPM',          icon: Shield,         color: '#3b82f6', desc: 'Cloud config compliance' },
-  ciem:    { label: 'CIEM',          icon: KeyRound,       color: '#8b5cf6', desc: 'Identity & entitlements' },
+  cdr:     { label: 'CDR — Cloud Detection & Response', icon: KeyRound, color: '#8b5cf6', desc: 'Cloud detection & response' },
   cwpp:    { label: 'CWPP',          icon: Container,      color: '#06b6d4', desc: 'Workload protection' },
   dspm:    { label: 'DSPM',          icon: Lock,           color: '#f97316', desc: 'Data security posture' },
   network: { label: 'Network',       icon: Network,        color: '#22c55e', desc: '7-layer network posture' },
@@ -291,6 +291,7 @@ export default function CnappPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={tabData}
+        persistenceKey="cnapp"
         loading={false}
         error={error}
         defaultTab="overview"

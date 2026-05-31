@@ -1,0 +1,39 @@
+id: PAT-AWS-T2-006
+version: 1
+description: "EC2 instance in public subnet connected to unencrypted EBS snapshot exposed publicly — data exfiltration via snapshot copy."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Collection, Exfiltration]
+mitre_techniques: [T1530, T1537]
+tactic_chain_order: [Collection, Exfiltration]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    check_rules_failing:
+      - aws.ec2.resource.ebs_encryption_by_default_enabled
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_ebs_snapshot, aws_ebs_volume]
+      conditions:
+        check_rules_failing:
+          - aws.ec2.ebs.public_snapshot_configured
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Internet EC2 with EBS public snapshot no encryption"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Private EC2 with encrypted EBS snapshots, no public access"
+    expected_tier: 2
+    expected_severity: low

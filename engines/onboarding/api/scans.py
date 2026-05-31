@@ -1,12 +1,30 @@
 """
 Scans API — recent orchestration runs for dashboard "Recent Scan Activity" section.
+
+Endpoints:
+  GET /api/v1/scans/recent   — last N scans for a tenant (legacy, used by dashboard)
+  GET /api/v1/scans/history  — paginated scan history per account (BFF D-6)
 """
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Any, Optional
 import os
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
+try:
+    from engine_auth.fastapi.dependencies import require_permission, get_auth_context
+    _AUTH_AVAILABLE = True
+except ImportError:
+    _AUTH_AVAILABLE = False
+
+    def require_permission(perm: str):  # type: ignore[misc]
+        async def _noop() -> None:
+            return None
+        return _noop
+
+    async def get_auth_context() -> None:  # type: ignore[misc]
+        return None
 
 try:
     from engine_common.logger import setup_logger
@@ -18,12 +36,25 @@ except ImportError:
 router = APIRouter(prefix="/api/v1", tags=["scans"])
 
 
-@router.get("/scans/recent")
+@router.get(
+    "/scans/recent",
+    dependencies=[Depends(require_permission("scans:read"))],
+)
 async def get_recent_scans(
-    tenant_id: str = Query(..., description="Tenant identifier"),
     limit: int = Query(10, ge=1, le=50, description="Number of scans to return"),
+    tenant_id_param: Optional[str] = Query(None, alias="tenant_id", description="Fallback for legacy BFF callers"),
+    auth: Any = Depends(get_auth_context),
 ):
-    """Return recent scan orchestration runs ordered by started_at descending."""
+    """Return recent scan orchestration runs ordered by started_at descending.
+
+    tenant_id is resolved from AuthContext when available (preferred path via gateway).
+    Falls back to the tenant_id query param for legacy BFF callers that do not forward
+    X-Auth-Context in internal service-to-service calls.
+    """
+    tenant_id: str = (getattr(auth, "engine_tenant_id", None) or getattr(auth, "tenant_id", None) or tenant_id_param or "").strip()
+    if not tenant_id:
+        raise HTTPException(status_code=422, detail="tenant_id could not be resolved")
+
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
@@ -91,7 +122,7 @@ async def get_scan_pipeline_status(
     """
     Return per-engine pipeline status for a scan run.
 
-    Derives stage status from scan_runs.engines_requested /
+    Derives stage status from scan_orchestration.engines_requested /
     engines_completed columns. The first non-completed engine is marked
     'running' when overall_status == 'running'; everything after is 'pending'.
     """
@@ -190,4 +221,74 @@ async def get_scan_pipeline_status(
         raise
     except Exception as exc:
         logger.error("scans pipeline failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/scans/history")
+async def get_scan_history(
+    account_id: Optional[str] = Query(None, description="Filter by cloud account UUID"),
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(20, ge=1, le=100, description="Results per page"),
+    auth: Any = Depends(get_auth_context),
+    _: Any = Depends(require_permission("scans:read")),
+) -> dict:
+    """Return paginated scan run history for a tenant, optionally filtered by account.
+
+    Reads from ``scan_orchestration`` and enforces tenant isolation via the
+    authenticated ``AuthContext`` — the ``tenant_id`` is never accepted from
+    the query string.
+
+    Args:
+        account_id: Optional UUID of a specific cloud account to filter by.
+        page:       1-based page number.
+        page_size:  Number of rows per page (max 100).
+        auth:       Resolved ``AuthContext`` from the gateway X-Auth-Context header.
+        _:          RBAC guard — ``scans:read`` permission required.
+
+    Returns:
+        Dict with ``scans`` list, ``total``, ``page``, and ``page_size``.
+
+    Raises:
+        HTTPException 500: Database query failure.
+    """
+    # Tenant isolation — resolved from authenticated session, never from query string.
+    tenant_id: Optional[str] = None
+    if auth is not None:
+        tenant_id = (
+            getattr(auth, "engine_tenant_id", None)
+            or getattr(auth, "tenant_id", None)
+        )
+
+    try:
+        from engine_onboarding.database.scan_run_operations import list_scan_runs, count_scan_runs
+
+        offset = (page - 1) * page_size
+        rows = list_scan_runs(
+            account_id=account_id,
+            tenant_id=tenant_id,
+            limit=page_size,
+            offset=offset,
+        )
+
+        # Serialize datetime fields and pass JSONB columns through as-is
+        # (psycopg2 already deserialised JSONB to Python lists/dicts).
+        scans = []
+        for r in rows:
+            for ts_key in ("started_at", "completed_at", "created_at", "updated_at"):
+                val = r.get(ts_key)
+                if val and hasattr(val, "isoformat"):
+                    r[ts_key] = val.isoformat()
+            scans.append(r)
+
+        total = count_scan_runs(account_id=account_id, tenant_id=tenant_id)
+
+        return {
+            "scans":     scans,
+            "total":     total,
+            "page":      page,
+            "page_size": page_size,
+        }
+
+    except Exception as exc:
+        logger.error("scans/history failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc))

@@ -150,16 +150,20 @@ class BaseDBSecProvider(ABC):
         most recent available scan for this provider/tenant (allows
         re-analysis of older data).
         """
+        import os as _os
         resource_types = self.db_resource_types
         if not resource_types:
             return []
 
+        _di_enabled = _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true"
+        table = "asset_inventory" if _di_enabled else "discovery_findings"
+
         with discoveries_conn.cursor() as cur:
             cur.execute(
-                """
+                f"""
                 SELECT resource_uid, resource_type, region, account_id,
                        emitted_fields, credential_ref, credential_type
-                FROM discovery_findings
+                FROM {table}
                 WHERE provider = %s
                   AND tenant_id = %s
                   AND scan_run_id = %s
@@ -172,16 +176,17 @@ class BaseDBSecProvider(ABC):
 
         if not rows:
             # Fallback: query latest scan for this provider/tenant
+            fallback_order = "last_seen_at DESC NULLS LAST" if not _di_enabled else "resource_uid"
             with discoveries_conn.cursor() as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT resource_uid, resource_type, region, account_id,
                            emitted_fields, credential_ref, credential_type
-                    FROM discovery_findings
+                    FROM {table}
                     WHERE provider = %s
                       AND tenant_id = %s
                       AND resource_type = ANY(%s)
-                    ORDER BY last_seen_at DESC NULLS LAST
+                    ORDER BY {fallback_order}
                     LIMIT 500
                     """,
                     (self.provider_name, tenant_id, resource_types),
@@ -189,9 +194,10 @@ class BaseDBSecProvider(ABC):
                 rows = cur.fetchall()
             if rows:
                 logger.info(
-                    "DBSec[%s] fallback: loaded %d resources from latest available scan",
+                    "DBSec[%s] fallback: loaded %d resources from latest available scan (table=%s)",
                     self.provider_name,
                     len(rows),
+                    table,
                 )
 
         return [
@@ -200,11 +206,12 @@ class BaseDBSecProvider(ABC):
                 "resource_type": r[1],
                 "region": r[2] or "",
                 "account_id": r[3] or "",
-                "emitted_fields": r[4] or {},
+                "emitted_fields": r[4] if isinstance(r[4], dict) else {},
                 "credential_ref": r[5] or "",
                 "credential_type": r[6] or "",
             }
             for r in rows
+            if isinstance(r[4], dict) or r[4] is None
         ]
 
     @staticmethod

@@ -1,0 +1,47 @@
+id: PAT-GCP-T3-002
+version: 1
+description: "Compromised GKE workload with SA impersonation CDR pivots through cluster escape to Cloud KMS crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Lateral Movement, Collection]
+mitre_techniques: [T1611, T1134.001, T1552]
+tactic_chain_order: [Privilege Escalation, Lateral Movement, Collection]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_gke_cluster, gcp_gke_workload]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - gcp.gke.workload.workload_no_privileged_containers
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [gcp_service_account]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [gcp_kms_key, gcp_kms_key_ring]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1611, T1134.001]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "GKE privileged pod CDR → admin SA → KMS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "GKE no privileged containers, scoped SA, KMS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

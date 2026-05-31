@@ -3,8 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { FALLBACK_VIEWER_PERMISSIONS } from './permission-constants';
 
-const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API_BASE ||
-  (process.env.NODE_ENV === 'production' ? '/ui' : '');
+const AUTH_URL = process.env.NEXT_PUBLIC_AUTH_URL || process.env.NEXT_PUBLIC_API_BASE || '';
 
 const AuthContext = createContext({
   user: null,

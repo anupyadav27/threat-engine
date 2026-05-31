@@ -1,0 +1,30 @@
+id: PAT-ALI-T1-003
+version: 1
+description: "RAM policy attached directly to user (not via group/role) without MFA — single compromised user account grants policy permissions directly."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Persistence]
+mitre_techniques: [T1078.004, T1098]
+tactic_chain_order: [Privilege Escalation, Persistence]
+csps: [alicloud]
+entry:
+  node_type: Resource
+  resource_types: [alicloud_ram_user]
+  conditions:
+    check_rules_failing:
+      - alicloud.ram.policy.attached_only_to_group_or_roles_configured
+      - alicloud.ram.user.account_management_enabled
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "RAM policy attached directly to user with admin privileges"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "RAM policy attached via group/role only, user has MFA"
+    expected_tier: 1
+    expected_severity: low

@@ -18,7 +18,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from ._auth import _parse_auth_context, resolve_tenant_id
-from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, safe_get
+from ._shared import ENGINE_URLS, ENGINE_TIMEOUTS, DEFAULT_TIMEOUT, fetch_many, fetch_scan_trend
 from ._transforms import normalize_asset, apply_global_filters, _safe_upper
 from ._page_context import inventory_page_context, inventory_filter_schema
 from ._common_schemas import InventoryViewResponse
@@ -134,6 +134,39 @@ async def _risk_top_assets(
         return {}
 
 
+async def _batch_rsp_posture(
+    resource_uids: List[str],
+    auth_headers: Optional[Dict[str, str]],
+) -> Dict[str, Dict[str, Any]]:
+    """POST to DI engine's batch-posture endpoint to get RSP signals per asset.
+
+    Returns: { resource_uid: { overall_posture_score, is_internet_exposed,
+               can_access_pii, data_classification, is_on_attack_path,
+               attack_path_count, highest_path_severity, has_active_cdr_actor,
+               is_crown_jewel, blast_radius_count, ... } }
+    Best-effort — empty dict on failure.
+    """
+    if not resource_uids:
+        return {}
+    url = f"{ENGINE_URLS['di']}/api/v1/di/batch-posture"
+    body = {"resource_uids": resource_uids[:500]}
+    headers = {"Content-Type": "application/json"}
+    if auth_headers:
+        headers.update(auth_headers)
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(url, json=body, headers=headers, timeout=15.0)
+            if resp.status_code != 200:
+                logger.warning("BFF inventory batch-posture -> %s", resp.status_code)
+                return {}
+            data = resp.json()
+            posture = data.get("posture") if isinstance(data, dict) else None
+            return posture if isinstance(posture, dict) else {}
+    except Exception as exc:
+        logger.warning("BFF inventory batch-posture failed: %s", exc)
+        return {}
+
+
 def _type_from_arn(arn: str) -> str:
     """Derive a human-readable resource type from an AWS ARN.
 
@@ -172,10 +205,9 @@ async def view_inventory(
     auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
-    # ── 4 parallel calls: inventory + threat detections + threat summary + onboarding
     results = await fetch_many([
-        ("inventory",  "/api/v1/inventory/ui-data",  {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
-        ("threat",     "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
+        ("di",  "/api/v1/di/ui-data",  {"scan_run_id": scan_run_id, "limit": str(min(limit, 2000)), "offset": str(offset)}),
+        ("attack_path", "/api/v1/threat/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest", "limit": str(limit)}),
         ("onboarding", "/api/v1/cloud-accounts", {"tenant_id": tenant_id}),
     ], auth_headers=fwd_headers)
 
@@ -247,18 +279,20 @@ async def view_inventory(
             elif asset["findings"]["low"] > 0:
                 asset["severity"] = "low"
 
-    # ── Batch-enrich with check findings + risk scores (best-effort) ──────
+    # ── Batch-enrich with check findings + risk scores + RSP posture ──────
     asset_uids = [a.get("resource_uid") for a in assets if a.get("resource_uid")]
-    check_severity_map, risk_top_map = await asyncio.gather(
+    check_severity_map, risk_top_map, rsp_map = await asyncio.gather(
         _batch_check_severity(asset_uids, tenant_id, fwd_headers),
         _risk_top_assets(tenant_id, fwd_headers, limit=min(limit, 1000)),
+        _batch_rsp_posture(asset_uids, fwd_headers),
     )
 
     for asset in assets:
         uid = asset.get("resource_uid", "")
         if not uid:
             continue
-        cs = check_severity_map.get(uid)
+        # batch-severity keyed by short resource id (last segment after '/') or check uid
+        cs = check_severity_map.get(uid) or check_severity_map.get(uid.rsplit("/", 1)[-1])
         if cs:
             existing = asset.get("findings") or {}
             asset["findings"] = {
@@ -282,6 +316,45 @@ async def view_inventory(
             asset["compound_risk_score"] = rt.get("compound_risk_score", 0)
             if rt.get("risk_scenario"):
                 asset["risk_scenario"] = rt["risk_scenario"]
+        # Merge RSP posture signals — these power the Orca-style table columns
+        rsp = rsp_map.get(uid)
+        if rsp:
+            asset["overall_posture_score"] = rsp.get("overall_posture_score", 0)
+            # Prefer RSP is_internet_exposed (written by network engine) over heuristic
+            asset["is_internet_exposed"] = rsp.get("is_internet_exposed", asset.get("internet_exposed", False))
+            asset["can_access_pii"] = rsp.get("can_access_pii", False)
+            asset["data_classification"] = rsp.get("data_classification", "unknown")
+            asset["is_on_attack_path"] = rsp.get("is_on_attack_path", False)
+            asset["attack_path_count"] = rsp.get("attack_path_count", 0)
+            asset["highest_path_severity"] = rsp.get("highest_path_severity")
+            asset["has_active_cdr_actor"] = rsp.get("has_active_cdr_actor", False)
+            asset["is_crown_jewel"] = rsp.get("is_crown_jewel", False)
+            asset["blast_radius_count"] = rsp.get("blast_radius_count", 0)
+            asset["vuln_critical_count"] = rsp.get("vuln_critical_count", 0)
+            asset["has_known_exploit"] = rsp.get("has_known_exploit", False)
+            asset["is_encrypted_at_rest"] = rsp.get("is_encrypted_at_rest", False)
+            # Wire check severity counts from RSP (written by check engine at scan time)
+            _cc = int(rsp.get("check_critical", 0) or 0)
+            _ch = int(rsp.get("check_high",     0) or 0)
+            _cm = int(rsp.get("check_medium",   0) or 0)
+            _cl = int(rsp.get("check_low",      0) or 0)
+            if _cc + _ch + _cm + _cl > 0:
+                existing = asset.get("findings") or {}
+                asset["findings"] = {
+                    "critical": max(int(existing.get("critical", 0) or 0), _cc),
+                    "high":     max(int(existing.get("high",     0) or 0), _ch),
+                    "medium":   max(int(existing.get("medium",   0) or 0), _cm),
+                    "low":      max(int(existing.get("low",      0) or 0), _cl),
+                }
+                f = asset["findings"]
+                if f["critical"] > 0:
+                    asset["severity"] = "critical"
+                elif f["high"] > 0 and asset.get("severity") not in ("critical",):
+                    asset["severity"] = "high"
+                elif f["medium"] > 0 and asset.get("severity") not in ("critical", "high"):
+                    asset["severity"] = "medium"
+                elif f["low"] > 0 and not asset.get("severity"):
+                    asset["severity"] = "low"
 
     # ── Build account->provider mapping from onboarding ──────────────────
     raw_accounts = onboarding_data.get("accounts", [])
@@ -328,10 +401,9 @@ async def view_inventory(
 
     # ── KPI derivation ───────────────────────────────────────────────────
     total = len(filtered)
-    now = datetime.datetime.utcnow()
+    now = datetime.datetime.now(datetime.timezone.utc)
     week_ago = now - datetime.timedelta(days=7)
     new_this_week = sum(1 for a in filtered if a.get("created_at") and str(a["created_at"]) > week_ago.isoformat())
-    unmanaged = sum(1 for a in filtered if not a.get("tags") or len(a.get("tags", {})) == 0)
     exposed = sum(1 for a in filtered if a.get("internet_exposed") or a.get("public"))
     critical = sum(1 for a in filtered if (
         (isinstance(a.get("findings"), dict) and a["findings"].get("critical", 0) > 0)
@@ -392,9 +464,11 @@ async def view_inventory(
     page_ctx = inventory_page_context({"total_assets": total_assets})
     page_ctx["tabs"] = [
         {"id": "assets", "label": "Assets", "count": total_assets},
-        {"id": "architecture", "label": "Architecture", "count": 0},
         {"id": "graph", "label": "Graph", "count": 0},
     ]
+
+    # Fetch real scan trend from onboarding DB (best-effort; returns [] on failure)
+    scan_trend = fetch_scan_trend(tenant_id) if tenant_id else []
 
     return {
         "pageContext": page_ctx,
@@ -423,6 +497,7 @@ async def view_inventory(
         "total": inventory_data.get("total", len(filtered)),
         "has_more": inventory_data.get("has_more", False),
         "summary": summary_resp,
+        "scanTrend": scan_trend,
     }
 
 
@@ -726,20 +801,39 @@ async def view_asset_detail(
     fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
 
     # ── Sub-route dispatch (greedy :path swallows suffixes) ────────────
+    logger.debug("view_asset_detail: resource_uid=%r ends_with_panel=%s", resource_uid, resource_uid.endswith("/panel"))
     if resource_uid.endswith("/blast-radius"):
         actual_uid = resource_uid[: -len("/blast-radius")]
-        # JNY-02 fix: view_blast_radius derives tenant_id internally via
-        # resolve_tenant_id(request); passing tenant_id= here raised TypeError → 500.
-        return await view_blast_radius(
-            request=request,
-            resource_uid=actual_uid,
-            scan_run_id=scan_run_id,
-            max_depth=3,
-        )
+        return await view_blast_radius(request=request, resource_uid=actual_uid, max_depth=3)
 
-    if resource_uid.endswith("/ciem"):
-        actual_uid = resource_uid[: -len("/ciem")]
-        return await view_asset_ciem(request=request, resource_uid=actual_uid)
+    if resource_uid.endswith("/cdr"):
+        actual_uid = resource_uid[: -len("/cdr")]
+        return await view_asset_cdr(request=request, resource_uid=actual_uid)
+
+    if resource_uid.endswith("/posture"):
+        actual_uid = resource_uid[: -len("/posture")]
+        return await view_asset_posture(request=request, resource_uid=actual_uid)
+
+    if resource_uid.endswith("/findings"):
+        actual_uid = resource_uid[: -len("/findings")]
+        return await view_asset_findings(request=request, resource_uid=actual_uid)
+
+    if resource_uid.endswith("/panel"):
+        actual_uid = resource_uid[: -len("/panel")]
+        try:
+            return await view_asset_panel(
+                request=request,
+                resource_uid=actual_uid,
+                findings_status="open",
+                findings_page=1,
+                findings_page_size=50,
+            )
+        except HTTPException:
+            raise
+        except Exception as _panel_err:
+            import logging as _log
+            _log.getLogger("bff.inventory").error("panel dispatch error: %s", _panel_err, exc_info=True)
+            raise
 
     # Encode resource_uid for use in URL paths — '/' in ARNs must be %2F so
     # FastAPI's {param:path} routes don't split on them.
@@ -747,20 +841,25 @@ async def view_asset_detail(
     enc_uid = _quote(resource_uid, safe="")
 
     # ── 5 parallel calls (asset + relationships fetched separately) ────
+    # DI engine is the primary source for single-asset detail and relationships.
+    # Legacy inventory paths kept as comments for rollback reference:
+    #   ("inventory", f"/api/v1/inventory/assets/{enc_uid}", {"tenant_id": ..., "scan_run_id": ...})
+    #   ("inventory", f"/api/v1/inventory/assets/{enc_uid}/relationships", {"tenant_id": ..., ...})
     results = await fetch_many([
-        ("inventory",  f"/api/v1/inventory/assets/{enc_uid}",
-         {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
+        ("di",         f"/api/v1/di/assets/{enc_uid}",
+         {"scan_run_id": scan_run_id} if scan_run_id and scan_run_id != "latest" else {}),
         ("check",      f"/api/v1/check/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id}),
-        ("threat",     f"/api/v1/threat/findings/resource/{enc_uid}",
+        ("attack_path", f"/api/v1/threat/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id}),
         ("compliance", f"/api/v1/compliance/findings/resource/{enc_uid}",
          {"tenant_id": tenant_id, "scan_run_id": scan_run_id}),
-        ("inventory",  f"/api/v1/inventory/assets/{enc_uid}/relationships",
-         {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "depth": "2"}),
+        ("di",         "/api/v1/di/relationships",
+         {"source_uid": enc_uid, **({"scan_run_id": scan_run_id} if scan_run_id and scan_run_id != "latest" else {})}),
+        ("di",         f"/api/v1/di/assets/{enc_uid}/posture", {}),
     ], auth_headers=fwd_headers)
 
-    inventory_data, check_data, threat_data, compliance_data, rels_data = results
+    inventory_data, check_data, threat_data, compliance_data, rels_data, posture_data = results
 
     # Safely unwrap — failed calls return None
     inventory_data = inventory_data if isinstance(inventory_data, dict) else {}
@@ -809,68 +908,18 @@ async def view_asset_detail(
         "compliance_findings": compliance_data.get("findings", []),
         "drift": drift_timeline,
         "relationships": relationships,
+        "posture": posture_data if isinstance(posture_data, dict) else {},
     }
 
 
 # ── Blast Radius View ─────────────────────────────────────────────────────
 
 
-async def _fetch_posture_for_nodes(
-    node_uids: List[str],
-    tenant_id: str,
-) -> Dict[str, Dict[str, Any]]:
-    """Batch-fetch check + threat severity counts for a set of resource_uids.
-
-    Makes 2×N parallel HTTP calls (one check + one threat per node).
-    Returns {resource_uid: {"check": {sev_counts}, "threat": {sev_counts}}}.
-    """
-    import httpx
-
-    if not node_uids:
-        return {}
-
-    posture: Dict[str, Dict[str, Any]] = {
-        uid: {"check": {}, "threat": {}} for uid in node_uids
-    }
-
-    async with httpx.AsyncClient() as client:
-        tasks = []
-        task_meta: List[tuple] = []  # (uid, engine_name)
-
-        for uid in node_uids:
-            for engine, path_tpl in [
-                ("check",  "/api/v1/check/findings/resource/{}"),
-                ("threat", "/api/v1/threat/findings/resource/{}"),
-            ]:
-                base = ENGINE_URLS.get(engine, "")
-                url = f"{base}{path_tpl.format(uid)}"
-                timeout = ENGINE_TIMEOUTS.get(engine, DEFAULT_TIMEOUT)
-                tasks.append(
-                    client.get(url, params={"tenant_id": tenant_id}, timeout=timeout)
-                )
-                task_meta.append((uid, engine))
-
-        # Gather all — exceptions are caught individually
-        responses = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for (uid, engine), resp in zip(task_meta, responses):
-            if isinstance(resp, Exception):
-                logger.debug("Blast-radius posture %s/%s failed: %s", engine, uid, resp)
-                continue
-            if resp.status_code == 200:
-                try:
-                    data = resp.json()
-                    posture[uid][engine] = data.get("severity_counts", {})
-                except Exception:
-                    pass
-
-    return posture
-
 
 _jny03_audit_logger = logging.getLogger("api-gateway.audit")
 
 
-def _jny03_emit_ciem_audit(
+def _jny03_emit_cdr_audit(
     *,
     endpoint: str,
     user_id: str,
@@ -914,17 +963,17 @@ def _jny03_emit_ciem_audit(
     _jny03_audit_logger.info(_json.dumps(payload))
 
 
-async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]:
+async def view_asset_cdr(request: Request, resource_uid: str) -> Dict[str, Any]:
     """BFF view: CIEM identity data for a specific asset.
 
     Security pattern (sequential — NOT parallel):
       1. Verify asset_id belongs to the caller's tenant via inventory engine.
       2. Only after ownership confirmed, call CIEM engine with resource_uid.
 
-    Permission gate: ciem:sensitive — analyst+ only. Viewer returns 403.
+    Permission gate: cdr:sensitive — analyst+ only. Viewer returns 403.
     tenant_id sourced exclusively from AuthContext (never from query param).
     """
-    _audit_endpoint = f"/api/v1/views/inventory/asset/{resource_uid}/ciem"
+    _audit_endpoint = f"/api/v1/views/inventory/asset/{resource_uid}/cdr"
     ctx = _parse_auth_context(request)
     if ctx is None:
         raise HTTPException(status_code=401, detail="Authentication required")
@@ -932,8 +981,8 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     _audit_user = getattr(ctx, "user_id", "unknown")
     _audit_tenant = resolve_tenant_id(request)
 
-    if "ciem:sensitive" not in ctx.permissions:
-        _jny03_emit_ciem_audit(
+    if "cdr:sensitive" not in ctx.permissions:
+        _jny03_emit_cdr_audit(
             endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
             target=resource_uid, target_field="asset_id", result=403, request=request,
         )
@@ -949,20 +998,21 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     from urllib.parse import quote as _quote
     enc_uid = _quote(resource_uid, safe="")
 
-    # Step 1 — sequential: verify asset belongs to this tenant
+    # Step 1 — sequential: verify asset belongs to this tenant.
+    # DI engine is the primary source; tenant scoping is enforced via AuthContext.
     inv_resp = await fetch_many(
-        [("inventory", f"/api/v1/inventory/assets/{enc_uid}", {"tenant_id": tenant_id})],
+        [("di", f"/api/v1/di/assets/{enc_uid}", {})],
         auth_headers=fwd_headers,
     )
     inv_asset = inv_resp[0] if inv_resp else None
     if not isinstance(inv_asset, dict) or not inv_asset.get("resource_uid"):
-        _jny03_emit_ciem_audit(
+        _jny03_emit_cdr_audit(
             endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
             target=resource_uid, target_field="asset_id", result=403, request=request,
         )
         raise HTTPException(status_code=403, detail="Asset not found or access denied")
     if tenant_id and inv_asset.get("tenant_id") not in (tenant_id, None):
-        _jny03_emit_ciem_audit(
+        _jny03_emit_cdr_audit(
             endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
             target=resource_uid, target_field="asset_id", result=403, request=request,
         )
@@ -971,17 +1021,17 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     confirmed_uid = inv_asset.get("resource_uid") or resource_uid
 
     # Step 2 — ONLY after ownership confirmed: call CIEM engine
-    ciem_results = await fetch_many(
-        [("ciem", "/api/v1/ciem/findings", {"resource_uid": confirmed_uid, "tenant_id": tenant_id, "limit": "500"})],
+    cdr_results = await fetch_many(
+        [("cdr", "/api/v1/cdr/findings", {"resource_uid": confirmed_uid, "tenant_id": tenant_id, "limit": "500"})],
         auth_headers=fwd_headers,
     )
-    ciem_raw = ciem_results[0] if ciem_results else None
+    cdr_raw = cdr_results[0] if cdr_results else None
 
     findings: List[Dict[str, Any]] = []
-    if isinstance(ciem_raw, dict):
-        findings = ciem_raw.get("findings") or ciem_raw.get("data") or []
-    elif isinstance(ciem_raw, list):
-        findings = ciem_raw
+    if isinstance(cdr_raw, dict):
+        findings = cdr_raw.get("findings") or cdr_raw.get("data") or []
+    elif isinstance(cdr_raw, list):
+        findings = cdr_raw
 
     # Aggregate by actor_principal
     by_principal: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
@@ -1054,7 +1104,7 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     truncated = len(identities) > 100
     over_privileged_count = sum(1 for i in identities if i["over_privileged"])
 
-    _jny03_emit_ciem_audit(
+    _jny03_emit_cdr_audit(
         endpoint=_audit_endpoint, user_id=_audit_user, tenant_id=_audit_tenant,
         target=resource_uid, target_field="asset_id", result=200, request=request,
         findings=identities[:5],
@@ -1068,11 +1118,107 @@ async def view_asset_ciem(request: Request, resource_uid: str) -> Dict[str, Any]
     }
 
 
+async def view_asset_posture(request: Request, resource_uid: str) -> Dict[str, Any]:
+    """Maps RSP columns into the dimension-keyed format expected by PostureTabs component.
+
+    Returns: { network, iam, encryption, data, database, api_security } — each a flat
+    dict of posture signals for that security dimension.
+    """
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    from urllib.parse import quote as _quote
+    enc_uid = _quote(resource_uid, safe="")
+
+    results = await fetch_many([
+        ("di", f"/api/v1/di/assets/{enc_uid}/posture", {}),
+    ], auth_headers=fwd_headers)
+    rsp = results[0]
+    if not isinstance(rsp, dict) or "detail" in rsp:
+        raise HTTPException(status_code=404, detail="Posture data not found for asset")
+
+    iam_d = rsp.get("iam_detail") or {}
+    net_d = rsp.get("network_detail") or {}
+
+    return {
+        "network": {
+            "is_internet_exposed":  rsp.get("is_internet_exposed"),
+            "entry_point_type":     net_d.get("entry_point_type"),
+            "waf_protected":        rsp.get("has_waf"),
+            "is_onprem_reachable":  net_d.get("is_onprem_reachable"),
+            "is_in_private_subnet": rsp.get("is_in_private_subnet"),
+            "exposure_score":       rsp.get("network_exposure_score"),
+        },
+        "iam": {
+            "attached_role_arn":       iam_d.get("role_arn"),
+            "is_admin_role":           rsp.get("is_admin_role"),
+            "has_wildcard_policy":     rsp.get("role_has_wildcard_policy"),
+            "mfa_required":            rsp.get("mfa_enforced"),
+            "has_permission_boundary": rsp.get("has_permission_boundary"),
+            "cross_account":           rsp.get("role_allows_cross_account"),
+            "iam_reachable_count":     rsp.get("blast_radius_count"),
+        },
+        "encryption": {
+            "volume_encrypted":  rsp.get("is_encrypted_at_rest"),
+            "in_transit_tls":    rsp.get("is_encrypted_in_transit"),
+            "encryption_type":   "KMS-Managed" if rsp.get("has_kms_managed_key") else None,
+            "cert_days_to_expiry": rsp.get("cert_days_remaining") if rsp.get("has_valid_certificate") else None,
+            "tls_version":       rsp.get("tls_version"),
+        },
+        "data": {
+            "data_classification": rsp.get("data_classification"),
+            "can_access_pii":      rsp.get("can_access_pii"),
+            "can_write_data":      None,
+            "exfil_path_exists":   rsp.get("has_exfil_path"),
+            "pii_store_count":     rsp.get("reachable_pii_store_count"),
+        },
+        "database": {
+            "connected_db_uids": rsp.get("connected_db_uids"),
+            "db_auth_type":      rsp.get("db_auth_type"),
+            "db_same_vpc":       None,
+        },
+        "api_security": {
+            "api_security_score":            rsp.get("api_security_score"),
+            "api_auth_type":                 rsp.get("api_auth_type"),
+            "api_has_waf":                   rsp.get("api_has_waf"),
+            "api_has_rate_limit":            rsp.get("api_has_rate_limit"),
+            "api_publicly_accessible":       rsp.get("api_publicly_accessible"),
+            "api_deprecated_version_active": rsp.get("api_deprecated_version_active"),
+            "api_detail":                    rsp.get("api_detail"),
+        },
+    }
+
+
+async def view_asset_findings(request: Request, resource_uid: str) -> Dict[str, Any]:
+    """Unified security findings for a single asset, formatted for FindingsPanel."""
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    from urllib.parse import quote as _quote
+    enc_uid = _quote(resource_uid, safe="")
+
+    results = await fetch_many([
+        ("di", f"/api/v1/di/assets/{enc_uid}/findings", {"page_size": "50", "status": "open"}),
+    ], auth_headers=fwd_headers)
+    raw = results[0]
+    if not isinstance(raw, dict):
+        return {"findings": [], "total": 0, "by_severity": {"critical": 0, "high": 0, "medium": 0, "low": 0}}
+
+    findings = raw.get("data", [])
+    total = raw.get("total", len(findings))
+    by_sev: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    for f in findings:
+        s = (f.get("severity") or "").lower()
+        if s in by_sev:
+            by_sev[s] += 1
+
+    return {"findings": findings, "total": total, "by_severity": by_sev}
+
+
 @router.get("/inventory/asset/{resource_uid:path}/blast-radius")
 async def view_blast_radius(
     request: Request,
     resource_uid: str,
-    scan_run_id: str = Query("latest"),
     max_depth: int = Query(3, ge=1, le=5),
 ):
     """Blast-radius from Neo4j (threat engine graph).
@@ -1103,8 +1249,8 @@ async def view_blast_radius(
         "max_depth": depth,
     }
 
-    # ── Call Neo4j blast radius via threat engine ───────────────────────────
-    threat_base = ENGINE_URLS.get("threat", "")
+    # ── Call Neo4j blast radius via attack-path engine ─────────────────────────
+    threat_base = ENGINE_URLS.get("attack_path", "")
     safe_uid = quote(resource_uid, safe="/:@!$&'()*+,;=")
     neo4j_url = f"{threat_base}/api/v1/graph/blast-radius/{safe_uid}"
     neo4j_params = {"tenant_id": tenant_id, "max_hops": str(depth)}
@@ -1116,7 +1262,7 @@ async def view_blast_radius(
             _resp = await _client.get(
                 neo4j_url, params=neo4j_params,
                 headers=_blast_headers,
-                timeout=ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
+                timeout=ENGINE_TIMEOUTS.get("attack_path", DEFAULT_TIMEOUT)
             )
             if _resp.status_code != 200:
                 logger.warning("Neo4j blast radius %s -> %s", neo4j_url, _resp.status_code)
@@ -1288,9 +1434,9 @@ async def _batch_posture_for_nodes(
 
     payload = {"resource_uids": resource_uids, "tenant_id": tenant_id}
     check_base = ENGINE_URLS.get("check", "")
-    threat_base = ENGINE_URLS.get("threat", "")
+    attack_path_base = ENGINE_URLS.get("attack_path", "")
     check_timeout = ENGINE_TIMEOUTS.get("check", DEFAULT_TIMEOUT)
-    threat_timeout = ENGINE_TIMEOUTS.get("threat", DEFAULT_TIMEOUT)
+    attack_path_timeout = ENGINE_TIMEOUTS.get("attack_path", DEFAULT_TIMEOUT)
 
     check_map: Dict[str, Dict[str, int]] = {}
     threat_map: Dict[str, Dict[str, int]] = {}
@@ -1303,9 +1449,9 @@ async def _batch_posture_for_nodes(
                 timeout=check_timeout,
             ),
             client.post(
-                f"{threat_base}/api/v1/threat/findings/batch-severity",
+                f"{attack_path_base}/api/v1/threat/findings/batch-severity",
                 json=payload,
-                timeout=threat_timeout,
+                timeout=attack_path_timeout,
             ),
             return_exceptions=True,
         )
@@ -1377,7 +1523,7 @@ async def view_inventory_taxonomy(
         params["category"] = category
 
     results = await fetch_many([
-        ("inventory", "/api/v1/inventory/taxonomy", params),
+        ("di", "/api/v1/di/taxonomy", params),
     ], auth_headers=fwd_headers)
 
     data = results[0]
@@ -1385,132 +1531,6 @@ async def view_inventory_taxonomy(
         return {"total": 0, "classifications": [], "categories_summary": {}}
     return data
 
-
-@router.get("/inventory/architecture")
-async def view_inventory_architecture(
-    request: Request,
-    scan_run_id: str = Query("latest"),
-    max_priority: int = Query(3, ge=1, le=5),
-    csp: Optional[str] = Query(None),
-):
-    """Architecture diagram — pre-nested hierarchy with posture enrichment.
-
-    Step 1: Get nested hierarchy from inventory engine /api/v1/inventory/architecture
-    Step 2: Batch-fetch posture for all assets in the hierarchy
-    Step 3: Merge posture counts into each node
-    """
-    tenant_id = resolve_tenant_id(request)
-    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
-    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
-
-    params: Dict[str, str] = {
-        "tenant_id": tenant_id,
-        "scan_run_id": scan_run_id,
-        "max_priority": str(max_priority),
-        "include_relationships": "true",
-    }
-    if csp:
-        params["csp"] = csp
-
-    results = await fetch_many([
-        ("inventory", "/api/v1/inventory/architecture", params),
-    ], auth_headers=fwd_headers)
-
-    arch_data = results[0]
-    if not isinstance(arch_data, dict) or not arch_data.get("accounts"):
-        return {
-            "accounts": [],
-            "relationships": [],
-            "stats": {"total_assets": 0, "total_relationships": 0, "enriched": False},
-        }
-
-    # Collect all resource_uids from nested hierarchy for posture enrichment
-    all_uids = _collect_uids_from_hierarchy(arch_data.get("accounts", []))
-
-    if all_uids:
-        posture_map = await _batch_posture_for_nodes(all_uids, tenant_id)
-        _merge_posture_into_hierarchy(arch_data.get("accounts", []), posture_map)
-
-    stats = arch_data.get("stats", {})
-    stats["enriched"] = True
-    arch_data["stats"] = stats
-
-    return arch_data
-
-
-def _collect_uids_from_hierarchy(accounts: List[Dict]) -> List[str]:
-    """Recursively collect all resource_uids from v2 nested hierarchy."""
-    uids = []
-
-    def collect_from_resources(resources):
-        if isinstance(resources, list):
-            for r in resources:
-                if isinstance(r, dict) and r.get("resource_uid"):
-                    uids.append(r["resource_uid"])
-        elif isinstance(resources, dict):
-            for cat_resources in resources.values():
-                collect_from_resources(cat_resources)
-
-    for acct in accounts:
-        # v2: global_primary (dict of category → [resources])
-        collect_from_resources(acct.get("global_primary", {}))
-
-        # v2: supporting_services (dict of group → {global: [...], regional: {region: [...]}})
-        for grp in (acct.get("supporting_services") or {}).values():
-            if isinstance(grp, dict):
-                collect_from_resources(grp.get("global", []))
-                for region_list in (grp.get("regional") or {}).values():
-                    collect_from_resources(region_list)
-
-        # Regions
-        for reg in acct.get("regions", []):
-            collect_from_resources(reg.get("regional_primary", {}))
-            for vpc in reg.get("vpcs", []):
-                collect_from_resources(vpc.get("vpc_infrastructure", []))
-                for subnet in vpc.get("subnets", []):
-                    collect_from_resources(subnet.get("resources_by_category", {}))
-
-    return uids
-
-
-def _merge_posture_into_hierarchy(
-    accounts: List[Dict],
-    posture_map: Dict[str, Dict[str, Any]],
-):
-    """Recursively merge posture data into all resource nodes in hierarchy."""
-    def enrich_resources(resources):
-        if isinstance(resources, list):
-            for r in resources:
-                if isinstance(r, dict) and r.get("resource_uid"):
-                    p = posture_map.get(r["resource_uid"], {})
-                    check = p.get("check", {})
-                    threat = p.get("threat", {})
-                    r["posture"] = {
-                        "check": check,
-                        "threat": threat,
-                        "total_critical": check.get("critical", 0) + threat.get("critical", 0),
-                        "total_high": check.get("high", 0) + threat.get("high", 0),
-                    }
-        elif isinstance(resources, dict):
-            for cat_resources in resources.values():
-                enrich_resources(cat_resources)
-
-    for acct in accounts:
-        # v2 structure
-        enrich_resources(acct.get("global_primary", {}))
-
-        for grp in (acct.get("supporting_services") or {}).values():
-            if isinstance(grp, dict):
-                enrich_resources(grp.get("global", []))
-                for region_list in (grp.get("regional") or {}).values():
-                    enrich_resources(region_list)
-
-        for reg in acct.get("regions", []):
-            enrich_resources(reg.get("regional_primary", {}))
-            for vpc in reg.get("vpcs", []):
-                enrich_resources(vpc.get("vpc_infrastructure", []))
-                for subnet in vpc.get("subnets", []):
-                    enrich_resources(subnet.get("resources_by_category", {}))
 
 
 @router.get("/inventory/graph")
@@ -1544,7 +1564,7 @@ async def view_inventory_graph(
         params["service"] = service
 
     graph_results = await fetch_many([
-        ("inventory", "/api/v1/inventory/runs/latest/graph", params),
+        ("di", "/api/v1/di/graph", params),
     ], auth_headers=fwd_headers)
 
     graph_data = graph_results[0]
@@ -1681,74 +1701,110 @@ def _aggregate_by_principal(findings: list) -> list:
 _di05_audit_logger = logging.getLogger("api-gateway.audit")
 
 
-@router.get("/inventory/{asset_id}/ciem")
-async def view_inventory_ciem(request: Request, asset_id: str):
-    """BFF: CIEM identity risk summary for a specific inventory asset.
+# ── Asset panel (slide-in Layer 2) ────────────────────────────────────────────
 
-    Requires ciem:sensitive permission. Verifies asset ownership via inventory
-    engine before fetching CIEM data (sequential by design — not parallel).
+@router.get("/inventory/asset/{resource_uid:path}/panel")
+async def view_asset_panel(
+    resource_uid: str,
+    request: Request,
+    findings_status: str = Query("open"),
+    findings_page: int = Query(1, ge=1),
+    findings_page_size: int = Query(50, ge=1, le=200),
+):
+    """Slide-in panel data for a single asset — 5 parallel sub-calls.
+
+    Returns: asset detail, posture signals, paginated open findings,
+             check severity summary, and compliance score snapshot.
+    Called by: AssetPanel.jsx (Layer 2 slide-in drawer).
     """
-    import httpx
-
-    ctx = _parse_auth_context(request)
-    if ctx is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-    if "ciem:sensitive" not in (ctx.permissions or []):
-        raise HTTPException(
-            status_code=403,
-            detail="You need Analyst access to view identity entitlements",
-        )
     tenant_id = resolve_tenant_id(request)
+    auth_ctx_header = request.headers.get("X-Auth-Context") or getattr(request.state, "auth_header", None)
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else {}
 
-    # Step 1: verify asset ownership — MUST happen before CIEM fetch
-    inventory_url = f"{ENGINE_URLS['inventory']}/api/v1/inventory/assets/{asset_id}"
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        inv_resp = await client.get(inventory_url, params={"tenant_id": tenant_id})
+    # Fallback: extract engine_tenant_id from auth context if resolve_tenant_id returned None
+    if not tenant_id and auth_ctx_header:
+        try:
+            import json as _json
+            _ctx = _json.loads(auth_ctx_header)
+            tenant_id = _ctx.get("engine_tenant_id") or (_ctx.get("tenant_ids") or [None])[0]
+        except Exception:
+            pass
 
-    if inv_resp.status_code != 200:
+    di_base = ENGINE_URLS["di"]
+    compliance_base = ENGINE_URLS["compliance"]
+
+    from urllib.parse import quote as _qp
+    enc_uid = _qp(resource_uid, safe="")
+
+    findings_params = {
+        "status": findings_status,
+        "page": str(findings_page),
+        "page_size": str(findings_page_size),
+    }
+
+    compliance_params = {"tenant_id": tenant_id} if tenant_id else {}
+
+    results = await fetch_many(
+        [
+            ("di",         f"/api/v1/di/assets/{enc_uid}",          {}),
+            ("di",         f"/api/v1/di/assets/{enc_uid}/posture",   {}),
+            ("di",         f"/api/v1/di/assets/{enc_uid}/findings",  findings_params),
+            ("compliance", f"/api/v1/compliance/findings/resource/{enc_uid}", compliance_params),
+        ],
+        auth_headers=fwd_headers,
+    )
+
+    asset_raw, posture_raw, findings_raw, compliance_raw = results
+
+    # asset — 404 if not found
+    if not isinstance(asset_raw, dict) or not asset_raw.get("resource_uid"):
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    inv_data = inv_resp.json()
-    if inv_data.get("tenant_id") != tenant_id:
-        raise HTTPException(status_code=403, detail="Asset not found")
+    # posture — None-safe (may not exist yet)
+    posture = posture_raw if isinstance(posture_raw, dict) else {}
 
-    resource_uid = inv_data.get("resource_uid") or asset_id
+    # findings from security_findings table (DI engine) — includes check engine FAIL findings
+    findings_data = findings_raw if isinstance(findings_raw, dict) else {}
+    findings_all = findings_data.get("data", [])
+    findings_total = findings_data.get("total", 0)
 
-    # Step 2: fetch CIEM findings only after ownership confirmed
-    ciem_url = f"{ENGINE_URLS['ciem']}/api/v1/ciem/findings"
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        ciem_resp = await client.get(
-            ciem_url,
-            params={"resource_uid": resource_uid, "tenant_id": tenant_id, "limit": 100},
+    # Separate check (misconfig) findings from other finding types
+    check_findings = [f for f in findings_all if f.get("finding_type") == "misconfig" or f.get("source_engine") == "check"]
+    findings = findings_all
+
+    # Check severity summary — read from resource_security_posture columns written by check engine at scan time
+    check_summary = {
+        "critical": posture.get("check_critical", 0),
+        "high":     posture.get("check_high", 0),
+        "medium":   posture.get("check_medium", 0),
+        "low":      posture.get("check_low", 0),
+        "total":    (
+            posture.get("check_critical", 0) +
+            posture.get("check_high", 0) +
+            posture.get("check_medium", 0) +
+            posture.get("check_low", 0)
+        ),
+    }
+
+    # compliance snapshot (best-effort)
+    compliance_score = None
+    if isinstance(compliance_raw, dict):
+        compliance_score = (
+            compliance_raw.get("overall_score")
+            or compliance_raw.get("score")
+            or compliance_raw.get("compliance_score")
         )
 
-    ciem_findings = ciem_resp.json() if ciem_resp.status_code == 200 else []
-    if isinstance(ciem_findings, dict):
-        ciem_findings = ciem_findings.get("findings") or ciem_findings.get("items") or []
-
-    all_identities = _aggregate_by_principal(ciem_findings)
-    truncated = len(all_identities) > 100
-    identities = all_identities[:100]
-    over_privileged = sum(
-        1 for i in identities
-        if i["privilege_level"] == "admin" or i["risk_score"] >= 75
-    )
-
-    # Audit log — every successful 200 response
-    _di05_audit_logger.info(
-        "CIEM sensitive data accessed",
-        extra={
-            "user_id": getattr(ctx, "user_id", "unknown"),
-            "tenant_id": tenant_id,
-            "asset_id": asset_id,
-            "endpoint": f"/api/v1/views/inventory/{asset_id}/ciem",
-            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        },
-    )
-
     return {
-        "identities": identities,
-        "totalIdentities": len(all_identities),
-        "overPrivilegedCount": over_privileged,
-        "truncated": truncated,
+        "asset": asset_raw,
+        "posture": posture,
+        "findings": {
+            "data": findings,
+            "total": findings_total,
+            "page": findings_page,
+            "page_size": findings_page_size,
+        },
+        "check_summary": check_summary,
+        "check_findings": check_findings,
+        "compliance_score": compliance_score,
     }

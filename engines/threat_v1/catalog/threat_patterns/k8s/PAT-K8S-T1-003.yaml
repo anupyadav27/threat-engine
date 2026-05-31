@@ -1,0 +1,29 @@
+id: PAT-K8S-T1-003
+version: 1
+description: "Service account token auto-mounted in kube-system pod — any pod compromise yields API server credentials for cluster-level access."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Credential Access, Privilege Escalation]
+mitre_techniques: [T1528, T1613]
+tactic_chain_order: [Credential Access, Privilege Escalation]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod, k8s_serviceaccount]
+  conditions:
+    check_rules_failing:
+      - k8s.pod.serviceaccount.automount_check
+      - k8s.pod.audit.automount_serviceaccount_token_kube_system
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "Pod in kube-system with automountServiceAccountToken=true"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "Pod with automountServiceAccountToken=false explicitly set"
+    expected_tier: 1
+    expected_severity: low

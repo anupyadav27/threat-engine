@@ -27,7 +27,7 @@ from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, safe_get, BFFMeta
+from ._shared import fetch_many, safe_get, BFFMeta, fetch_scan_trend
 from .schemas.dashboard import DashboardResponse
 from ._transforms import (
     normalize_threat, severity_chart, apply_global_filters, _safe_upper,
@@ -110,6 +110,8 @@ async def view_dashboard(
     request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
+    tenant_ids: Optional[str] = Query(None),
+    account_ids: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
 ):
@@ -124,9 +126,9 @@ async def view_dashboard(
     iam_params: Dict[str, str] = {"tenant_id": tenant_id, "csp": provider.lower() if provider else "aws", "scan_id": "latest"}
 
     results = await fetch_many([
-        ("threat",     "/api/v1/threat/ui-data",        {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "50", "days": "30"}),
+        ("attack_path", "/api/v1/threat/ui-data",        {"tenant_id": tenant_id, "scan_run_id": scan_run_id, "limit": "50", "days": "30"}),
         ("compliance", "/api/v1/compliance/ui-data",    {"tenant_id": tenant_id, "scan_id": "latest"}),
-        ("inventory",  "/api/v1/inventory/ui-data",     {"tenant_id": tenant_id, "scan_run_id": "latest"}),
+        ("di",  "/api/v1/di/ui-data",     {"scan_run_id": "latest"}),
         ("iam",        "/api/v1/iam-security/ui-data",  iam_params),
         ("datasec",    "/api/v1/data-security/ui-data", {"tenant_id": tenant_id, "scan_id": "latest"}),
         ("risk",       "/api/v1/risk/ui-data",          {"tenant_id": tenant_id}),
@@ -137,9 +139,9 @@ async def view_dashboard(
         threat_data, compliance_data, inventory_data,
         iam_data, datasec_data, risk_data, onboarding_data,
     ) = results
-    meta.record_engine("threat",     "/api/v1/threat/ui-data",        threat_data)
+    meta.record_engine("attack_path", "/api/v1/threat/ui-data",        threat_data)
     meta.record_engine("compliance", "/api/v1/compliance/ui-data",    compliance_data)
-    meta.record_engine("inventory",  "/api/v1/inventory/ui-data",     inventory_data)
+    meta.record_engine("di",  "/api/v1/di/ui-data",     inventory_data)
     meta.record_engine("iam",        "/api/v1/iam-security/ui-data",  iam_data)
     meta.record_engine("datasec",    "/api/v1/data-security/ui-data", datasec_data)
     meta.record_engine("risk",       "/api/v1/risk/ui-data",          risk_data)
@@ -779,6 +781,8 @@ async def view_dashboard(
         "remediationSLA": remediation_sla,
         "riskyResources": risky_resources,
         "findingsByCategoryData": findings_by_category,
+        # Real scan history from onboarding DB — replaces client-side sine-wave mock
+        "trendData": fetch_scan_trend(tenant_id) if tenant_id else [],
         "_meta": meta.to_dict(),
     }
 

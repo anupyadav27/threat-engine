@@ -706,6 +706,7 @@ export default function IamSecurityPage() {
         kpiGroups={[]}
         insightRow={kpiStripNode || null}
         tabData={tabData}
+        persistenceKey="iam"
         loading={loading}
         error={error}
         defaultTab="overview"

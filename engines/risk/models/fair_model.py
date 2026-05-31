@@ -80,6 +80,22 @@ HIGH_VALUE_RESOURCE_TYPES: Dict[str, set] = {
 
 HIGH_VALUE_MULTIPLIER = 10.0
 
+# Crown jewel asset multipliers — driven by crown_jewel_type from attack-path classifier.
+# Applied as max(asset_mult, crown_jewel_mult) so they never stack on top of HIGH_VALUE_MULTIPLIER.
+# Ordered highest→lowest: encryption_control and identity have the widest blast radius.
+CROWN_JEWEL_MULTIPLIER: Dict[str, float] = {
+    "encryption_control":      20.0,  # KMS/Key Vault: every secret encrypted with it is at risk
+    "k8s_secrets":             18.0,  # K8s Secret/ConfigMap with credentials
+    "identity":                18.0,  # Admin IAM role: full account takeover
+    "infra_control":           15.0,  # EKS/AKS/GKE cluster: all workloads under it
+    "k8s_cluster_admin":       15.0,  # Overpermissive K8s ServiceAccount
+    "data":                    12.0,  # RDS/S3/DynamoDB with PII/financial data
+    "data_warehouse":          12.0,  # Redshift/BigQuery/Synapse
+    "k8s_privileged_workload": 12.0,  # Privileged container
+    "ai_model":                10.0,  # SageMaker/Bedrock: IP theft, data exfil
+    "code":                    10.0,  # Container registry: supply chain vector
+}
+
 # ── Canonical 4 scenario types (AC-F8) ────────────────────────────────────────
 VALID_SCENARIO_TYPES = frozenset({
     "data_exfiltration",
@@ -185,6 +201,24 @@ def get_regulatory_flags_for_region(
     return sorted(flags)
 
 
+def get_crown_jewel_multiplier(is_crown_jewel: bool, crown_jewel_type: Optional[str]) -> float:
+    """Return the crown jewel LM multiplier for a classified crown jewel asset.
+
+    Returns the type-specific multiplier, or 8.0 for unknown types (still elevated
+    above the default 1.0). Returns 1.0 when is_crown_jewel is False.
+
+    Args:
+        is_crown_jewel: Whether this resource is classified as a crown jewel.
+        crown_jewel_type: Crown jewel category from CrownJewelClassifier.
+
+    Returns:
+        Multiplier float — always >= 1.0.
+    """
+    if not is_crown_jewel:
+        return 1.0
+    return CROWN_JEWEL_MULTIPLIER.get(crown_jewel_type or "", 8.0)
+
+
 def get_asset_multiplier(resource_type: str, csp: str) -> float:
     """Return 10x multiplier for high-value resource types, 1.0 otherwise.
 
@@ -278,10 +312,18 @@ def compute_scenario(
         sens_mults.get(sensitivity, SENSITIVITY_MULTIPLIER.get(sensitivity, 1.0))
     )
 
-    # High-value asset multiplier (10x for RDS, Secrets, EKS, etc.)
+    # Asset multiplier: crown jewel classification takes precedence over static type list.
+    # Crown jewel signals are written by CrownJewelClassifier (attack-path engine, Stage 6)
+    # and read by RiskEvaluator from resource_security_posture before calling compute_scenario().
     resource_type = finding.get("asset_type") or ""
     csp = finding.get("csp") or "aws"
-    asset_mult = get_asset_multiplier(resource_type, csp)
+    is_crown_jewel: bool = bool(finding.get("is_crown_jewel", False))
+    crown_jewel_type: Optional[str] = finding.get("crown_jewel_type")
+
+    static_mult = get_asset_multiplier(resource_type, csp)
+    cj_mult = get_crown_jewel_multiplier(is_crown_jewel, crown_jewel_type)
+    # Take the higher of the two — crown jewel never stacks on top of high-value list.
+    asset_mult = max(static_mult, cj_mult)
 
     # Base primary loss before regulatory adjustment
     primary_loss_base = records * per_record * sens_mult
@@ -381,7 +423,11 @@ def compute_scenario(
             "per_record_cost": per_record,
             "records": records,
             "sensitivity_multiplier": sens_mult,
+            "static_asset_multiplier": static_mult,
+            "crown_jewel_multiplier": cj_mult,
             "asset_multiplier": asset_mult,
+            "is_crown_jewel": is_crown_jewel,
+            "crown_jewel_type": crown_jewel_type,
             "regulatory_multiplier": reg_mult,
             "primary_loss_base": round(primary_loss_base, 2),
             "primary_loss_adjusted": fair_lm,

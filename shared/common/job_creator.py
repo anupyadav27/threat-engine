@@ -75,6 +75,17 @@ def create_engine_job(
     except k8s_config.ConfigException:
         k8s_config.load_kube_config()  # local dev fallback
 
+    # kubernetes Python client v30+ changed auth_settings() to look for
+    # api_key['BearerToken'] but load_incluster_config() sets api_key['authorization'].
+    # Transfer the token so auth headers are actually sent.
+    cfg = k8s_client.Configuration.get_default_copy()
+    if 'authorization' in cfg.api_key and 'BearerToken' not in cfg.api_key:
+        auth_value = cfg.api_key['authorization']
+        token = auth_value.split(' ', 1)[1] if ' ' in auth_value else auth_value
+        cfg.api_key['BearerToken'] = token
+        cfg.api_key_prefix['BearerToken'] = 'Bearer'
+        k8s_client.Configuration.set_default(cfg)
+
     ns = namespace or DEFAULT_NAMESPACE
     sa = service_account or DEFAULT_SERVICE_ACCOUNT
     job_name = f"{engine_name}-scan-{scan_id[:12]}"

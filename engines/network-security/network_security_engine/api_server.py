@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from pydantic import BaseModel
+import psycopg2.extras
 from psycopg2.extras import RealDictCursor
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -426,6 +427,75 @@ async def get_network_findings_by_resource(
         resource_uid=resource_uid,
         scan_run_id=resolved_scan,
     )
+
+
+# ── IEDS Exposure Findings ────────────────────────────────────────────────────
+
+@app.get("/api/v1/network-security/exposure")
+async def get_exposure_findings(
+    scan_run_id: Optional[str] = None,
+    tenant_id: Optional[str] = None,
+    origin_type: Optional[str] = None,
+    tier: Optional[int] = None,
+    severity: Optional[str] = None,
+    limit: int = 200,
+    offset: int = 0,
+    auth: dict = Depends(require_permission("network:read")),
+):
+    """Return IEDS network_exposure_findings for this tenant/scan.
+
+    Supports filtering by origin_type (internet/vpn/connected_network/…),
+    exposure_tier (1/2/3), and severity.
+    """
+    resolved_tid = auth.get("engine_tenant_id") or auth.get("tenant_id", "")
+    if not resolved_tid:
+        raise HTTPException(status_code=400, detail="tenant_id required")
+
+    conn = get_network_conn()
+    try:
+        conditions = ["tenant_id = %s"]
+        params: list = [resolved_tid]
+
+        if scan_run_id:
+            conditions.append("scan_run_id = %s")
+            params.append(scan_run_id)
+        if origin_type:
+            conditions.append("origin_type = %s")
+            params.append(origin_type)
+        if tier is not None:
+            conditions.append("exposure_tier = %s")
+            params.append(tier)
+        if severity:
+            conditions.append("severity = %s")
+            params.append(severity.lower())
+
+        where = " AND ".join(conditions)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(f"SELECT COUNT(*) AS cnt FROM network_exposure_findings WHERE {where}", params)
+            total = (cur.fetchone() or {}).get("cnt", 0)
+
+            cur.execute(
+                f"""
+                SELECT finding_id, scan_run_id, tenant_id, account_id, provider,
+                       region, resource_uid, resource_type, resource_name,
+                       exposure_tier, origin_type, rule_id, exposure_reason,
+                       exposure_detail, chain_hops, severity, status,
+                       first_seen_at, last_seen_at
+                FROM   network_exposure_findings
+                WHERE  {where}
+                ORDER  BY severity DESC, first_seen_at DESC
+                LIMIT  %s OFFSET %s
+                """,
+                params + [min(limit, 1000), offset],
+            )
+            findings = [dict(r) for r in cur.fetchall()]
+    except Exception as exc:
+        logger.error("Error in get_exposure_findings: %s", exc, exc_info=True)
+        raise HTTPException(status_code=500, detail=str(exc))
+    finally:
+        conn.close()
+
+    return {"findings": findings, "total": total, "scan_run_id": scan_run_id}
 
 
 # ── Modules List ──────────────────────────────────────────────────────────────

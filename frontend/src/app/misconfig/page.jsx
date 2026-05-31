@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -11,10 +12,12 @@ import {
   AlertTriangle, ShieldAlert, ShieldCheck,
   X, ExternalLink, Copy, Check,
   Download, FileSpreadsheet, RefreshCw, ArrowRight,
-  Zap, Clock, AlertOctagon, TrendingUp, TrendingDown, Layers,
+  Zap, Clock, AlertOctagon, TrendingUp, TrendingDown, Layers, EyeOff,
 } from 'lucide-react';
 import { SEVERITY_COLORS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { useViewFetch } from '@/lib/use-view-fetch';
+import { useToast } from '@/lib/toast-context';
+import { useAuth } from '@/lib/auth-context';
 import PageLayout from '@/components/shared/PageLayout';
 import InsightRow from '@/components/shared/InsightRow';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
@@ -141,7 +144,7 @@ function ProviderBadge({ provider }) {
 
 
 // ── Detail slide-out panel ──────────────────────────────────────────────────
-function FindingDetailPanel({ finding, onClose }) {
+function FindingDetailPanel({ finding, onClose, onSuppress, canSuppress }) {
   const [copied, setCopied] = useState(null);
   if (!finding) return null;
 
@@ -362,16 +365,24 @@ function FindingDetailPanel({ finding, onClose }) {
             </section>
           )}
 
-          {/* Link to asset detail */}
-          {finding.resource_uid && (
-            <div className="pt-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+          {/* Footer actions */}
+          <div className="pt-4 border-t flex items-center gap-3 flex-wrap" style={{ borderColor: 'var(--border-primary)' }}>
+            {finding.resource_uid && (
               <a href={`/ui/inventory/${encodeURIComponent(finding.resource_uid)}`}
                 className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-opacity hover:opacity-80"
                 style={{ backgroundColor: 'var(--accent-primary)', color: '#fff' }}>
                 <ExternalLink className="w-4 h-4" /> View Asset Detail
               </a>
-            </div>
-          )}
+            )}
+            {canSuppress && onSuppress && (
+              <button
+                onClick={() => onSuppress(finding)}
+                className="inline-flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-lg transition-opacity hover:opacity-80 border"
+                style={{ borderColor: 'rgba(249,115,22,0.4)', color: '#f97316', backgroundColor: 'rgba(249,115,22,0.08)' }}>
+                <EyeOff className="w-4 h-4" /> Suppress Finding
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -391,7 +402,7 @@ function escapeCSV(val) {
 
 async function exportCSV() {
   const data = await fetchView('misconfig');
-  if (data.error) { alert(`Export failed: ${data.error}`); return; }
+  if (data.error) { throw new Error(data.error); }
 
   const allFindings = (data.findings || []).map(f => ({
     ...f,
@@ -1063,9 +1074,24 @@ function QuickWinsPanel({ findings }) {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MisconfigurationsPage() {
+  const router = useRouter();
+  const toast = useToast();
+  const { role } = useAuth();
+  const canSuppressFinding = role === 'platform_admin' || role === 'org_admin';
   const { data: rawData, loading, error, refetch } = useViewFetch('misconfig');
   const [exporting, setExporting] = useState(false);
   const [selectedFinding, setSelectedFinding] = useState(null);
+  const [suppressTarget, setSuppressTarget] = useState(null);
+
+  const handleSuppressFinding = (finding) => {
+    setSelectedFinding(null); // close detail panel
+    setSuppressTarget({
+      rule_id:      finding.rule_id,
+      resource_uid: finding.resource_uid,
+      account_id:   finding.account_id,
+      finding_id:   finding.finding_id || finding.id || null,
+    });
+  };
 
   const allFindings = useMemo(() => (rawData.findings || []).map(f => ({
     ...f,
@@ -1136,17 +1162,16 @@ export default function MisconfigurationsPage() {
       .flatMap(([, items]) => items);
   }, [allFindings]);
 
-  // ── By-category grouped data ──────────────────────────────────────────
-  const byCategoryData = useMemo(() => {
+  // ── By-category aggregated data for radar chart ──────────────────────────
+  const categoryChartData = useMemo(() => {
     const groups = {};
     allFindings.forEach(f => {
       const cat = f.posture_category || 'configuration';
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(f);
+      if (!groups[cat]) groups[cat] = { category: cat, total: 0, fail: 0, color: POSTURE_COLORS[cat] || '#64748b' };
+      groups[cat].total++;
+      if ((f.status || 'FAIL').toUpperCase() === 'FAIL') groups[cat].fail++;
     });
-    return Object.entries(groups)
-      .sort(([, a], [, b]) => b.length - a.length)
-      .flatMap(([, items]) => items);
+    return Object.values(groups).sort((a, b) => b.fail - a.fail);
   }, [allFindings]);
 
   // ── Table columns ─────────────────────────────────────────────────────
@@ -1246,7 +1271,7 @@ export default function MisconfigurationsPage() {
         const ruleId = info.row.original.rule_id;
         return (
           <Link
-            href={`/threats?search=${encodeURIComponent(ruleId || '')}`}
+            href="/attack-paths"
             className="inline-flex items-center gap-1 text-xs font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
             style={{ color: 'var(--accent-primary)' }}
             onClick={(e) => e.stopPropagation()}
@@ -1423,7 +1448,7 @@ export default function MisconfigurationsPage() {
       {[
         { key: 'rules',    node: <TopFailingRulesChart topRules={topRules} />,       pad: 'p-5' },
         { key: 'services', node: <TopFailingServicesChart topServices={topServices} />, pad: 'p-5' },
-        { key: 'radar',    node: <ByCategoryChart />,                                  pad: 'p-5' },
+        { key: 'radar',    node: <ByCategoryChart data={categoryChartData} />,           pad: 'p-5' },
         { key: 'trend',    node: <PostureTrendChart data={activeScanTrend} />,          pad: 'p-4' },
       ].map(({ key, node, pad }) => (
         <div key={key} className={`rounded-xl border ${pad}`}
@@ -1457,7 +1482,14 @@ export default function MisconfigurationsPage() {
   // ── Export handlers ───────────────────────────────────────────────────
   const handleExportCSV = async () => {
     setExporting(true);
-    try { await exportCSV(); } finally { setExporting(false); }
+    try {
+      await exportCSV();
+      toast.success('CSV exported successfully');
+    } catch (err) {
+      toast.error(`Export failed: ${err.message}`);
+    } finally {
+      setExporting(false);
+    }
   };
   const handleExportPDF = () => {
     exportPDF(allFindings, summary);
@@ -1475,7 +1507,7 @@ export default function MisconfigurationsPage() {
           </div>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{pageContext.brief}</p>
           {pageContext.details?.length > 0 && (
-            <button className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
+            <button onClick={() => router.push('/rules')} className="flex items-center gap-1 text-xs mt-1 hover:underline" style={{ color: 'var(--accent-primary)' }}>
               <span>Best practices</span>
             </button>
           )}
@@ -1504,6 +1536,7 @@ export default function MisconfigurationsPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={{ overview: { renderTab: () => <>{kpiStripNode}{insightRowContent}</> }, ...tabData }}
+        persistenceKey="misconfig"
         loading={loading}
         error={error}
         defaultTab="overview"
@@ -1516,7 +1549,19 @@ export default function MisconfigurationsPage() {
       <FindingDetailPanel
         finding={selectedFinding}
         onClose={() => setSelectedFinding(null)}
+        canSuppress={canSuppressFinding}
+        onSuppress={handleSuppressFinding}
       />
+
+      {/* Suppress Finding Panel */}
+      {suppressTarget && (
+        <SuppressPanel
+          target={suppressTarget}
+          mode="finding"
+          onClose={() => setSuppressTarget(null)}
+          onSuccess={() => setSuppressTarget(null)}
+        />
+      )}
     </div>
   );
 }

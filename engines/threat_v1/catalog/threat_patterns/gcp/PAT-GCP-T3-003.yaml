@@ -1,0 +1,47 @@
+id: PAT-GCP-T3-003
+version: 1
+description: "GCE instance with secrets in startup script accesses GCS crown jewel via metadata-server token — plaintext credential in full kill chain."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Collection, Exfiltration]
+mitre_techniques: [T1552.001, T1552.005, T1530]
+tactic_chain_order: [Credential Access, Collection, Exfiltration]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_compute_instance, gcp_gce_instance]
+  conditions:
+    check_rules_failing:
+      - gcp.compute.instance.vm_user_data_no_secrets
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [gcp_service_account]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [gcp_storage_bucket, gcp_gcs_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1552.001, T1530]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: false
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "GCE startup script secret → admin SA → GCS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No secrets in user data, scoped SA, GCS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

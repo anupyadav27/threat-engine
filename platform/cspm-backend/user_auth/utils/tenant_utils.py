@@ -1,10 +1,9 @@
 """
 Tenant provisioning utilities.
 
-provision_tenant_for_new_user() — creates the first tenant for a new org founder.
-  Sets user.customer_id = str(user.id) as the permanent org key, creates the Tenant,
-  TenantUsers (org_admin), and UserAdminScope (organization scope), then dispatches
-  the Celery sync task AFTER the transaction commits (Auth-A3).
+provision_tenant_for_new_user() — canonical function in services.provisioning.
+  Imported here for convenience; all call sites should use this module as the
+  import source so internal refactors remain transparent to callers.
 
 accept_invite_membership() — wires TenantUsers + UserRoles for an invite acceptor.
   Wrapped in transaction.atomic() with SELECT FOR UPDATE to prevent the race condition
@@ -16,17 +15,10 @@ import uuid
 
 from django.db import transaction
 
+from services.provisioning import provision_tenant_for_new_user  # noqa: F401 — re-export
 from user_auth.utils.audit_utils import log_auth_event
 
 logger = logging.getLogger(__name__)
-
-
-def _get_org_admin_role():
-    from user_auth.models import Roles
-    try:
-        return Roles.objects.get(name="org_admin")
-    except Roles.DoesNotExist:
-        raise RuntimeError("Role 'org_admin' not found — run migration user_auth.0009 first.")
 
 
 def _get_viewer_role():
@@ -160,115 +152,3 @@ def accept_invite_membership(user, invite) -> None:
         transaction.on_commit(_audit)
 
 
-def provision_tenant_for_new_user(user, company_name: str = ""):
-    """Create the first tenant for a new org founder.
-
-    Sets customer_id = str(user.id) as the immutable org key. Creates:
-      - Tenants row (status='provisioning', customer_id=str(user.id))
-      - TenantUsers (org_admin role)
-      - UserAdminScope (scope_type='organization', scope_id=str(user.id))
-      - UserRoles (global org_admin assignment)
-
-    After the transaction commits, enqueues sync_tenant_to_onboarding via Celery
-    (Auth-A3). The transaction.on_commit callback fires only if the transaction
-    succeeds — a rollback cancels the enqueue.
-
-    Returns the created Tenants instance, or None if user already has a tenant.
-    """
-    from tenant_management.models import Tenants, TenantUsers
-    from user_auth.models import UserAdminScope, UserRoles
-
-    if TenantUsers.objects.filter(user=user).exists():
-        return None
-
-    if not company_name:
-        domain = user.email.split("@")[-1].split(".")[0].capitalize()
-        company_name = f"{domain} (auto)"
-
-    slug = company_name.lower().replace(" ", "-")[:50]
-    tenant_id = str(uuid.uuid4())
-    customer_id = str(user.id)
-    org_admin_role = _get_org_admin_role()
-
-    with transaction.atomic():
-        # Set org key on user — immutable after this point
-        user.customer_id = customer_id
-        user.save(update_fields=["customer_id"])
-
-        tenant = Tenants.objects.create(
-            id=tenant_id,
-            engine_tenant_id=tenant_id,
-            name=company_name,
-            status="provisioning",
-            tenant_type="cloud",
-            customer_id=customer_id,
-            plan="trial",
-            contact_email=user.email,
-            created_by=user,
-        )
-
-        TenantUsers.objects.create(
-            id=str(uuid.uuid4()),
-            tenant=tenant,
-            user=user,
-            role=org_admin_role,
-            is_active=True,
-        )
-
-        UserRoles.objects.get_or_create(
-            user=user,
-            role=org_admin_role,
-            defaults={"id": str(uuid.uuid4())},
-        )
-
-        UserAdminScope.objects.create(
-            id=str(uuid.uuid4()),
-            user=user,
-            role=org_admin_role,
-            scope_type="organization",
-            scope_id=customer_id,
-        )
-
-        # Dispatch async tasks AFTER transaction commits (Auth-A3).
-        # Both tasks fire only on successful commit — a rollback cancels both (AC-9).
-        # Imports are deferred so Django starts cleanly even if Celery is unavailable.
-        def _enqueue_sync():
-            try:
-                from user_auth.celery_tasks import sync_tenant_to_onboarding
-                sync_tenant_to_onboarding.apply_async(
-                    args=[tenant_id, customer_id],
-                    queue="tenant-sync",
-                )
-                logger.info(f"Enqueued onboarding sync for tenant {tenant_id}")
-            except Exception as exc:
-                logger.warning(
-                    f"Could not enqueue onboarding sync for {tenant_id}: {exc}. "
-                    "Tenant status remains 'provisioning' — use /api/v1/tenants/{id}/resync/"
-                )
-
-            # Provision billing trial via Celery (replaces signals.py inline httpx call —
-            # BILL-S05). Only tenant_id is passed; contact_email is fetched inside the task.
-            try:
-                from user_auth.celery_tasks import provision_billing_trial
-                provision_billing_trial.apply_async(
-                    args=[tenant_id],
-                    queue="billing-provision",
-                )
-                logger.info(f"Enqueued billing trial provision for tenant {tenant_id}")
-            except Exception as exc:
-                logger.warning(
-                    f"Could not enqueue billing trial provision for {tenant_id}: {exc}. "
-                    "Trial may need manual provisioning."
-                )
-
-        transaction.on_commit(_enqueue_sync)
-
-    logger.info(f"Provisioned tenant '{company_name}' (id={tenant_id}) for {user.email}")
-    return tenant
-
-
-# ---------------------------------------------------------------------------
-# Backward-compat alias — callers referencing the old name still work
-# while we migrate all call sites.
-# ---------------------------------------------------------------------------
-provision_first_tenant = provision_tenant_for_new_user

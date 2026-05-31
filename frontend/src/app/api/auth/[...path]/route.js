@@ -17,6 +17,48 @@
 
 const BACKEND = process.env.CSPM_BACKEND_URL || 'http://cspm-backend';
 
+const LOCAL_DEV_BYPASS =
+  process.env.LOCAL_DEV_BYPASS_AUTH === '1' ||
+  process.env.NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH === '1';
+
+const FAKE_SESSION = {
+  user: {
+    id: 'local-dev',
+    email: 'local-dev@example.com',
+    name: 'Local Dev',
+    role: 'platform_admin',
+    roles: ['platform_admin'],
+    level: 1,
+    tenants: [
+      { tenant_id: 'default-tenant', engine_tenant_id: 'default-tenant', name: 'Default Tenant' },
+    ],
+    permissions: [
+      'platform:admin',
+      'attack_path:read', 'attack_path:write',
+      'ai_security:read', 'api_security:read', 'billing:read', 'cdr:read', 'cdr:sensitive',
+      'check:read', 'cloud_accounts:read', 'compliance:read', 'container_security:read',
+      'cwpp:read', 'database_security:read', 'datasec:read', 'discoveries:read',
+      'encryption:read', 'iam:read', 'inventory:read', 'network:read', 'risk:read',
+      'scans:create', 'scans:read', 'secops:read', 'tenants:read', 'threat:read',
+      'vulnerability:read',
+    ],
+  },
+  tenants: [
+    { tenant_id: 'default-tenant', engine_tenant_id: 'default-tenant', name: 'Default Tenant' },
+  ],
+  customerId: 'local-dev',
+  permissions: [
+    'platform:admin',
+    'attack_path:read', 'ai_security:read', 'api_security:read', 'billing:read',
+    'cdr:read', 'check:read', 'cloud_accounts:read', 'compliance:read',
+    'container_security:read', 'cwpp:read', 'database_security:read', 'datasec:read',
+    'discoveries:read', 'encryption:read', 'iam:read', 'inventory:read', 'network:read',
+    'risk:read', 'scans:read', 'secops:read', 'tenants:read', 'threat:read',
+    'vulnerability:read',
+  ],
+  expiresIn: 86400,
+};
+
 const FORWARD_REQ_HEADERS = ['content-type', 'cookie', 'authorization', 'x-csrftoken'];
 
 function stripSecureFromCookie(setCookieHeader) {
@@ -27,6 +69,14 @@ function stripSecureFromCookie(setCookieHeader) {
 
 async function proxy(request, { params }) {
   const pathParts = (await params).path;
+
+  // Local dev bypass — return fake session for /me without hitting Django.
+  if (LOCAL_DEV_BYPASS && pathParts.join('/') === 'me') {
+    return new Response(JSON.stringify(FAKE_SESSION), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   const { searchParams } = new URL(request.url);
   const qs = searchParams.toString();
   const targetPath = `/api/auth/${pathParts.join('/')}/${qs ? `?${qs}` : ''}`;

@@ -1,0 +1,41 @@
+# Argo Workflow RBAC — Job creation permissions
+#
+# The Argo pipeline uses serviceAccountName: default in threat-engine-engines namespace.
+# The DI scan step uses a `resource: action: create` step to create K8s Jobs on spot nodes.
+# This Role grants that service account the minimum permissions to manage those Jobs.
+#
+# Apply with:
+#   kubectl apply -f deployment/aws/eks/spot-nodegroup/argo-job-creator-rbac.yaml
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argo-job-creator
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+    component: argo-rbac
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "watch", "list", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: argo-job-creator
+  namespace: threat-engine-engines
+  labels:
+    app: cspm-pipeline
+    component: argo-rbac
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: threat-engine-engines
+roleRef:
+  kind: Role
+  name: argo-job-creator
+  apiGroup: rbac.authorization.k8s.io

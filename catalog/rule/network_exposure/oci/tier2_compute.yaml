@@ -1,0 +1,56 @@
+# =============================================================================
+# IEDS Tier 2 — OCI Compute and Load Balancer
+# =============================================================================
+
+rules:
+
+  - rule_id: IEDS-T2-OCI-001
+    tier: 2
+    csp: oci
+    resource_type: core.instance
+    origin_type: internet
+    title: "OCI compute instance has a public IP"
+    description: >
+      OCI compute instances are placed in a specific availability domain and may have
+      a public IP via VNIC attachment. The public_ip field is not available from the
+      list_instances API (requires VNIC lookup). availability_domain is used as a proxy:
+      all running OCI instances have it, flagging them for further network evaluation.
+      GAP IEDS-GAP-OCI-001 resolved with conservative proxy detection.
+    severity: high
+    required_emitted_fields:
+      - availability_domain
+    exposure_conditions:
+      - field: availability_domain
+        operator: not_null
+
+  - rule_id: IEDS-T2-OCI-002
+    tier: 2
+    csp: oci
+    resource_type: loadbalancer.loadbalancer
+    origin_type: internet
+    title: "OCI Load Balancer is internet-facing (public)"
+    severity: high
+    required_emitted_fields:
+      - is_private
+    exposure_conditions:
+      - field: is_private
+        operator: eq
+        value: false
+
+  - rule_id: IEDS-T2-OCI-003
+    tier: 2
+    csp: oci
+    resource_type: mysql.dbsystem
+    origin_type: internet
+    title: "OCI MySQL DB System is subnet-attached (internet-accessibility via subnet)"
+    description: >
+      OCI MySQL DB Systems with a subnet_id are placed in a VCN subnet. Whether that
+      subnet has a public IP route determines internet accessibility. Any DB system
+      with a subnet_id is flagged for deeper network evaluation. GAP IEDS-GAP-OCI-002
+      resolved — subnet_id now emitted from step6_mysql.discovery.yaml.
+    severity: critical
+    required_emitted_fields:
+      - subnet_id
+    exposure_conditions:
+      - field: subnet_id
+        operator: not_null

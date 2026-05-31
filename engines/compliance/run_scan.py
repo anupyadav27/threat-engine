@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
 from engine_common.logger import setup_logger
 from engine_common.orchestration import get_orchestration_metadata
-from engine_common.db_connections import get_compliance_conn
+from engine_common.db_connections import get_compliance_conn, get_check_conn, get_di_conn
 
 logger = setup_logger(__name__, engine_name="compliance-scanner")
 
@@ -54,8 +54,7 @@ def _update_report_status(scan_run_id: str, status: str, error: str = None):
         logger.error(f"Failed to update report status: {e}")
 
 
-def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
-                       check_scan_id: str, metadata: dict):
+def _create_report_row(scan_run_id: str, tenant_id: str, provider: str, metadata: dict):
     """Pre-create compliance_report row with status='running'."""
     try:
         conn = get_compliance_conn()
@@ -67,21 +66,107 @@ def _create_report_row(scan_run_id: str, tenant_id: str, provider: str,
             )
             cur.execute(
                 """INSERT INTO compliance_report
-                   (scan_run_id, tenant_id, provider, check_scan_id,
+                   (scan_run_id, tenant_id, provider,
                     trigger_type, collection_mode, cloud,
                     total_controls, controls_passed, controls_failed, total_findings,
                     report_data, status, started_at, completed_at)
-                   VALUES (%s, %s, %s, %s,
+                   VALUES (%s, %s, %s,
                     'orchestrated', 'full', %s,
                     0, 0, 0, 0,
                     '{}'::jsonb, 'running', NOW(), NOW())
                    ON CONFLICT (scan_run_id) DO UPDATE SET status = 'running'""",
-                (scan_run_id, tenant_id, provider, check_scan_id, provider),
+                (scan_run_id, tenant_id, provider, provider),
             )
         conn.commit()
         conn.close()
     except Exception as e:
         logger.warning(f"Failed to pre-create report row: {e}")
+
+
+def _write_compliance_posture(scan_run_id: str, tenant_id: str) -> None:
+    """Write per-resource compliance data to resource_security_posture and security_findings in DI DB."""
+    di_conn = get_di_conn()
+    comp_conn = get_compliance_conn()
+    check_conn = get_check_conn()
+    try:
+        with comp_conn.cursor() as cur:
+            # Per resource: violated framework list + failure count for this scan
+            cur.execute("""
+                SELECT
+                    cf.resource_uid,
+                    array_agg(DISTINCT rcm.framework_id) FILTER (WHERE rcm.framework_id IS NOT NULL) AS frameworks,
+                    COUNT(*) AS violations
+                FROM compliance_findings cf
+                JOIN rule_control_mapping rcm
+                  ON rcm.rule_id = cf.rule_id AND rcm.is_active = true
+                WHERE cf.scan_run_id = %s AND cf.tenant_id = %s
+                  AND cf.resource_uid IS NOT NULL AND cf.resource_uid <> ''
+                GROUP BY cf.resource_uid
+            """, (scan_run_id, tenant_id))
+            resource_rows = cur.fetchall()
+
+            # Rule → framework list for security_findings tag update
+            cur.execute("""
+                SELECT rule_id, array_agg(DISTINCT framework_id) AS frameworks
+                FROM rule_control_mapping WHERE is_active = true
+                GROUP BY rule_id
+            """)
+            rule_frameworks: dict = {r[0]: r[1] for r in cur.fetchall()}
+
+        if not resource_rows:
+            logger.info("Compliance posture write-back: no resource_uid rows found")
+            return
+
+        # Total check counts per resource (pass + fail) from check DB — needed for score denominator
+        total_per_resource: dict = {}
+        try:
+            with check_conn.cursor() as chk:
+                chk.execute("""
+                    SELECT resource_uid, COUNT(*) AS total
+                    FROM check_findings
+                    WHERE scan_run_id = %s AND tenant_id = %s
+                      AND resource_uid IS NOT NULL AND resource_uid <> ''
+                    GROUP BY resource_uid
+                """, (scan_run_id, tenant_id))
+                total_per_resource = {r[0]: r[1] for r in chk.fetchall()}
+        except Exception as e:
+            logger.warning(f"Could not read check DB for total counts (score will default to 0): {e}")
+
+        with di_conn.cursor() as di:
+            # Update resource_security_posture with correct score
+            for resource_uid, frameworks, violations in resource_rows:
+                total = total_per_resource.get(resource_uid) or violations
+                score = round(100.0 * max(0, total - violations) / total, 2) if total > 0 else 0.0
+                di.execute("""
+                    UPDATE resource_security_posture
+                    SET compliance_controls_failed     = %s,
+                        compliance_frameworks_violated = %s,
+                        compliance_score               = %s
+                    WHERE resource_uid = %s AND tenant_id = %s
+                """, (violations, frameworks or [], score, resource_uid, tenant_id))
+
+            # Tag security_findings with the frameworks their rule maps to.
+            # Always overwrite — stale tags from prior scans must refresh.
+            for rule_id, fw_list in rule_frameworks.items():
+                if not fw_list:
+                    continue
+                di.execute("""
+                    UPDATE security_findings
+                    SET compliance_frameworks = %s
+                    WHERE source_engine = 'check'
+                      AND tenant_id = %s
+                      AND finding_data->>'rule_id' = %s
+                """, (fw_list, tenant_id, rule_id))
+
+        di_conn.commit()
+        logger.info(
+            f"Compliance posture write-back: updated {len(resource_rows)} resources, "
+            f"{len(rule_frameworks)} rule→framework mappings"
+        )
+    finally:
+        comp_conn.close()
+        di_conn.close()
+        check_conn.close()
 
 
 def main():
@@ -108,17 +193,14 @@ def main():
         if not metadata:
             raise ValueError(f"No orchestration metadata for {scan_run_id}")
 
-        # All engines share the same scan_run_id
-        check_scan_id = scan_run_id
-
         tenant_id = metadata.get("tenant_id", "default-tenant")
         account_id = metadata.get("account_id", "")
         provider = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
 
-        logger.info(f"Resolved: tenant={tenant_id} account={account_id} provider={provider} check_scan_id={check_scan_id}")
+        logger.info(f"Resolved: tenant={tenant_id} account={account_id} provider={provider} scan_run_id={scan_run_id}")
 
         # 2. Pre-create report row
-        _create_report_row(scan_run_id, tenant_id, provider, check_scan_id, {
+        _create_report_row(scan_run_id, tenant_id, provider, {
             "scan_run_id": scan_run_id,
             "mode": "job",
         })
@@ -135,11 +217,11 @@ def main():
         from compliance_engine.reporter.framework_report import FrameworkReport
         from compliance_engine.reporter.enterprise_reporter import EnterpriseReporter
 
-        logger.info(f"Loading check findings from DB: check_scan_id={check_scan_id}")
+        logger.info(f"Loading check findings from DB: scan_run_id={scan_run_id}")
         loader = CheckDBLoader()
         try:
             scan_results = loader.load_and_convert(
-                scan_id=check_scan_id,
+                scan_id=scan_run_id,
                 tenant_id=tenant_id,
                 csp=provider,
                 status_filter=None,
@@ -148,7 +230,7 @@ def main():
             loader.close()
 
         if not scan_results or not scan_results.get("results"):
-            logger.warning(f"No check findings for check_scan_id={check_scan_id} — writing empty compliance report")
+            logger.warning(f"No check findings for scan_run_id={scan_run_id} — writing empty compliance report")
             scan_results = {"results": [], "metadata": {}}
 
         # Merge CIEM findings into scan_results (log-based compliance evidence)
@@ -197,12 +279,37 @@ def main():
         except Exception as ciem_pre_err:
             logger.warning(f"CIEM compliance pre-merge failed (non-fatal): {ciem_pre_err}")
 
+        # Merge technology-engine check findings (database CIS checks)
+        try:
+            from compliance_engine.loader.tech_db_loader import TechDBLoader
+            tech_loader = TechDBLoader()
+            try:
+                tech_scan = tech_loader.load_and_convert(
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id or "",
+                    csp=provider,
+                )
+                tech_results = tech_scan.get("results", [])
+                if tech_results:
+                    scan_results["results"] = scan_results.get("results", []) + tech_results
+                    logger.info(
+                        f"Tech DB: merged {sum(len(r['checks']) for r in tech_results)} "
+                        f"findings from {len(tech_results)} service/region groups"
+                    )
+                else:
+                    logger.info("Tech DB: no tech_check_findings for this scan_run_id")
+            finally:
+                tech_loader.close()
+        except Exception as tech_err:
+            logger.warning(f"Tech DB merge failed (non-fatal): {tech_err}")
+
         # Generate enterprise report
         from compliance_engine.schemas.enterprise_report_schema import (
             ScanContext, TriggerType, Cloud, CollectionMode,
         )
         scan_context = ScanContext(
-            scan_run_id=check_scan_id,
+            scan_run_id=scan_run_id,
             trigger_type=TriggerType("api"),
             cloud=Cloud(provider),
             collection_mode=CollectionMode("full"),
@@ -232,25 +339,33 @@ def main():
 
         # Compute per-control assessment and update compliance_report scores
         try:
-            from compliance_engine.assessor.control_assessor import compute_assessment
-            assessment = compute_assessment(scan_run_id, tenant_id)
+            from compliance_engine.assessor.control_assessor import compute_all_assessments
+            assessment = compute_all_assessments(scan_run_id, tenant_id)
             summary = assessment.get("summary", {})
             total_controls = assessment.get("total_controls", 0)
             controls_passed = summary.get("PASS", 0)
             controls_failed = summary.get("FAIL", 0) + summary.get("PARTIAL", 0)
+            assessed = controls_passed + controls_failed
+            overall_score = round(100.0 * controls_passed / assessed, 2) if assessed > 0 else 0.0
             conn = get_compliance_conn()
             with conn.cursor() as cur:
                 cur.execute(
-                    "UPDATE compliance_report SET total_controls=%s, controls_passed=%s, controls_failed=%s WHERE scan_run_id=%s",
-                    (total_controls, controls_passed, controls_failed, scan_run_id),
+                    "UPDATE compliance_report SET total_controls=%s, controls_passed=%s, controls_failed=%s, overall_score=%s WHERE scan_run_id=%s",
+                    (total_controls, controls_passed, controls_failed, overall_score, scan_run_id),
                 )
             conn.commit()
             conn.close()
             logger.info(
-                f"Control assessment complete: total={total_controls} passed={controls_passed} failed={controls_failed}"
+                f"Control assessment complete: total={total_controls} passed={controls_passed} failed={controls_failed} score={overall_score}"
             )
         except Exception as e:
             logger.warning(f"Control assessment failed (non-fatal): {e}")
+
+        # Write per-resource compliance posture and framework associations to DI DB
+        try:
+            _write_compliance_posture(scan_run_id, tenant_id)
+        except Exception as e:
+            logger.warning(f"Compliance posture write-back failed (non-fatal): {e}")
 
         # 4c. CIEM audit evidence (logging completeness from log_events)
         try:

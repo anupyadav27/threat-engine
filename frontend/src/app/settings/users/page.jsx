@@ -2,28 +2,34 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getFromEngine, fetchFromCspm } from '@/lib/api';
+import { fetchView } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Users, UserPlus, Edit2, Trash2, ShieldCheck } from 'lucide-react';
+import { Users, UserPlus, ShieldCheck, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
 import SearchBar from '@/components/shared/SearchBar';
 import FilterBar from '@/components/shared/FilterBar';
-import { useToast } from '@/lib/toast-context';
 import InviteUserModal from '@/components/settings/InviteUserModal';
 
+// AC4: only org_admin and platform_admin may access this page
+const ALLOWED_ROLES = ['org_admin', 'platform_admin'];
 
 const ROLE_COLORS = {
-  super_admin: { bg: 'bg-purple-500/20', text: 'text-purple-400', label: 'Super Admin' },
-  admin:       { bg: 'bg-blue-500/20',   text: 'text-blue-400',   label: 'Admin' },
-  tenant_admin:{ bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Tenant Admin' },
-  user:        { bg: 'bg-slate-500/20',  text: 'text-slate-400',  label: 'User' },
+  platform_admin: { bg: 'bg-purple-500/20', text: 'text-purple-400', label: 'Platform Admin' },
+  org_admin:      { bg: 'bg-blue-500/20',   text: 'text-blue-400',   label: 'Org Admin' },
+  tenant_admin:   { bg: 'bg-orange-500/20', text: 'text-orange-400', label: 'Tenant Admin' },
+  analyst:        { bg: 'bg-cyan-500/20',   text: 'text-cyan-400',   label: 'Analyst' },
+  viewer:         { bg: 'bg-slate-500/20',  text: 'text-slate-400',  label: 'Viewer' },
+  // legacy label compat
+  super_admin:    { bg: 'bg-purple-500/20', text: 'text-purple-400', label: 'Super Admin' },
+  admin:          { bg: 'bg-blue-500/20',   text: 'text-blue-400',   label: 'Admin' },
+  user:           { bg: 'bg-slate-500/20',  text: 'text-slate-400',  label: 'User' },
 };
 
 const STATUS_COLORS = {
-  active:   { bg: 'bg-green-500/20',  text: 'text-green-400',  label: 'Active' },
-  inactive: { bg: 'bg-slate-500/20',  text: 'text-slate-400',  label: 'Inactive' },
-  pending:  { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Pending' },
+  active:   { bg: 'bg-green-500/20',  text: 'text-green-400',  label: 'Active',   icon: CheckCircle2 },
+  inactive: { bg: 'bg-slate-500/20',  text: 'text-slate-400',  label: 'Inactive', icon: AlertCircle },
+  pending:  { bg: 'bg-yellow-500/20', text: 'text-yellow-400', label: 'Pending',  icon: Clock },
 };
 
 const FILTERS = [
@@ -32,10 +38,11 @@ const FILTERS = [
     label: 'Role',
     options: [
       { value: '', label: 'All Roles' },
-      { value: 'super_admin', label: 'Super Admin' },
-      { value: 'admin', label: 'Admin' },
+      { value: 'platform_admin', label: 'Platform Admin' },
+      { value: 'org_admin', label: 'Org Admin' },
       { value: 'tenant_admin', label: 'Tenant Admin' },
-      { value: 'user', label: 'User' },
+      { value: 'analyst', label: 'Analyst' },
+      { value: 'viewer', label: 'Viewer' },
     ],
   },
   {
@@ -50,10 +57,34 @@ const FILTERS = [
   },
 ];
 
+// Loading skeleton for AC11
+function UsersSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-start justify-between">
+        <div className="space-y-2">
+          <div className="h-8 w-48 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+          <div className="h-4 w-72 rounded animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+        </div>
+        <div className="h-10 w-32 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="h-24 rounded-xl animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+        ))}
+      </div>
+      <div className="rounded-xl border p-6 space-y-3" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        {[1, 2, 3, 4, 5].map(i => (
+          <div key={i} className="h-12 rounded-lg animate-pulse" style={{ backgroundColor: 'var(--bg-tertiary)' }} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function UsersPage() {
   const router = useRouter();
-  const toast = useToast();
-  const { selectedTenant } = useAuth();
+  const { role, isInitialized } = useAuth();
   const [search, setSearch] = useState('');
   const [activeFilters, setActiveFilters] = useState({ role: '', status: '' });
   const [users, setUsers] = useState([]);
@@ -61,58 +92,71 @@ export default function UsersPage() {
   const [error, setError] = useState(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
 
+  // AC4: role guard — redirect tenant_admin, analyst, viewer to 403
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Try Django CSPM backend first (has real users with roles and auth)
-        const tenantParam = selectedTenant ? `?tenant_id=${encodeURIComponent(selectedTenant)}` : '';
-        const cspmRes = await fetchFromCspm(`/api/users/${tenantParam}`);
-        if (cspmRes && !cspmRes.error) {
-          const rawList = cspmRes.users || cspmRes.results || (Array.isArray(cspmRes) ? cspmRes : []);
-          if (rawList.length > 0) {
-            setUsers(rawList.map(u => ({
-              id: u.id || u.pk,
-              name: u.full_name || u.get_full_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.username || u.email,
-              email: u.email || '',
-              role: u.role || (u.is_superuser ? 'super_admin' : u.is_staff ? 'admin' : 'user'),
-              status: u.is_active ? 'active' : 'inactive',
-              last_login: u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never',
-            })));
-            return;
-          }
-        }
-        // Fallback: onboarding engine users (derived from cloud accounts)
-        const res = await getFromEngine('onboarding', '/api/v1/users');
-        if (res && !res.error) {
-          const raw = Array.isArray(res) ? res : (res.users || res.results || res.data || []);
-          setUsers(raw);
-        } else {
-          setError('Failed to load users.');
-        }
-      } catch (err) {
-        console.warn('Failed to fetch users:', err);
-        setError('Failed to load users.');
-      } finally {
-        setLoading(false);
+    if (!isInitialized) return;
+    if (role && !ALLOWED_ROLES.includes(role)) {
+      router.replace('/403');
+    }
+  }, [role, isInitialized, router]);
+
+  // AC1: fetch user list via BFF view
+  const loadUsers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchView('users');
+      if (data && !data.error) {
+        const rawList = data.users || [];
+        setUsers(
+          rawList.map(u => ({
+            id: u.user_id,
+            name: u.name || u.email || '',
+            email: u.email || '',
+            role: u.role || 'viewer',
+            status: u.status || 'active',
+            date_joined: u.date_joined
+              ? new Date(u.date_joined).toLocaleDateString()
+              : '—',
+            last_login: u.last_login
+              ? new Date(u.last_login).toLocaleDateString()
+              : 'Never',
+          }))
+        );
+      } else {
+        setError(data?.error || 'Failed to load users.');
       }
-    };
-    fetchUsers();
-  }, [selectedTenant]);
+    } catch (err) {
+      console.error('Failed to fetch users:', err);
+      setError('Failed to load users.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (!role || !ALLOWED_ROLES.includes(role)) return;
+    loadUsers();
+  }, [isInitialized, role]);
+
+  // AC11: show skeleton while loading
+  if (!isInitialized || loading) return <UsersSkeleton />;
+
+  // AC4: blank while redirect resolves
+  if (!ALLOWED_ROLES.includes(role)) return null;
 
   const totalUsers = users.length;
-  const adminUsers = users.filter((u) => u.role === 'admin' || u.role === 'super_admin').length;
-  const activeCount = users.filter((u) => u.status === 'active').length;
-  const pendingInvites = users.filter((u) => u.status === 'pending').length;
+  const adminCount = users.filter(u => ['platform_admin', 'org_admin'].includes(u.role)).length;
+  const activeCount = users.filter(u => u.status === 'active').length;
+  const pendingCount = users.filter(u => u.status === 'pending').length;
 
-  const filtered = users.filter((u) => {
-    const matchesSearch = !search ||
-      u.name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = !activeFilters.role || u.role === activeFilters.role;
-    const matchesStatus = !activeFilters.status || u.status === activeFilters.status;
-    return matchesSearch && matchesRole && matchesStatus;
+  const filtered = users.filter(u => {
+    const q = search.toLowerCase();
+    const matchSearch = !search || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+    const matchRole = !activeFilters.role || u.role === activeFilters.role;
+    const matchStatus = !activeFilters.status || u.status === activeFilters.status;
+    return matchSearch && matchRole && matchStatus;
   });
 
   const columns = [
@@ -130,8 +174,12 @@ export default function UsersPage() {
       accessorKey: 'role',
       header: 'Role',
       cell: (info) => {
-        const c = ROLE_COLORS[info.getValue()] || ROLE_COLORS.user;
-        return <span className={`text-xs px-3 py-1 rounded font-medium ${c.bg} ${c.text}`}>{c.label}</span>;
+        const c = ROLE_COLORS[info.getValue()] || ROLE_COLORS.viewer;
+        return (
+          <span className={`text-xs px-2.5 py-1 rounded font-medium ${c.bg} ${c.text}`}>
+            {c.label}
+          </span>
+        );
       },
     },
     {
@@ -139,8 +187,21 @@ export default function UsersPage() {
       header: 'Status',
       cell: (info) => {
         const c = STATUS_COLORS[info.getValue()] || STATUS_COLORS.inactive;
-        return <span className={`text-xs px-3 py-1 rounded font-medium ${c.bg} ${c.text}`}>{c.label}</span>;
+        const Icon = c.icon;
+        return (
+          <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded font-medium ${c.bg} ${c.text}`}>
+            <Icon size={11} />
+            {c.label}
+          </span>
+        );
       },
+    },
+    {
+      accessorKey: 'date_joined',
+      header: 'Joined At',
+      cell: (info) => (
+        <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">{info.getValue()}</span>
+      ),
     },
     {
       accessorKey: 'last_login',
@@ -149,6 +210,7 @@ export default function UsersPage() {
         <span style={{ color: 'var(--text-tertiary)' }} className="text-sm">{info.getValue()}</span>
       ),
     },
+    // AC2: Re-invite action per row (visible only to allowed roles — already gated at page level)
     {
       id: 'actions',
       header: 'Actions',
@@ -156,27 +218,11 @@ export default function UsersPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => router.push(`/settings/users/${info.row.original.id}/accounts`)}
-            className="p-2 rounded-lg transition-colors hover:opacity-75"
+            className="p-1.5 rounded-lg transition-colors hover:opacity-75 text-xs"
             style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
             title="Manage account access"
           >
-            <ShieldCheck size={14} />
-          </button>
-          <button
-            onClick={() => toast.info(`Edit user: ${info.row.original.name}`)}
-            className="p-2 rounded-lg transition-colors hover:opacity-75"
-            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
-            title="Edit user"
-          >
-            <Edit2 size={14} />
-          </button>
-          <button
-            onClick={() => toast.warning(`Delete is a restricted action — perform this from the admin panel.`)}
-            className="p-2 rounded-lg transition-colors hover:opacity-75"
-            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}
-            title="Delete user"
-          >
-            <Trash2 size={14} />
+            <ShieldCheck size={13} />
           </button>
         </div>
       ),
@@ -188,43 +234,67 @@ export default function UsersPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: 'var(--text-primary)' }}>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
             User Management
           </h1>
           <p className="mt-1 text-sm" style={{ color: 'var(--text-tertiary)' }}>
-            Manage platform users, roles, and access permissions
+            Manage org users, roles, and access permissions
           </p>
         </div>
+        {/* AC2: Invite button — visible because page is already role-gated */}
         <button
           onClick={() => setShowInviteModal(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-white"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors text-white text-sm"
           style={{ backgroundColor: 'var(--accent-primary)' }}
         >
-          <UserPlus size={18} />
+          <UserPlus size={16} />
           Invite User
         </button>
       </div>
 
       {/* Error state */}
       {error && (
-        <div className="rounded-lg p-4 border" style={{ backgroundColor: '#dc26262a', borderColor: '#ef4444' }}>
-          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>{error}</p>
+        <div className="rounded-lg p-4 border" style={{ backgroundColor: 'rgba(220,38,38,0.1)', borderColor: 'rgba(239,68,68,0.4)' }}>
+          <p className="text-sm" style={{ color: '#f87171' }}>{error}</p>
         </div>
       )}
 
-      {/* KPI Cards */}
+      {/* KPI Cards — AC1 data counts */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <KpiCard title="Total Users" value={totalUsers} subtitle="All accounts" icon={<Users className="w-5 h-5" />} color="blue" />
-        <KpiCard title="Admins" value={adminUsers} subtitle="Super + Tenant admins" icon={<ShieldCheck className="w-5 h-5" />} color="purple" />
-        <KpiCard title="Active Users" value={activeCount} subtitle="Currently active" icon={<Users className="w-5 h-5" />} color="green" />
-        <KpiCard title="Pending Invites" value={pendingInvites} subtitle="Awaiting acceptance" icon={<UserPlus className="w-5 h-5" />} color="orange" />
+        <KpiCard
+          title="Total Users"
+          value={totalUsers}
+          subtitle="All accounts"
+          icon={<Users className="w-5 h-5" />}
+          color="blue"
+        />
+        <KpiCard
+          title="Admins"
+          value={adminCount}
+          subtitle="Org + Platform admins"
+          icon={<ShieldCheck className="w-5 h-5" />}
+          color="purple"
+        />
+        <KpiCard
+          title="Active Users"
+          value={activeCount}
+          subtitle="Currently active"
+          icon={<CheckCircle2 className="w-5 h-5" />}
+          color="green"
+        />
+        <KpiCard
+          title="Pending Invites"
+          value={pendingCount}
+          subtitle="Awaiting acceptance"
+          icon={<Clock className="w-5 h-5" />}
+          color="orange"
+        />
       </div>
 
       {/* Users Table */}
       <div className="rounded-xl p-6 border" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        {/* Table toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--text-primary)' }}>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--text-primary)' }}>
             All Users
             <span className="ml-2 text-sm font-normal" style={{ color: 'var(--text-muted)' }}>
               ({filtered.length}/{totalUsers})
@@ -239,21 +309,27 @@ export default function UsersPage() {
             <FilterBar
               filters={FILTERS}
               activeFilters={activeFilters}
-              onFilterChange={(key, value) => setActiveFilters((prev) => ({ ...prev, [key]: value }))}
+              onFilterChange={(key, value) => setActiveFilters(prev => ({ ...prev, [key]: value }))}
             />
           </div>
         </div>
         <DataTable
           data={filtered}
           columns={columns}
-          pageSize={10}
+          pageSize={15}
           emptyMessage="No users match your search"
         />
       </div>
+
+      {/* AC2: Invite User Modal */}
       {showInviteModal && (
         <InviteUserModal
           onClose={() => setShowInviteModal(false)}
-          onInvited={() => { setShowInviteModal(false); }}
+          onInvited={() => {
+            setShowInviteModal(false);
+            // Refresh the list after a successful invite
+            loadUsers();
+          }}
         />
       )}
     </div>

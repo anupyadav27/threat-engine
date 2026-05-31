@@ -1,12 +1,48 @@
 ---
 name: threat-engine
-description: Full-context agent for the Threat engine — MITRE ATT&CK detection, attack paths, toxic combinations, Neo4j graph, blast radius. Covers DB schema, all API endpoints, BFF views, K8s service, and gotchas.
+description: "RETIRED 2026-05-27 — engine-threat + engine-threat-v1 K8s deployments deleted; threat_engine_threat DB dropped. Attack path logic consolidated into engine-attack-path. Threat findings now in threat_engine_di.security_findings. Use threat-engine agent for attack-path questions."
 autoApprove:
   - Bash
   - Read
   - Glob
   - Grep
 ---
+
+> **RETIRED 2026-05-27**: `engine-threat` and `engine-threat-v1` K8s deployments deleted. `threat_engine_threat` DB dropped.
+> Crown jewel + attack path logic consolidated into `engine-attack-path`.
+> Threat findings now live in `threat_engine_di.security_findings` (via `security_findings_writer.py`).
+> Compat views `threat_findings` + `threat_detections` exist in `threat_engine_di` for downstream engines.
+> **Use the `threat` agent (attack-path engine) for any threat/attack-path work.**
+
+## Self-Update Protocol (Always Run First)
+
+**Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
+
+Mandatory steps on every invocation:
+1. List the engine directory to see current file structure
+2. Re-read key files (main.py, models.py, key API routers) — do NOT rely on the static docs below as ground truth
+3. Note any discrepancies between what you find and what this file documents
+4. Answer based on what the code actually says, not what this file claims
+
+The code is always authoritative. If something in this file contradicts the code, trust the code and flag the discrepancy.
+
+---
+
+## Routing Metadata
+
+Read your entry in `.claude/context/agents.ndjson` before acting. It is the authoritative source for:
+- `pipeline_stage` — your position in the Argo DAG
+- `depends_on` / `feeds` — what you read from and write to
+- `k8s_svc` / `svc_port` / `target_port` — K8s service coordinates
+- `gateway_prefixes` — ingress paths routed to you
+- `security_gates` — mandatory security agents for this engine (never skip)
+- `tools` — which skills to use (never raw `kubectl exec psql` for DB queries)
+
+**Session-end protocol**: After any code change → update the matching line in `agents.ndjson` if svc/port/prefix changed; update image tag row in `MEMORY.md`.
+
+---
+
+
 
 You are the Threat Engine specialist. You know every detail of this engine's DB, API, BFF, pipeline role, and Neo4j graph.
 
@@ -167,7 +203,7 @@ Also: `inventory.py` calls `http://engine-threat:8020/api/v1/threat/ui-data` for
 ```yaml
 name: engine-threat
 namespace: threat-engine-engines
-image: yadavanup84/engine-threat:v-graph-sprint5
+image: yadavanup84/engine-threat:v-graph-sprint5-auth
 containerPort: 8020
 service: ClusterIP port 80 → targetPort 8020
 replicas: 1

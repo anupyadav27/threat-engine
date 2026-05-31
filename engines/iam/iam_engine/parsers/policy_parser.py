@@ -308,6 +308,93 @@ def compute_statement_id(
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
+def link_managed_policies_from_attachments(
+    attachments: List[Dict[str, Any]],
+    managed_policy_map: Dict[str, "ParsedPolicy"],
+) -> List["ParsedPolicy"]:
+    """
+    Create per-role copies of managed policies using list_attached_role_policies records.
+
+    Uses records from aws.iam.list_attached_role_policies discovery (each record has
+    RoleArn + PolicyArn). This is the preferred path when get_account_authorization_details
+    times out.
+
+    Args:
+        attachments: Records from IAMDiscoveryReader.get_role_managed_policy_attachments()
+        managed_policy_map: Dict of policy_arn → ParsedPolicy from extract_managed_policies()
+
+    Returns:
+        List of ParsedPolicy with attached_to_arn = role ARN
+    """
+    result: List[ParsedPolicy] = []
+    for rec in attachments:
+        role_arn = rec.get("RoleArn") or rec.get("_resource_uid", "")
+        policy_arn = rec.get("PolicyArn", "")
+        if not role_arn or not policy_arn or policy_arn not in managed_policy_map:
+            continue
+        base = managed_policy_map[policy_arn]
+        result.append(ParsedPolicy(
+            policy_arn=base.policy_arn,
+            policy_name=base.policy_name or rec.get("PolicyName", ""),
+            version=base.version,
+            statements=base.statements,
+            is_aws_managed=base.is_aws_managed,
+            attachment_count=base.attachment_count,
+            source="managed",
+            attached_to_arn=role_arn,
+            attached_to_type="role",
+        ))
+    return result
+
+
+def link_managed_policies_to_roles(
+    roles: List[Dict[str, Any]],
+    managed_policy_map: Dict[str, "ParsedPolicy"],
+) -> List["ParsedPolicy"]:
+    """
+    Create per-role copies of managed policies with attached_to_arn set.
+
+    Uses AttachedManagedPolicies list from each role record (populated when the
+    discovery catalog includes aws.iam.get_account_authorization_details_roles).
+    Without this, managed policy statements have attached_to_arn=None and cannot
+    be used for attack-path IAM permission edge building.
+
+    Args:
+        roles: Role records from IAMDiscoveryReader.get_roles()
+        managed_policy_map: Dict of policy_arn → ParsedPolicy from extract_managed_policies()
+
+    Returns:
+        List of ParsedPolicy with attached_to_arn = role ARN for each attachment
+    """
+    result: List[ParsedPolicy] = []
+    for role in roles:
+        role_arn = role.get("Arn") or role.get("_resource_uid", "")
+        if not role_arn:
+            continue
+        attached = role.get("AttachedManagedPolicies") or []
+        if not isinstance(attached, list):
+            continue
+        for attachment in attached:
+            if not isinstance(attachment, dict):
+                continue
+            policy_arn = attachment.get("PolicyArn", "")
+            if not policy_arn or policy_arn not in managed_policy_map:
+                continue
+            base = managed_policy_map[policy_arn]
+            result.append(ParsedPolicy(
+                policy_arn=base.policy_arn,
+                policy_name=base.policy_name,
+                version=base.version,
+                statements=base.statements,
+                is_aws_managed=base.is_aws_managed,
+                attachment_count=base.attachment_count,
+                source="managed",
+                attached_to_arn=role_arn,
+                attached_to_type="role",
+            ))
+    return result
+
+
 def policies_to_db_rows(
     policies: List[ParsedPolicy],
     scan_run_id: str,
@@ -328,6 +415,7 @@ def policies_to_db_rows(
                 stmt.sid,
                 idx,
             )
+            not_action_mode = bool(stmt.not_actions)
             rows.append({
                 "statement_id": sid,
                 "scan_run_id": scan_run_id,
@@ -339,9 +427,11 @@ def policies_to_db_rows(
                 "is_aws_managed": policy.is_aws_managed,
                 "attached_to_arn": policy.attached_to_arn,
                 "attached_to_type": policy.attached_to_type,
+                "resource_uid": policy.attached_to_arn,  # for posture aggregation join
                 "sid": stmt.sid,
                 "effect": stmt.effect,
-                "actions": stmt.actions or stmt.not_actions,
+                "actions": stmt.actions if not not_action_mode else [],
+                "not_action_mode": not_action_mode,
                 "resources": stmt.resources or stmt.not_resources,
                 "conditions": stmt.conditions or None,
                 "principals": stmt.principals or None,

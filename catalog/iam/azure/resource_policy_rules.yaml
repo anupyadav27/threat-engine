@@ -1,0 +1,40 @@
+---
+# Azure resource-based IAM policy rules
+# Loaded by: catalog/iam/upload_iam_policy_rules.py → iam_resource_policy_rules table
+# Azure uses Role Assignments (RBAC) rather than resource-based policies.
+# These rules cover cases where resources carry their own access policy documents.
+
+csp: azure
+rules:
+
+  # ── Key Vault Access Policy ───────────────────────────────────────────────────
+  - resource_type: keyvault.vault
+    policy_field: properties.accessPolicies
+    principal_key: objectId
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: data_exfil
+    description: Azure Key Vault access policy grants access to AAD object (user/SP/managed identity)
+
+  # ── Storage Account (Blob SAS policy) ────────────────────────────────────────
+  - resource_type: storage.storage_account
+    policy_field: properties.sasPolicy
+    principal_key: expirationAction
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: data_access
+    description: Azure Storage Account SAS policy grants time-limited access
+
+  # ── Service Bus Namespace Auth Rule ──────────────────────────────────────────
+  - resource_type: servicebus.namespace
+    policy_field: authorizationRules
+    principal_key: name
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: lateral_movement
+    description: Service Bus namespace auth rule grants send/receive/manage access
+
+  # ── Event Hub Namespace Auth Rule ────────────────────────────────────────────
+  - resource_type: eventhub.namespace
+    policy_field: authorizationRules
+    principal_key: name
+    relation_type: GRANTS_ACCESS_TO
+    attack_path_category: lateral_movement
+    description: Event Hub namespace auth rule grants access

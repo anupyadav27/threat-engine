@@ -18,9 +18,14 @@ spec:
         tier: gateway
     spec:
       serviceAccountName: engine-sa
+      tolerations:
+      - key: "spot-scanner"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
       containers:
       - name: api-gateway
-        image: yadavanup84/threat-engine-api-gateway:v-bff-secops-repoacct1
+        image: yadavanup84/api-gateway:v-gw-cdr2
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
@@ -64,8 +69,8 @@ spec:
           value: "http://engine-risk.threat-engine-engines.svc.cluster.local:8009"
         - name: ENCRYPTION_ENGINE_URL
           value: "http://engine-encryption.threat-engine-engines.svc.cluster.local"
-        - name: CIEM_ENGINE_URL
-          value: "http://engine-ciem.threat-engine-engines.svc.cluster.local"
+        - name: CDR_ENGINE_URL
+          value: "http://engine-cdr.threat-engine-engines.svc.cluster.local"
         - name: AI_SECURITY_ENGINE_URL
           value: "http://engine-ai-security.threat-engine-engines.svc.cluster.local"
         - name: CONTAINER_SEC_ENGINE_URL
@@ -78,6 +83,8 @@ spec:
           value: "http://engine-network.threat-engine-engines.svc.cluster.local"
         - name: VULNERABILITY_ENGINE_URL
           value: "http://engine-vulnerability.threat-engine-engines.svc.cluster.local"
+        - name: VUL_ENGINE_EXTERNAL_URL
+          value: "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/vulnerability"
         - name: DBSEC_ENGINE_URL
           value: "http://engine-dbsec.threat-engine-engines.svc.cluster.local"
         - name: PIPELINE_MONITOR_URL
@@ -88,6 +95,53 @@ spec:
           value: "http://engine-platform-admin.threat-engine-engines.svc.cluster.local:8041"
         - name: ARGO_SERVER_URL
           value: "http://argo-server.argo.svc.cluster.local:2746"
+        - name: ATTACK_PATH_ENGINE_URL
+          value: "http://engine-attack-path.threat-engine-engines.svc.cluster.local:80"
+        - name: API_SECURITY_ENGINE_URL
+          value: "http://engine-api-security.threat-engine-engines.svc.cluster.local"
+        - name: DI_ENGINE_URL
+          value: "http://engine-di.threat-engine-engines.svc.cluster.local"
+        - name: DI_ENGINE_ENABLED
+          value: "true"
+        - name: DI_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DI_DB_PORT
+          value: "5432"
+        - name: DI_DB_NAME
+          value: "threat_engine_di"
+        - name: DI_DB_USER
+          value: "postgres"
+        - name: DI_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DI_DB_PASSWORD
+        # Inventory DB — used by asset_posture BFF endpoint (AP-P4-04)
+        - name: INVENTORY_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_HOST
+        - name: INVENTORY_DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_PORT
+        - name: INVENTORY_DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_NAME
+        - name: INVENTORY_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: INVENTORY_DB_USER
+        - name: INVENTORY_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: INVENTORY_DB_PASSWORD
         # CSP ConfigScan Engine URLs
         - name: CONFIGSCAN_AWS_URL
           value: "http://engine-configscan-aws.threat-engine-engines.svc.cluster.local"

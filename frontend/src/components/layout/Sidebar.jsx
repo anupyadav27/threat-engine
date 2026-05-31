@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import {
   LayoutDashboard,
   UserPlus,
@@ -35,6 +36,9 @@ import {
   Search,
   Container,
   Brain,
+  Package,
+  LayoutGrid,
+  DollarSign,
 } from 'lucide-react';
 import { NAV_ITEMS } from '@/lib/constants';
 import { useTheme } from '@/lib/theme-context';
@@ -68,6 +72,9 @@ const ICON_MAP = {
   Container,
   Brain,
   Shield,
+  Package,
+  LayoutGrid,
+  DollarSign,
 };
 
 // Sidebar width constants
@@ -203,14 +210,13 @@ export default function Sidebar({ collapsed = false, onToggle }) {
     >
       {/* ── Logo ──────────────────────────────────────────────────────────── */}
       <div
-        className={`h-14 flex items-center gap-2.5 flex-shrink-0 ${collapsed ? 'justify-center px-0' : 'px-5'}`}
+        className={`h-14 flex items-center flex-shrink-0 ${collapsed ? 'justify-center px-2' : 'px-4'}`}
         style={{ borderBottom: '1px solid var(--border-primary)' }}
       >
-        <Shield size={22} className="text-blue-500 flex-shrink-0" />
-        {!collapsed && (
-          <span className="text-base font-bold truncate" style={{ color: 'var(--text-primary)' }}>
-            THREAT ENGINE
-          </span>
+        {collapsed ? (
+          <img src="https://d1fp5dwui44wle.cloudfront.net/logo.svg" alt="Onam Security" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+        ) : (
+          <img src="https://d1fp5dwui44wle.cloudfront.net/logo.svg" alt="Onam Security" style={{ width: 140, height: 47, objectFit: 'contain' }} />
         )}
       </div>
 
@@ -221,6 +227,25 @@ export default function Sidebar({ collapsed = false, onToggle }) {
           if (item.separator) {
             return (
               <div key={`sep-${idx}`} className="my-2 mx-4" style={{ borderTop: '1px solid var(--border-primary)' }} />
+            );
+          }
+
+          // Section label support — text header when expanded, thin line when collapsed
+          if (item.sectionLabel) {
+            if (collapsed) {
+              return (
+                <div key={`sl-${idx}`} className="my-2 mx-4" style={{ borderTop: '1px solid var(--border-primary)' }} />
+              );
+            }
+            return (
+              <div key={`sl-${idx}`} className="px-5 pt-4 pb-1.5 mt-1">
+                <span
+                  className="text-[9px] font-bold uppercase tracking-widest select-none"
+                  style={{ color: 'var(--text-muted)', letterSpacing: '0.12em' }}
+                >
+                  {item.sectionLabel}
+                </span>
+              </div>
             );
           }
 
@@ -235,7 +260,7 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                 <Link
                   href={item.href}
                   title={collapsed ? item.label : undefined}
-                  className={`flex-1 flex items-center gap-3 py-2.5 text-sm font-medium transition-colors duration-150 ${collapsed ? 'justify-center px-0' : 'px-5'}`}
+                  className={`flex-1 flex items-center gap-3 py-2 text-sm font-medium transition-colors duration-150 ${collapsed ? 'justify-center px-0' : 'px-5'}`}
                   style={{
                     backgroundColor: active ? 'var(--sidebar-active)' : 'transparent',
                     color:           active ? 'var(--sidebar-active-text)' : 'var(--text-tertiary)',
@@ -247,7 +272,16 @@ export default function Sidebar({ collapsed = false, onToggle }) {
                   onMouseLeave={(e) => { if (!active) e.currentTarget.style.backgroundColor = 'transparent'; }}
                 >
                   {Icon && <Icon size={18} className="flex-shrink-0" />}
-                  {!collapsed && <span className="truncate">{item.label}</span>}
+                  {!collapsed && (
+                    <span className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate leading-tight">{item.label}</span>
+                      {item.subtitle && (
+                        <span className="truncate text-[10px] font-normal leading-tight mt-0.5" style={{ color: 'var(--text-muted)', opacity: 0.75 }}>
+                          {item.subtitle}
+                        </span>
+                      )}
+                    </span>
+                  )}
                   {!collapsed && item.badgeKey && badgeCounts[item.badgeKey] > 0 && (
                     <span style={{
                       marginLeft: 'auto',

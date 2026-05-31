@@ -43,6 +43,8 @@ async def view_threats(
     request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
+    tenant_ids: Optional[str] = Query(None),
+    account_ids: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     scan_run_id: str = Query("latest"),
 ):
@@ -59,7 +61,7 @@ async def view_threats(
         return cached
 
     results = await fetch_many([
-        ("threat", "/api/v1/threat/ui-data", {
+        ("attack_path", "/api/v1/threat/ui-data", {
             "tenant_id": tenant_id,
             "scan_run_id": scan_run_id,
             "limit": "2000",

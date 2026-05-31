@@ -15,14 +15,22 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework.views import APIView
 
 from user_auth.models import Users, PasswordResetTokens, UserSessions
-from user_auth.throttles import SignupRateThrottle
+from user_auth.throttles import PasswordResetRateThrottle
 from user_auth.utils.email_utils import send_password_reset_email
+
+_RESET_RESPONSE = {"detail": "If that email is registered, a reset link has been sent"}
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class PasswordResetRequestView(APIView):
-    """Accepts an email, sends a reset link if account exists. Always 200 to avoid email enumeration."""
-    throttle_classes = [SignupRateThrottle]
+    """Accepts an email, sends a reset link if account exists.
+
+    BLOCK-01: always returns HTTP 200 with the same body regardless of whether
+    the email is registered — prevents email enumeration.
+    BLOCK-02: rate-limited to 3 requests per minute per IP (PasswordResetRateThrottle).
+    """
+
+    throttle_classes = [PasswordResetRateThrottle]
 
     def post(self, request):
         try:
@@ -34,11 +42,11 @@ class PasswordResetRequestView(APIView):
         if not email:
             return JsonResponse({"message": "Email is required"}, status=400)
 
-        # Always return 200 — don't reveal whether email exists
+        # BLOCK-01: intentionally silent on DoesNotExist — same 200 either way.
         try:
             user = Users.objects.get(email=email)
         except Users.DoesNotExist:
-            return JsonResponse({"message": "If that email is registered, a reset link has been sent."})
+            return JsonResponse(_RESET_RESPONSE)
 
         # Invalidate any existing unused tokens
         PasswordResetTokens.objects.filter(user=user, used=False).update(used=True)
@@ -53,7 +61,7 @@ class PasswordResetRequestView(APIView):
 
         send_password_reset_email(email, token)
 
-        return JsonResponse({"message": "If that email is registered, a reset link has been sent."})
+        return JsonResponse(_RESET_RESPONSE)
 
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')

@@ -7,6 +7,35 @@ autoApprove:
   - Glob
   - Grep
 ---
+## Self-Update Protocol (Always Run First)
+
+**Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
+
+Mandatory steps on every invocation:
+1. List the engine directory to see current file structure
+2. Re-read key files (main.py, models.py, key API routers) — do NOT rely on the static docs below as ground truth
+3. Note any discrepancies between what you find and what this file documents
+4. Answer based on what the code actually says, not what this file claims
+
+The code is always authoritative. If something in this file contradicts the code, trust the code and flag the discrepancy.
+
+---
+
+## Routing Metadata
+
+Read your entry in `.claude/context/agents.ndjson` before acting. It is the authoritative source for:
+- `pipeline_stage` — your position in the Argo DAG
+- `depends_on` / `feeds` — what you read from and write to
+- `k8s_svc` / `svc_port` / `target_port` — K8s service coordinates
+- `gateway_prefixes` — ingress paths routed to you
+- `security_gates` — mandatory security agents for this engine (never skip)
+- `tools` — which skills to use (never raw `kubectl exec psql` for DB queries)
+
+**Session-end protocol**: After any code change → update the matching line in `agents.ndjson` if svc/port/prefix changed; update image tag row in `MEMORY.md`.
+
+---
+
+
 
 You are the Encryption Security Engine specialist. You know every detail of this engine's coverage model, DB, API, BFF, and pipeline role.
 
@@ -19,7 +48,8 @@ Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 **Position:** Stage 5 (parallel) — runs after threat.
 **Reads:** `check_findings` from `threat_engine_check` + `discovery_findings` from `threat_engine_discoveries` + `datasec_findings` from `threat_engine_datasec` + `inventory_findings` from `threat_engine_inventory`
 **Writes:** `encryption_report`, `encryption_findings`, `key_inventory`, `cert_inventory`, `secrets_inventory` in `threat_engine_encryption`
-**Feeds downstream:** CNAPP aggregation, BFF encryption views
+**Also writes:** `asset_relationships` in `threat_engine_di` (data-plane edges: ENCRYPTED_BY, GRANTS_DECRYPT_TO) via `encryption_security_engine.storage.encryption_relationship_writer.write_encryption_relationships()` — runs non-fatally before retention call.
+**Feeds downstream:** CNAPP aggregation, BFF encryption views, attack-path engine (reads ENCRYPTED_BY/GRANTS_DECRYPT_TO edges for data_exfil path detection)
 **Credentials:** NONE — reads from DB
 **Execution:** K8s Job
 

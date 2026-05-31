@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   FileText,
   Download,
@@ -8,11 +8,73 @@ import {
   Calendar,
   Clock,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
 import { fetchView } from '@/lib/api';
 import KpiCard from '@/components/shared/KpiCard';
 import DataTable from '@/components/shared/DataTable';
 
+/* ── CSV blob download ───────────────────────────────────────────────────── */
+function csvDownload(filename, rows) {
+  const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = filename;
+  a.click();
+}
+
+/* ── Map template id → BFF view key + row builder ───────────────────────── */
+const TEMPLATE_FETCH = {
+  'exec-summary': {
+    views: ['compliance', 'vulnerabilities'],
+    build: (results) => {
+      const header = ['Section', 'Key', 'Value'];
+      const rows = [];
+      const fw = results[0]?.frameworks || [];
+      rows.push(['Compliance', 'Frameworks assessed', fw.filter(f => f.passed > 0 || f.failed > 0).length]);
+      rows.push(['Compliance', 'Overall pass rate', fw.length ? (fw.reduce((s,f) => s + (f.score||0), 0) / fw.length).toFixed(1) + '%' : '—']);
+      const vulns = results[1];
+      rows.push(['Vulnerabilities', 'Total', vulns?.summary?.total_vulnerabilities ?? '—']);
+      rows.push(['Vulnerabilities', 'Critical', vulns?.summary?.critical_count ?? '—']);
+      return [header, ...rows];
+    },
+  },
+  'compliance-posture': {
+    views: ['compliance'],
+    build: ([data]) => {
+      const header = ['Framework', 'Provider', 'Score %', 'Passed', 'Failed', 'Controls'];
+      return [header, ...(data?.frameworks || []).map(f => [f.name, (f.provider||'multi').toUpperCase(), f.score??0, f.passed??0, f.failed??0, f.controls??0])];
+    },
+  },
+  'vuln-status': {
+    views: ['vulnerabilities'],
+    build: ([data]) => {
+      const header = ['CVE ID', 'Title', 'Severity', 'CVSS', 'Status', 'Affected Assets'];
+      return [header, ...(data?.findings || data?.vulnerabilities || []).map(v => [v.cve_id||v.id, v.title||v.name, v.severity, v.cvss_score??'—', v.status, v.affected_assets??'—'])];
+    },
+  },
+  'iam-assessment': {
+    views: ['iam'],
+    build: ([data]) => {
+      const header = ['Finding ID', 'Title', 'Severity', 'Provider', 'Status'];
+      return [header, ...(data?.findings || []).map(f => [f.finding_id||f.id, f.title||f.rule_id, f.severity, f.provider, f.status])];
+    },
+  },
+  'datasec-audit': {
+    views: ['datasec'],
+    build: ([data]) => {
+      const header = ['Resource', 'Type', 'Classification', 'Risk', 'Provider'];
+      return [header, ...(data?.findings || data?.assets || []).map(f => [f.resource_uid||f.name, f.resource_type, f.classification||'—', f.risk_level||f.severity, f.provider])];
+    },
+  },
+  'risk-assessment': {
+    views: ['risk'],
+    build: ([data]) => {
+      const header = ['Resource', 'Risk Score', 'Severity', 'Provider', 'Blast Radius'];
+      return [header, ...(data?.findings || data?.risks || []).map(r => [r.resource_uid||r.name, r.risk_score??'—', r.severity, r.provider, r.blast_radius_score??'—'])];
+    },
+  },
+};
 
 const TEMPLATES = [
   { id: 'exec-summary', name: 'Executive Summary', desc: 'High-level overview for leadership', lastGen: '2 hours ago', schedule: 'Weekly' },
@@ -49,12 +111,25 @@ const SectionHeader = ({ title }) => (
   </div>
 );
 
+/* ── Section → BFF view key mapping (for custom builder) ────────────────── */
+const SECTION_VIEW = {
+  'Compliance Status':   'compliance',
+  'Findings Overview':   'misconfig',
+  'Vulnerability Report': 'vulnerabilities',
+  'IAM Assessment':      'iam',
+  'Data Security':       'datasec',
+  'Risk Scores':         'risk',
+};
+
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState([]);
   const [scheduledReports, setScheduledReports] = useState([]);
   const [activeTab, setActiveTab] = useState('overview');
   const [activeBuilder, setActiveBuilder] = useState(false);
+  const [generatingId, setGeneratingId] = useState(null); // template id being generated
+  const [builderGenerating, setBuilderGenerating] = useState(false);
+  const templatesRef = useRef(null);
   const [builderConfig, setBuilderConfig] = useState({
     sections: [],
     frameworks: [],
@@ -81,6 +156,46 @@ export default function ReportsPage() {
     fetchData();
   }, []);
 
+  const generateReport = useCallback(async (tpl) => {
+    if (!TEMPLATE_FETCH[tpl.id]) return;
+    setGeneratingId(tpl.id);
+    try {
+      const { views, build } = TEMPLATE_FETCH[tpl.id];
+      const results = await Promise.all(views.map(v => fetchView(v)));
+      csvDownload(`${tpl.id}_report.csv`, build(results));
+    } catch (e) {
+      console.error('[reports] generateReport failed', e);
+    } finally {
+      setGeneratingId(null);
+    }
+  }, []);
+
+  const generateCustomReport = useCallback(async () => {
+    const secs = builderConfig.sections || [];
+    if (!secs.length) return;
+    setBuilderGenerating(true);
+    try {
+      const viewKeys = [...new Set(secs.map(s => SECTION_VIEW[s]).filter(Boolean))];
+      const results = await Promise.all(viewKeys.map(v => fetchView(v)));
+      const allRows = [['Section', 'Field', 'Value']];
+      results.forEach((res, i) => {
+        const key = viewKeys[i];
+        const section = secs.find(s => SECTION_VIEW[s] === key) || key;
+        const items = res?.findings || res?.frameworks || res?.assets || res?.risks || [];
+        items.forEach(item => {
+          Object.entries(item).forEach(([k, v]) => {
+            if (typeof v !== 'object') allRows.push([section, k, String(v ?? '')]);
+          });
+        });
+      });
+      csvDownload('custom_report.csv', allRows);
+    } catch (e) {
+      console.error('[reports] generateCustomReport failed', e);
+    } finally {
+      setBuilderGenerating(false);
+    }
+  }, [builderConfig.sections]);
+
   const reportColumns = [
     { accessorKey: 'name', header: 'Report Name', cell: (info) => <span style={{ color: 'var(--text-primary)' }} className="font-medium">{info.getValue()}</span> },
     { accessorKey: 'template', header: 'Template', cell: (info) => <span style={{ color: 'var(--text-secondary)' }}>{info.getValue()}</span> },
@@ -89,7 +204,25 @@ export default function ReportsPage() {
     { accessorKey: 'format', header: 'Format', cell: (info) => <code style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }} className="px-2 py-1 rounded text-xs">{info.getValue()}</code> },
     { accessorKey: 'size', header: 'Size', cell: (info) => <span style={{ color: 'var(--text-tertiary)' }}>{info.getValue()}</span> },
     { accessorKey: 'status', header: 'Status', cell: (info) => <span style={{ color: '#10b981' }} className="text-xs font-semibold flex items-center gap-1"><CheckCircle className="w-4 h-4" /> {info.getValue()}</span> },
-    { accessorKey: 'id', header: 'Action', cell: (info) => <button className="p-1 hover:opacity-70 transition-colors" style={{ color: 'var(--text-secondary)' }}><Download className="w-4 h-4" /></button> },
+    { accessorKey: 'id', header: 'Action', cell: (info) => {
+      const row = info.row.original;
+      return (
+        <button
+          className="p-1 hover:opacity-70 transition-colors"
+          style={{ color: 'var(--text-secondary)' }}
+          title={`Download ${row.name}`}
+          onClick={() => {
+            const content = JSON.stringify(row, null, 2);
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+            a.download = `${(row.name || 'report').toLowerCase().replace(/\s+/g, '_')}.json`;
+            a.click();
+          }}
+        >
+          <Download className="w-4 h-4" />
+        </button>
+      );
+    }},
   ];
 
   const scheduledColumns = [
@@ -124,7 +257,13 @@ export default function ReportsPage() {
           </div>
           <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>Generate, schedule, and manage security reports and audit evidence</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>
+        <button
+          onClick={() => {
+            setActiveTab('overview');
+            setTimeout(() => templatesRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+          }}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-white font-medium transition-colors"
+          style={{ backgroundColor: 'var(--accent-primary)' }}>
           <Plus className="w-4 h-4" /> Generate Report
         </button>
       </div>
@@ -155,25 +294,52 @@ export default function ReportsPage() {
           </div>
 
           {/* Report Templates Grid */}
-          <div>
+          <div ref={templatesRef}>
             <SectionHeader title="Report Templates" />
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {TEMPLATES.map((tpl) => (
-                <div key={tpl.id} className="rounded-lg border p-4 hover:border-blue-500 transition-colors" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-                  <h3 style={{ color: 'var(--text-primary)' }} className="font-semibold mb-1">{tpl.name}</h3>
-                  <p style={{ color: 'var(--text-tertiary)' }} className="text-sm mb-3">{tpl.desc}</p>
-                  <div className="flex justify-between items-center text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-                    <span>Last: {tpl.lastGen}</span>
-                    <span>{tpl.schedule}</span>
+              {TEMPLATES.map((tpl) => {
+                const isThreat = tpl.id === 'threat-landscape';
+                const isCustom = tpl.id === 'custom';
+                const isGenerating = generatingId === tpl.id;
+                return (
+                  <div key={tpl.id} className="rounded-lg border p-4 hover:border-blue-500 transition-colors" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+                    <h3 style={{ color: 'var(--text-primary)' }} className="font-semibold mb-1">{tpl.name}</h3>
+                    <p style={{ color: 'var(--text-tertiary)' }} className="text-sm mb-3">{tpl.desc}</p>
+                    <div className="flex justify-between items-center text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                      <span>Last: {tpl.lastGen}</span>
+                      <span>{tpl.schedule}</span>
+                    </div>
+                    {isThreat ? (
+                      <span title="Requires threat engine scan data" style={{ cursor: 'not-allowed', display: 'block' }}>
+                        <button disabled className="w-full px-3 py-2 rounded text-sm font-medium text-white flex items-center justify-center gap-2"
+                          style={{ backgroundColor: 'var(--accent-primary)', opacity: 0.45, pointerEvents: 'none' }}>
+                          Generate Now
+                        </button>
+                      </span>
+                    ) : isCustom ? (
+                      <button
+                        onClick={() => { setActiveBuilder(true); setTimeout(() => document.querySelector('[data-custom-builder]')?.scrollIntoView({ behavior: 'smooth' }), 100); }}
+                        className="w-full px-3 py-2 rounded text-sm font-medium transition-colors text-white"
+                        style={{ backgroundColor: 'var(--accent-primary)' }}>
+                        Open Builder
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => generateReport(tpl)}
+                        disabled={isGenerating}
+                        className="w-full px-3 py-2 rounded text-sm font-medium transition-colors text-white flex items-center justify-center gap-2"
+                        style={{ backgroundColor: 'var(--accent-primary)', opacity: isGenerating ? 0.75 : 1 }}>
+                        {isGenerating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : 'Generate Now'}
+                      </button>
+                    )}
                   </div>
-                  <button className="w-full px-3 py-2 rounded text-sm font-medium transition-colors text-white" style={{ backgroundColor: 'var(--accent-primary)' }}>Generate Now</button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
           {/* Custom Report Builder */}
-          <div>
+          <div data-custom-builder>
             <SectionHeader title="Custom Report Builder" />
             <div className="rounded-lg border p-6" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
               <div className="flex items-center justify-between mb-4">
@@ -248,7 +414,13 @@ export default function ReportsPage() {
                     <label style={{ color: 'var(--text-secondary)' }} className="text-sm font-medium">Recipients (comma-separated)</label>
                     <input type="text" placeholder="email@company.com, team@company.com" className="w-full mt-2 px-3 py-2 rounded-lg border" style={{ backgroundColor: 'var(--bg-tertiary)', borderColor: 'var(--border-primary)', color: 'var(--text-primary)' }} value={builderConfig.recipients} onChange={(e) => setBuilderConfig({ ...builderConfig, recipients: e.target.value })} />
                   </div>
-                  <button className="w-full px-4 py-2 rounded-lg text-white font-medium transition-colors" style={{ backgroundColor: 'var(--accent-primary)' }}>Generate Report</button>
+                  <button
+                    onClick={generateCustomReport}
+                    disabled={builderGenerating || !(builderConfig.sections || []).length}
+                    className="w-full px-4 py-2 rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-2"
+                    style={{ backgroundColor: 'var(--accent-primary)', opacity: (builderGenerating || !(builderConfig.sections || []).length) ? 0.55 : 1 }}>
+                    {builderGenerating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : 'Generate Report'}
+                  </button>
                 </div>
               )}
             </div>

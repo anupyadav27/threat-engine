@@ -1,0 +1,29 @@
+id: PAT-GCP-T1-003
+version: 1
+description: "GKE workload running with privileged containers and no seccomp profile — OS-level container breakout with no syscall restriction."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Execution]
+mitre_techniques: [T1611, T1610]
+tactic_chain_order: [Execution, Privilege Escalation]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_gke_cluster, gcp_gke_workload]
+  conditions:
+    check_rules_failing:
+      - gcp.gke.workload.workload_no_privileged_containers
+      - gcp.gke.workload.workload_seccomp_profile_runtime_default
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "GKE workload with privileged=true and no seccomp profile"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "GKE workload with seccomp runtime/default and no privileged containers"
+    expected_tier: 1
+    expected_severity: low

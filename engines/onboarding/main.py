@@ -9,13 +9,29 @@ import uvicorn
 import asyncio
 import os
 
-from engine_onboarding.api import cloud_accounts_router, health_router, credentials_router, tenants_router, schedules_router, scan_runs_router
+from engine_onboarding.api import cloud_accounts_router, health_router, internal_router, tenants_router, schedules_router, scan_runs_router, scans_adhoc_router, reference_router, scans_router
 try:
     from engine_onboarding.api.agents import router as agents_router
     _AGENTS_ROUTER_AVAILABLE = True
 except Exception:
     _AGENTS_ROUTER_AVAILABLE = False
     agents_router = None
+
+# AC9 (onboarding-C4): agent heartbeat router — Bearer token auth, no cookie required.
+try:
+    from engine_onboarding.routers.agent import router as agent_heartbeat_router
+    _AGENT_HEARTBEAT_ROUTER_AVAILABLE = True
+except Exception:
+    _AGENT_HEARTBEAT_ROUTER_AVAILABLE = False
+    agent_heartbeat_router = None
+
+# onboarding-C9: bulk run-all scans router (POST /api/v1/scans/run-all).
+try:
+    from engine_onboarding.routers.bulk_scans import router as bulk_scans_router
+    _BULK_SCANS_ROUTER_AVAILABLE = True
+except Exception:
+    _BULK_SCANS_ROUTER_AVAILABLE = False
+    bulk_scans_router = None
 from engine_onboarding.config import settings
 from engine_onboarding.database.connection import init_db, check_connection
 try:
@@ -95,13 +111,24 @@ if _AUTH_AVAILABLE and AuthMiddleware:
 
 # Include routers
 app.include_router(health_router)
+app.include_router(internal_router)
+app.include_router(reference_router)
 app.include_router(tenants_router)
 app.include_router(cloud_accounts_router)
-app.include_router(credentials_router)
 app.include_router(schedules_router)
 app.include_router(scan_runs_router)
+app.include_router(scans_adhoc_router)
+app.include_router(scans_router)
 if _AGENTS_ROUTER_AVAILABLE and agents_router:
     app.include_router(agents_router)
+
+# AC9 (onboarding-C4): agent heartbeat — Bearer token auth, no platform cookie.
+if _AGENT_HEARTBEAT_ROUTER_AVAILABLE and agent_heartbeat_router:
+    app.include_router(agent_heartbeat_router)
+
+# onboarding-C9: bulk run-all scans — POST /api/v1/scans/run-all.
+if _BULK_SCANS_ROUTER_AVAILABLE and bulk_scans_router:
+    app.include_router(bulk_scans_router)
 
 # Include unified UI data router
 try:

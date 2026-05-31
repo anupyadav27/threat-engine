@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase H
 P2 — The four direct-engine bypasses (per ADR §3.1.c) are unprotected by the JNY-14 BFF diff. Until JNY-17 migrates them, this story is the safety net.
 
 ## Status
-draft
+done — test_bypass_contract.py, extract-bff-fields.js bypass scanner, ALLOWED_BYPASSES.md verdict table in CSPM_CONSTITUTION §4.5, allowed-bypasses.js
 
 ## Team Assignment (RACI)
 

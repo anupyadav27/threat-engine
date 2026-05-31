@@ -343,6 +343,74 @@ def _clone_repo(repo_url: str, branch: str, dest: str, pat: Optional[str] = None
     logger.info(f"Clone complete: {dest}")
 
 
+def _emit_secops_findings(secops_scan_id: str, tenant_id: str, scan_run_id: str) -> None:
+    """Read secops_findings for this scan and upsert into security_findings (inventory DB).
+
+    Non-fatal — errors are caught by the caller.
+    """
+    try:
+        from database.db_config import get_connection as get_secops_conn
+        from engine_common.security_findings_writer import upsert_findings
+        from engine_common.db_connections import get_di_conn
+    except ImportError as e:
+        logger.warning("_emit_secops_findings: missing deps (%s) — skipping", e)
+        return
+
+    with get_secops_conn() as sconn:
+        with sconn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, file_path, language, rule_id, severity, message,
+                       line_number, status, resource, scan_type, account_id
+                FROM secops_findings
+                WHERE secops_scan_id = %s AND tenant_id = %s
+                  AND severity IN ('critical', 'high', 'medium', 'low')
+                  AND (status IS NULL OR status != 'not_applicable')
+                """,
+                (secops_scan_id, tenant_id),
+            )
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+
+    if not rows:
+        return
+
+    findings = []
+    for row in rows:
+        d = dict(zip(cols, row))
+        scan_type = d.get("scan_type") or "sast"
+        prefix = "dast" if scan_type == "dast" else "sast"
+        file_path = d.get("file_path") or ""
+        rule_id = d.get("rule_id") or "unknown"
+        language = d.get("language") or "unknown"
+        message = d.get("message") or ""
+        findings.append({
+            "source_finding_id": f"{prefix}-{d['id']}",
+            "resource_uid":      file_path or f"secops/{secops_scan_id}",
+            "finding_type":      "code_security",
+            "severity":          (d.get("severity") or "medium").lower(),
+            "title":             f"{rule_id}: {message[:200]}" if message else rule_id,
+            "account_id":        d.get("account_id") or "",
+            "provider":          "code",
+            "resource_type":     f"code.{language}",
+            "rule_id":           rule_id,
+            "description":       message[:2000] if message else None,
+            "detail":            {"posture_category": "code_security", "line_number": d.get("line_number"),
+                                  "resource": d.get("resource"), "scan_type": scan_type},
+            "status":            "open",
+        })
+
+    with get_di_conn() as iconn:
+        written = upsert_findings(
+            conn=iconn,
+            findings=findings,
+            source_engine="secops",
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+        )
+    logger.info("security_findings: wrote %d SecOps rows for scan %s", written, secops_scan_id)
+
+
 def _run_scan_and_persist(
     secops_scan_id: str,
     tenant_id: str,
@@ -462,6 +530,16 @@ def _run_scan_and_persist(
 
         _scan_status[secops_scan_id] = {"status": "completed", "summary": summary}
         logger.info(f"[{secops_scan_id}] Scan complete: {total_findings} findings in {total_files} files")
+
+        try:
+            _emit_secops_findings(
+                secops_scan_id=secops_scan_id,
+                tenant_id=tenant_id,
+                scan_run_id=scan_run_id or secops_scan_id,
+            )
+        except Exception as emit_err:
+            logger.warning(f"[{secops_scan_id}] security_findings emit failed (non-fatal): {emit_err}")
+
         return summary
 
     except Exception as e:

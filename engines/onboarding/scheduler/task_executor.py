@@ -1,5 +1,12 @@
 """
 Task executor for scheduled scans
+
+.. deprecated::
+    This module is DEAD CODE — it is not imported by main.py or any live API path.
+    It was designed to run as a Celery worker task, but no Celery worker Deployment
+    exists in the cluster and there is no Redis broker. Scheduled scans are
+    triggered via ArgoClient (scheduler/argo_client.py). Do not wire this module
+    back in; remove it in a future cleanup sprint.
 """
 import asyncio
 import sys

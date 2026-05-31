@@ -1,0 +1,548 @@
+# CDR Dedicated Pipeline — Argo CronWorkflow
+#
+# PURPOSE:
+#   Runs CDR log collection + detection for ALL active cloud accounts
+#   on a fixed schedule (every 1h), then triggers ALL downstream engines
+#   so that CDR findings propagate to security graph, attack paths, risk
+#   scores, and per-engine posture tables immediately after detection.
+#
+# PIPELINE FLOW:
+#   1. trigger-cdr-all  → spawns one K8s Job per account (CDR log analysis)
+#   2. wait-for-cdr     → polls cdr_report until all jobs reach terminal status
+#   3. post-cdr-wave-1  → triggers all non-graph engines in parallel:
+#                          threat, compliance, iam, datasec, network, encryption,
+#                          container-sec, ai-security, api-security
+#      (threat MUST complete before graph-build — it writes threat_detections to Neo4j)
+#   4. post-cdr-wave-2  → graph-build (updates Neo4j with new CDR-sourced detections)
+#   5. post-cdr-wave-3  → attack-path + risk in parallel
+#                          (read security_findings including new CDR threat_detections)
+#
+# WHY ALL ENGINES?
+#   CDR writes threat_detection rows into the shared security_findings table.
+#   Each downstream engine reads from security_findings and may have its own
+#   CDR-enrichment logic (present or future).  Re-running them after CDR ensures
+#   posture scores, attack paths, and risk are always consistent with the latest
+#   CDR detections — not stale from the last full CSPM scan.
+#
+# WHAT ENGINES ARE SKIPPED AND WHY:
+#   discovery — CDR doesn't change cloud resource inventory
+#   check     — compliance rule evaluation depends on discovery; CDR doesn't trigger new findings
+#
+# HOW IT WORKS:
+#   Each downstream call uses the LATEST completed CSPM scan_run_id for the tenant
+#   (not CDR's own scan_run_id).  This allows engines to join CDR findings in
+#   security_findings against the existing discovery/check data.
+#
+# APPLY:
+#   kubectl apply -f deployment/aws/eks/argo/cdr-cron-pipeline.yaml
+#
+# MANUAL TRIGGER:
+#   argo submit --from cronworkflow/cdr-cron-pipeline -n threat-engine-engines
+#
+# MONITOR:
+#   kubectl get jobs -n threat-engine-engines -l app=log-collection-scanner
+#   kubectl logs -l app=log-collection-scanner -n threat-engine-engines --tail=50
+#
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: cdr-cron-pipeline
+  namespace: threat-engine-engines
+  labels:
+    app: cdr-pipeline
+    pipeline: cdr-dedicated
+spec:
+  # Every hour — CloudTrail delivers files within 5-15min, so 1h gives
+  # near-real-time detection. Watermarks ensure each run only reads new events.
+  schedule: "0 * * * *"
+  timezone: "UTC"
+  concurrencyPolicy: Forbid        # skip run if previous is still active
+  startingDeadlineSeconds: 300     # if late >5min, skip this run
+  successfulJobsHistoryLimit: 5
+  failedJobsHistoryLimit: 5
+
+  workflowSpec:
+    serviceAccountName: default
+    entrypoint: cdr-pipeline
+
+    # Allow script pods to schedule on the spot-scanner node (taint: spot-scanner=true:NoSchedule)
+    # which has 58 pod capacity vs the regular nodes' 17. Scanner K8s Jobs have their own
+    # tolerations set by engine-cdr — this only covers the Argo orchestration pods.
+    tolerations:
+    - key: spot-scanner
+      operator: Exists
+      effect: NoSchedule
+
+    podGC:
+      strategy: OnPodCompletion
+      deleteDelayDuration: "60s"
+
+    templates:
+
+    # ── Master pipeline — sequential steps ───────────────────────────────────
+    - name: cdr-pipeline
+      steps:
+      - - name: trigger-cdr
+          template: trigger-cdr-all
+      - - name: wait-for-cdr
+          template: wait-for-cdr-complete
+          arguments:
+            parameters:
+            - name: cdr-accounts
+              value: "{{steps.trigger-cdr.outputs.result}}"
+      - - name: wave-1
+          template: post-cdr-wave-1
+      - - name: wave-2
+          template: post-cdr-wave-2
+      - - name: wave-3
+          template: post-cdr-wave-3
+
+    # ── Step 1: Trigger CDR log collection for all accounts ─────────────────
+    # outputs.result is auto-captured from stdout by Argo for script templates
+    - name: trigger-cdr-all
+      script:
+        image: python:3.11-slim
+        command: [python3, -u]
+        source: |
+          import subprocess; subprocess.run(["pip", "install", "-q", "urllib3"], check=True)
+          import urllib.request, json, sys
+
+          url = "http://engine-cdr/api/v1/internal/scan/all"
+          try:
+              req = urllib.request.Request(url, data=b"{}",
+                  headers={"Content-Type": "application/json"}, method="POST")
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  body = json.loads(resp.read())
+          except Exception as e:
+              print(f"ERROR: could not trigger CDR scan/all: {e}", file=sys.stderr)
+              sys.exit(1)
+
+          jobs    = body.get("jobs_created", 0)
+          skipped = body.get("jobs_skipped", 0)
+          accounts = body.get("accounts", [])
+          print(f"CDR triggered: {jobs} jobs created, {skipped} skipped", file=sys.stderr)
+          for a in accounts:
+              print(f"  → {a['provider']} account={a['account_id']} scan={a['scan_run_id']}", file=sys.stderr)
+
+          # Output ONLY the JSON (captured as outputs.result for wait step)
+          print(json.dumps(accounts))
+
+    # ── Step 2: Wait for all CDR K8s jobs to reach terminal status ──────────
+    - name: wait-for-cdr-complete
+      inputs:
+        parameters:
+        - name: cdr-accounts
+      timeout: "1800s"    # 30 min hard cap
+      script:
+        image: python:3.11-slim
+        command: [python3, -u]
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+            optional: true
+        source: |
+          import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary"], check=True)
+          import json, os, time, psycopg2, sys
+
+          raw = '''{{inputs.parameters.cdr-accounts}}'''
+          try:
+              accounts = json.loads(raw)
+          except Exception:
+              accounts = []
+
+          scan_run_ids = [a["scan_run_id"] for a in accounts if a.get("scan_run_id")]
+          if not scan_run_ids:
+              print("[wait] No CDR scan_run_ids to wait for — proceeding immediately")
+              sys.exit(0)
+
+          print(f"[wait] Waiting for {len(scan_run_ids)} CDR jobs: {scan_run_ids}")
+
+          def get_conn():
+              return psycopg2.connect(
+                  host=os.getenv("CIEM_DB_HOST", os.getenv("DB_HOST")),
+                  port=int(os.getenv("CIEM_DB_PORT", 5432)),
+                  dbname="threat_engine_cdr",
+                  user=os.getenv("CIEM_DB_USER", "postgres"),
+                  password=os.getenv("CIEM_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+              )
+
+          TERMINAL = {"completed", "failed", "error"}
+          deadline = time.time() + 1500   # 25 min
+
+          while time.time() < deadline:
+              try:
+                  conn = get_conn()
+                  with conn.cursor() as cur:
+                      placeholders = ",".join(["%s"] * len(scan_run_ids))
+                      cur.execute(
+                          f"SELECT scan_run_id, status FROM cdr_report WHERE scan_run_id IN ({placeholders})",
+                          scan_run_ids,
+                      )
+                      done = {r[0]: r[1] for r in cur.fetchall() if r[1] in TERMINAL}
+                  conn.close()
+
+                  pending = [s for s in scan_run_ids if s not in done]
+                  print(f"[wait] done={len(done)}/{len(scan_run_ids)} pending={len(pending)}")
+                  if not pending:
+                      print("[wait] All CDR jobs complete — proceeding to downstream engines")
+                      sys.exit(0)
+              except Exception as e:
+                  print(f"[wait] DB check error: {e}")
+
+              time.sleep(30)
+
+          print("[wait] TIMEOUT — some CDR jobs still pending, proceeding anyway")
+          sys.exit(0)    # non-blocking: proceed even if some jobs are slow
+
+    # ── Step 3, Wave 1: All domain engines (parallel, except graph-build) ────
+    # Threat MUST be in this wave because it writes threat_detections that
+    # graph-build will read in Wave 2.
+    - name: post-cdr-wave-1
+      timeout: "1800s"
+      script:
+        image: python:3.11-slim
+        command: [python3, -u]
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+            optional: true
+        source: |
+          import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+          import json, os, psycopg2, requests, sys, threading
+
+          # ── Build synthetic X-Auth-Context (same pattern as main pipeline) ──
+          def make_auth(tenant_id):
+              return json.dumps({
+                  "user_id": "cdr-pipeline", "email": "cdr@internal.cluster",
+                  "role": "platform_admin", "level": 1, "scope_level": "platform",
+                  "permissions": [
+                      "threat:read", "threat:write", "compliance:read", "iam:read",
+                      "datasec:read", "network:read", "encryption:read", "container:read",
+                      "dbsec:read", "ai_security:read", "api_security:read", "api_security:write",
+                      "attack_path:read", "attack_path:write", "risk:read", "scans:create",
+                  ],
+                  "org_ids": None, "tenant_ids": None, "account_ids": None,
+                  "engine_tenant_id": tenant_id,
+              })
+
+          # ── Get latest completed CSPM scan per tenant ──────────────────────
+          def get_latest_scans():
+              conn = psycopg2.connect(
+                  host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST")),
+                  port=int(os.getenv("ONBOARDING_DB_PORT", 5432)),
+                  dbname="threat_engine_onboarding",
+                  user=os.getenv("ONBOARDING_DB_USER", "postgres"),
+                  password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+              )
+              with conn.cursor() as cur:
+                  # Latest completed non-CDR scan per tenant (has full discovery+check data)
+                  cur.execute("""
+                      SELECT DISTINCT ON (tenant_id)
+                             scan_run_id, tenant_id, account_id, provider,
+                             credential_ref, credential_type
+                      FROM scan_runs
+                      WHERE overall_status = 'completed'
+                        AND (trigger_type IS NULL OR trigger_type != 'cdr')
+                      ORDER BY tenant_id, completed_at DESC NULLS LAST
+                  """)
+                  rows = cur.fetchall()
+              conn.close()
+              return [
+                  {"scan_run_id": r[0], "tenant_id": r[1], "account_id": r[2],
+                   "provider": r[3], "credential_ref": r[4] or "", "credential_type": r[5] or ""}
+                  for r in rows
+              ]
+
+          scans = get_latest_scans()
+          if not scans:
+              print("[wave-1] No completed CSPM scans found — skipping downstream engines")
+              sys.exit(0)
+          print(f"[wave-1] Processing {len(scans)} tenant(s)")
+
+          # ── Engine definitions (wave 1 — run in parallel per tenant) ───────
+          # Each entry: (engine_name, url_template)
+          # url_template receives format(**scan_dict) where scan_dict has scan_run_id,
+          # tenant_id, account_id, provider, credential_ref, credential_type
+          WAVE1_ENGINES = [
+              ("threat",         "http://engine-threat/api/v1/internal/scan"),
+              ("compliance",     "http://engine-compliance/api/v1/scan"),
+              ("iam",            "http://engine-iam/api/v1/scan"),
+              ("datasec",        "http://engine-datasec/api/v1/scan"),
+              ("network",        "http://engine-network/api/v1/network-security/scan"),
+              ("encryption",     "http://engine-encryption/api/v1/encryption/scan"),
+              ("database-sec",   "http://engine-dbsec/api/v1/scan"),
+              ("container-sec",  "http://engine-container-sec/api/v1/container-security/scan"),
+              ("ai-security",    "http://engine-ai-security/api/v1/ai-security/scan"),
+              ("api-security",   "http://engine-api-security/api/v1/apisec/scan"),
+          ]
+
+          results = {}
+          lock = threading.Lock()
+
+          def call_engine(name, url, scan):
+              tid = scan["tenant_id"]
+              auth_ctx = make_auth(tid)
+              payload = {
+                  "scan_run_id": scan["scan_run_id"],
+                  "tenant_id":   tid,
+                  "account_id":  scan["account_id"],
+                  "provider":    scan["provider"],
+                  "csp":         scan["provider"],
+                  "credential_ref":  scan["credential_ref"],
+                  "credential_type": scan["credential_type"],
+              }
+              try:
+                  resp = requests.post(url, json=payload, timeout=1800,
+                      headers={"X-Auth-Context": auth_ctx})
+                  status = resp.status_code
+                  ok = status < 400
+              except Exception as e:
+                  status, ok = f"ERR:{e}", False
+              with lock:
+                  results[f"{name}/{tid[:8]}"] = (ok, status)
+              emoji = "✔" if ok else "✖"
+              print(f"[wave-1] {emoji} {name} tenant={tid[:8]} HTTP {status}")
+
+          threads = []
+          for scan in scans:
+              for name, url in WAVE1_ENGINES:
+                  t = threading.Thread(target=call_engine, args=(name, url, scan), daemon=True)
+                  threads.append(t)
+                  t.start()
+
+          for t in threads:
+              t.join(timeout=1790)
+
+          failures = [k for k, (ok, _) in results.items() if not ok]
+          print(f"[wave-1] Complete: {len(results)-len(failures)} ok, {len(failures)} failed")
+          if failures:
+              print(f"[wave-1] Failed engines (non-blocking): {failures}")
+          # Wave 1 failures are non-blocking — graph-build + attack-path proceed regardless
+          sys.exit(0)
+
+    # ── Step 4, Wave 2: graph-build (after threat updates threat_detections) ─
+    # graph-build reads threat_findings + CDR detections to build Neo4j graph.
+    # Must run AFTER wave-1 threat engine completes.
+    - name: post-cdr-wave-2
+      timeout: "900s"
+      script:
+        image: python:3.11-slim
+        command: [python3, -u]
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+            optional: true
+        env:
+        - name: X_INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: X_INTERNAL_SECRET
+              optional: true
+        source: |
+          import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+          import json, os, psycopg2, requests, sys, time
+
+          def get_tenants():
+              conn = psycopg2.connect(
+                  host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST")),
+                  port=int(os.getenv("ONBOARDING_DB_PORT", 5432)),
+                  dbname="threat_engine_onboarding",
+                  user=os.getenv("ONBOARDING_DB_USER", "postgres"),
+                  password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+              )
+              with conn.cursor() as cur:
+                  cur.execute("""
+                      SELECT DISTINCT ON (tenant_id)
+                             scan_run_id, tenant_id
+                      FROM scan_runs
+                      WHERE overall_status = 'completed'
+                        AND (trigger_type IS NULL OR trigger_type != 'cdr')
+                      ORDER BY tenant_id, completed_at DESC NULLS LAST
+                  """)
+                  rows = cur.fetchall()
+              conn.close()
+              return [{"scan_run_id": r[0], "tenant_id": r[1]} for r in rows]
+
+          tenants = get_tenants()
+          if not tenants:
+              print("[wave-2] No tenants found — skipping graph-build")
+              sys.exit(0)
+
+          SECRET = os.getenv("X_INTERNAL_SECRET", "")
+          TRIGGER = "http://engine-threat/api/v1/graph/build"
+          POLL    = "http://engine-threat/api/v1/graph/build/status"
+
+          for t in tenants:
+              tid = t["tenant_id"]
+              auth_ctx = json.dumps({
+                  "user_id": "cdr-pipeline", "email": "cdr@internal.cluster",
+                  "role": "platform_admin", "level": 1, "scope_level": "platform",
+                  "permissions": ["threat:read", "threat:write"],
+                  "org_ids": None, "tenant_ids": None, "account_ids": None,
+                  "engine_tenant_id": tid,
+              })
+              hdrs = {"Content-Type": "application/json",
+                      "X-Internal-Secret": SECRET, "X-Auth-Context": auth_ctx}
+
+              print(f"[wave-2] Triggering graph-build for tenant={tid[:8]}")
+              try:
+                  resp = requests.post(TRIGGER,
+                      data=json.dumps({"scan_run_id": t["scan_run_id"]}),
+                      headers=hdrs, timeout=30)
+              except Exception as e:
+                  print(f"[wave-2] ✖ graph-build trigger failed tenant={tid[:8]}: {e}")
+                  continue
+
+              if resp.status_code not in (200, 202):
+                  print(f"[wave-2] ✖ graph-build HTTP {resp.status_code} tenant={tid[:8]}: {resp.text[:200]}")
+                  continue
+
+              job_id = resp.json().get("job_id", "")
+              if not job_id:
+                  print(f"[wave-2] ✖ no job_id in response tenant={tid[:8]}")
+                  continue
+
+              print(f"[wave-2] graph-build queued job_id={job_id} tenant={tid[:8]} — polling...")
+              poll_url = f"{POLL}/{job_id}"
+              deadline = time.time() + 800
+              while time.time() < deadline:
+                  time.sleep(15)
+                  try:
+                      sr = requests.get(poll_url, headers=hdrs, timeout=15)
+                      data = sr.json() if sr.status_code != 404 else {}
+                  except Exception:
+                      data = {}
+                  status = data.get("status", "unknown")
+                  if status == "completed":
+                      print(f"[wave-2] ✔ graph-build completed tenant={tid[:8]} stats={data.get('stats',{})}")
+                      break
+                  if status == "failed":
+                      print(f"[wave-2] ✖ graph-build failed tenant={tid[:8]}: {data.get('error','')}")
+                      break
+              else:
+                  print(f"[wave-2] ✖ graph-build timeout tenant={tid[:8]}")
+
+          sys.exit(0)    # non-blocking
+
+    # ── Step 5, Wave 3: attack-path + risk (parallel, after graph-build) ─────
+    # attack-path reads security_findings (CDR threat_detections) + Neo4j graph.
+    # risk reads security_findings for updated posture scoring.
+    - name: post-cdr-wave-3
+      timeout: "1800s"
+      script:
+        image: python:3.11-slim
+        command: [python3, -u]
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+            optional: true
+        env:
+        - name: X_INTERNAL_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-secrets
+              key: X_INTERNAL_SECRET
+              optional: true
+        source: |
+          import subprocess; subprocess.run(["pip", "install", "-q", "psycopg2-binary", "requests"], check=True)
+          import json, os, psycopg2, requests, sys, threading
+
+          def get_latest_scans():
+              conn = psycopg2.connect(
+                  host=os.getenv("ONBOARDING_DB_HOST", os.getenv("DB_HOST")),
+                  port=int(os.getenv("ONBOARDING_DB_PORT", 5432)),
+                  dbname="threat_engine_onboarding",
+                  user=os.getenv("ONBOARDING_DB_USER", "postgres"),
+                  password=os.getenv("ONBOARDING_DB_PASSWORD", os.getenv("DB_PASSWORD", "")),
+              )
+              with conn.cursor() as cur:
+                  cur.execute("""
+                      SELECT DISTINCT ON (tenant_id)
+                             scan_run_id, tenant_id, account_id, provider,
+                             credential_ref, credential_type
+                      FROM scan_runs
+                      WHERE overall_status = 'completed'
+                        AND (trigger_type IS NULL OR trigger_type != 'cdr')
+                      ORDER BY tenant_id, completed_at DESC NULLS LAST
+                  """)
+                  rows = cur.fetchall()
+              conn.close()
+              return [
+                  {"scan_run_id": r[0], "tenant_id": r[1], "account_id": r[2],
+                   "provider": r[3], "credential_ref": r[4] or "", "credential_type": r[5] or ""}
+                  for r in rows
+              ]
+
+          scans = get_latest_scans()
+          if not scans:
+              print("[wave-3] No scans found — skipping attack-path + risk")
+              sys.exit(0)
+
+          SECRET = os.getenv("X_INTERNAL_SECRET", "")
+
+          def make_auth(tenant_id):
+              return json.dumps({
+                  "user_id": "cdr-pipeline", "email": "cdr@internal.cluster",
+                  "role": "platform_admin", "level": 1, "scope_level": "platform",
+                  "permissions": ["attack_path:read", "attack_path:write", "risk:read",
+                                  "threat:read", "scans:create"],
+                  "org_ids": None, "tenant_ids": None, "account_ids": None,
+                  "engine_tenant_id": tenant_id,
+              })
+
+          lock = threading.Lock()
+          results = {}
+
+          def call_engine(name, url, scan, internal=False):
+              tid = scan["tenant_id"]
+              payload = {
+                  "scan_run_id":     scan["scan_run_id"],
+                  "tenant_id":       tid,
+                  "account_id":      scan["account_id"],
+                  "provider":        scan["provider"],
+                  "credential_ref":  scan["credential_ref"],
+                  "credential_type": scan["credential_type"],
+              }
+              auth_ctx = make_auth(tid)
+              hdrs = {"X-Auth-Context": auth_ctx}
+              if internal:
+                  # /api/v1/internal/* paths use X-Internal-Secret (bypasses AuthMiddleware)
+                  hdrs["X-Internal-Secret"] = SECRET
+              try:
+                  resp = requests.post(url, json=payload, headers=hdrs, timeout=1790)
+                  ok = resp.status_code < 400
+              except Exception as e:
+                  ok = False
+                  resp = type("R", (), {"status_code": f"ERR:{e}", "text": str(e)})()
+              with lock:
+                  results[f"{name}/{tid[:8]}"] = ok
+              print(f"[wave-3] {'✔' if ok else '✖'} {name} tenant={tid[:8]} HTTP {resp.status_code}")
+
+          threads = []
+          for scan in scans:
+              # attack-path uses /api/v1/internal/scan → X-Internal-Secret
+              t1 = threading.Thread(target=call_engine,
+                  args=("attack-path", "http://engine-attack-path/api/v1/internal/scan", scan, True),
+                  daemon=True)
+              # risk uses standard endpoint → X-Auth-Context
+              t2 = threading.Thread(target=call_engine,
+                  args=("risk", "http://engine-risk:8009/api/v1/scan", scan, False),
+                  daemon=True)
+              threads += [t1, t2]
+              t1.start(); t2.start()
+
+          for t in threads:
+              t.join(timeout=1790)
+
+          failures = [k for k, ok in results.items() if not ok]
+          print(f"[wave-3] Complete: {len(results)-len(failures)} ok, {len(failures)} failed")
+          sys.exit(0)

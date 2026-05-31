@@ -51,6 +51,9 @@ PUBLIC_PREFIXES = (
     "/argo/",            # Argo Workflows UI (internal tool, no user auth needed)
     "/api/v1/billing/webhooks/stripe",  # Stripe calls this directly — auth via Stripe-Signature HMAC
     "/vulnerability/",  # Vulnerability engine uses API key auth — Next.js server-side proxy has no session cookie
+    "/api/v1/agent/download/",  # Agent script download — no secrets in script; token passed at install time
+    "/api/v1/internal/",  # Internal cluster-only endpoints (e.g. CDR cron trigger, onboarding agent validate)
+                          # Never exposed via ingress or gateway — only reachable from within the cluster.
     # NOTE: /api/v1/views/ is NOT here — BFF views must be authenticated so
     # that AuthMiddleware builds X-Auth-Context and forwards it to downstream
     # engines.  Without this the engines never receive a tenant/user context.

@@ -10,9 +10,9 @@ export const ENGINE_META = {
   'container-security':  { label: 'Container Security',  route: '/container-security' },
   dbsec:                 { label: 'Database Security',   route: '/database-security' },
   'ai-security':         { label: 'AI Security',         route: '/ai-security' },
-  ciem:                  { label: 'CIEM',                route: '/ciem' },
+  cdr:                   { label: 'CDR',                 route: '/cdr' },
   check:                 { label: 'Posture',             route: '/misconfig' },
-  threat:                { label: 'Threats',             route: '/threats' },
+  threat:                { label: 'Attack Paths',         route: '/attack-paths' },
   secops:                { label: 'SecOps',              route: '/secops' },
 };
 

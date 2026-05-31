@@ -1,0 +1,30 @@
+id: PAT-AWS-T1-001
+version: 1
+description: "EC2 instance with IMDSv1 enabled and overprivileged instance profile — SSRF can steal credentials instantly."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Privilege Escalation]
+mitre_techniques: [T1552.005, T1078.004]
+tactic_chain_order: [Credential Access, Privilege Escalation]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_instance]
+  conditions:
+    check_rules_failing:
+      - aws.ec2.instance.imdsv2_enabled
+      - aws.iam.instanceprofile.no_instance_profile_with_admin_star_configured
+    internet_exposed: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "EC2 with IMDSv1 + internet-facing SG + admin instance profile"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "EC2 with IMDSv2 enforced and least-privilege role"
+    expected_tier: 1
+    expected_severity: low

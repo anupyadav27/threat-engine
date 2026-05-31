@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase H
 P1 — Without engine-side schemas, BFF schemas (JNY-13) sit on quicksand: an engine shape change still propagates silently through the BFF.
 
 ## Status
-draft
+done — schemas/ dir with 24 per-engine schemas, test_bff_view_schema_contracts.py (29 tests), conftest.py; engines without coverage deferred to STORY-ENG-PYDANTIC-COVERAGE
 
 ## Team Assignment (RACI)
 

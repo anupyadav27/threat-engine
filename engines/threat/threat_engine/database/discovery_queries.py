@@ -806,10 +806,24 @@ class DiscoveryDatabaseQueries:
             LIMIT 1
         ) prev ON true
         WHERE {where_sql}
-        ORDER BY dh.first_seen_at DESC;
+        ORDER BY dh.first_seen_at DESC
+        LIMIT 500;
         """
 
-        results = self._execute_query(query, params)
+        # Use a 30-second statement_timeout to prevent LATERAL JOIN from hanging
+        # on large discovery_history tables (O(N²) risk without this guard).
+        conn = get_discoveries_conn()
+        try:
+            cur = conn.cursor(cursor_factory=RealDictCursor)
+            cur.execute("SET statement_timeout = '30000'")
+            cur.execute(query, params)
+            results = cur.fetchall()
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            conn.close()
 
         # Parse JSONB fields
         for result in results:

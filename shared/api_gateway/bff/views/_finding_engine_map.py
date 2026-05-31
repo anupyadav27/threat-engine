@@ -17,7 +17,7 @@ from typing import Callable, Dict, Literal, TypedDict
 from engine_common.db_connections import (
     get_ai_security_conn,
     get_check_conn,
-    get_ciem_conn,
+    get_cdr_conn,
     get_container_sec_conn,
     get_datasec_conn,
     get_dbsec_conn,
@@ -39,7 +39,7 @@ EngineSlug = Literal[
     "container-security",
     "dbsec",
     "ai-security",
-    "ciem",
+    "cdr",
     "secops",
 ]
 
@@ -109,10 +109,10 @@ ENGINE_MAP: Dict[str, EngineConfig] = {
         "perm": "ai-security:read",
         "supported": True,
     },
-    "ciem": {
-        "conn": get_ciem_conn,
-        "table": "ciem_findings",
-        "perm": "ciem:read",
+    "cdr": {
+        "conn": get_cdr_conn,
+        "table": "cdr_findings",
+        "perm": "cdr:read",
         "supported": True,
     },
     "secops": {

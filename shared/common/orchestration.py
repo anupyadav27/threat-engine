@@ -63,7 +63,9 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
                 credential_ref,
                 include_services,
                 include_regions,
-                customer_id
+                customer_id,
+                exclude_services,
+                exclude_regions
             FROM scan_runs
             WHERE scan_run_id = %s::uuid
         """, (scan_run_id,))
@@ -89,6 +91,8 @@ def get_orchestration_metadata(scan_run_id: str) -> Dict[str, Any]:
             "include_services": row[9],
             "include_regions": row[10],
             "customer_id": row[11] or tenant_id,  # fall back to tenant_id if not set
+            "exclude_services": row[12],
+            "exclude_regions": row[13],
         }
     finally:
         cursor.close()

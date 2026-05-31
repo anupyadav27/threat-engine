@@ -59,7 +59,7 @@ def analyze_security_groups(
                 sg.attached_resources = sg_attachments[sg_id]
 
             # ── Compute effective exposure ────────────────────────────────
-            effective = _compute_effective_exposure(sg, vpc, topology)
+            effective = compute_effective_exposure(sg, vpc, topology)
 
             # ── 1. Sensitive ports open to 0.0.0.0/0 ─────────────────────
             sensitive_exposed = sg.get_sensitive_ports_exposed()
@@ -275,7 +275,7 @@ def analyze_security_groups(
 
 # ── Effective Exposure Computation ────────────────────────────────────────────
 
-def _compute_effective_exposure(
+def compute_effective_exposure(
     sg: SGNode,
     vpc: Any,  # VPCNode
     topology: NetworkTopology,

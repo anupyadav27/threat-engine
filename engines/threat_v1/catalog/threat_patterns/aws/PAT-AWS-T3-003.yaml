@@ -1,0 +1,49 @@
+id: PAT-AWS-T3-003
+version: 1
+description: "Lambda function code injection (CDR: update_function_code) uses admin execution role to access Secrets Manager crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Execution, Privilege Escalation, Collection]
+mitre_techniques: [T1648, T1078.004, T1555]
+tactic_chain_order: [Execution, Privilege Escalation, Collection]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_lambda_function]
+  conditions:
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [aws_iam_role]
+      conditions:
+        is_admin_role: true
+        check_rules_failing:
+          - aws.iam.policy.no_wildcard_admin_actions_configured
+target:
+  node_type: Resource
+  resource_types: [aws_secretsmanager_secret]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - aws.secretsmanager.secret.rbac_least_privilege
+cdr_watch:
+  techniques: [T1648, T1555]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Lambda with CDR code update event → admin role → Secrets Manager crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Lambda no CDR events, scoped role, secrets not crown jewel"
+    expected_tier: 3
+    expected_severity: low

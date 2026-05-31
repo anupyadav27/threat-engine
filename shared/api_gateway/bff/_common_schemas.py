@@ -174,8 +174,8 @@ class ThreatsViewResponse(_BaseViewResponse):
     kpi: Dict[str, Any] = Field(default_factory=dict)
 
 
-class CiemViewResponse(_BaseViewResponse):
-    # CIEM does not use pageContext / filterSchema today — keep them optional.
+class CdrViewResponse(_BaseViewResponse):
+    # CDR does not use pageContext / filterSchema today — keep them optional.
     kpiGroups: List[KpiGroup] = Field(default_factory=list)
     totalFindings: int = 0
     rulesTriggered: int = 0
@@ -192,6 +192,10 @@ class CiemViewResponse(_BaseViewResponse):
     identities: List[Dict[str, Any]] = Field(default_factory=list)
     topRules: List[Dict[str, Any]] = Field(default_factory=list)
     logSources: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+# Backward-compat alias — remove after deploy confirms old ciem routes are gone
+CiemViewResponse = CdrViewResponse
 
 
 class ComplianceViewResponse(_BaseViewResponse):
@@ -247,7 +251,7 @@ __all__ = [
     "FilterField",
     "InventoryViewResponse",
     "ThreatsViewResponse",
-    "CiemViewResponse",
+    "CdrViewResponse",
     "ComplianceViewResponse",
     "IamViewResponse",
     "DatasecViewResponse",

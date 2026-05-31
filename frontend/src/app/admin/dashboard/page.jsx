@@ -23,7 +23,7 @@ const ENGINE_GROUPS = [
   },
   {
     label: 'ANALYSIS',
-    engines: ['threat', 'iam', 'ciem', 'network-security', 'datasec', 'secops', 'vulnerability', 'container-sec'],
+    engines: ['threat', 'iam', 'cdr', 'network-security', 'datasec', 'secops', 'vulnerability', 'container-sec'],
     variant: 'default',
   },
   {

@@ -1,0 +1,48 @@
+id: PAT-K8S-T3-003
+version: 1
+description: "Privileged init container (CDR: init_container_privileged) runs as root; exec into main container escalates to cluster scope to reach crown jewel config."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Execution, Privilege Escalation, Collection]
+mitre_techniques: [T1610, T1611, T1005]
+tactic_chain_order: [Execution, Privilege Escalation, Collection]
+csps: [k8s]
+entry:
+  node_type: Resource
+  resource_types: [k8s_pod]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - k8s.pod.securitycontext.capabilities_restricted_enforced
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [k8s_node]
+      conditions:
+        check_rules_failing:
+          - k8s.pod.securitycontext.seccomp_profile_enforced_enabled
+target:
+  node_type: Resource
+  resource_types: [k8s_configmap, k8s_secret]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1610, T1611]
+  window_minutes: 30
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Init container CDR privileged + no seccomp → crown jewel secret/configmap"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events, capabilities restricted, seccomp enforced"
+    expected_tier: 3
+    expected_severity: low

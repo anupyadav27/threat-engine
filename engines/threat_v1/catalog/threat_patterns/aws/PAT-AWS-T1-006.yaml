@@ -1,0 +1,33 @@
+id: PAT-AWS-T1-006
+version: 1
+description: "GuardDuty detector disabled — attacker can operate without behavioral detection, enabling undetected lateral movement."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Defense Evasion]
+mitre_techniques: [T1562.001]
+tactic_chain_order: [Defense Evasion]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_guardduty_detector, aws_account]
+  conditions:
+    check_rules_failing:
+      - aws.guardduty.detector.guardduty_detectors_enabled
+scoring:
+  posture_severity: high
+  active_severity: critical
+cdr_watch:
+  techniques: [T1562.001]
+  window_minutes: 1440
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "GuardDuty detector disabled in account"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "GuardDuty enabled with alert destinations configured"
+    expected_tier: 1
+    expected_severity: low

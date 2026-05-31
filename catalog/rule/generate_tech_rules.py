@@ -33,7 +33,7 @@ from typing import NamedTuple
 
 # ─── Repository paths ────────────────────────────────────────────────────────
 
-BASE = Path("/Users/apple/Desktop/threat-engine")
+BASE = Path(__file__).resolve().parent.parent.parent  # catalog/rule -> catalog -> repo root
 CSV_PATH = BASE / "catalog" / "complaince_csv" / "cis_technology_compliance_rules.csv"
 RULE_DIR = BASE / "catalog" / "rule"
 DISCOVERY_DIR = BASE / "catalog" / "discovery_generator_data"
@@ -576,6 +576,10 @@ def apply_writes(
 
     def _write_yaml(path: "Path", content: str) -> None:
         """Create parent directories and write *content* to *path*."""
+        # Manually authored files must never be overwritten by the generator.
+        if path.name == "step6_internal.discovery.yaml":
+            print(f"  [SKIP] {path.relative_to(BASE)} — manually authored, not regenerated")
+            return
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 

@@ -49,7 +49,7 @@ def _get_ciem_conn():
     return psycopg2.connect(
         host=os.getenv("CIEM_DB_HOST", os.getenv("DB_HOST", "localhost")),
         port=int(os.getenv("CIEM_DB_PORT", os.getenv("DB_PORT", "5432"))),
-        database=os.getenv("CIEM_DB_NAME", "threat_engine_ciem"),
+        database=os.getenv("CIEM_DB_NAME", "threat_engine_cdr"),
         user=os.getenv("CIEM_DB_USER", os.getenv("DB_USER", "postgres")),
         password=os.getenv("CIEM_DB_PASSWORD", os.getenv("INVENTORY_DB_PASSWORD",
                  os.getenv("DB_PASSWORD", ""))),
@@ -64,6 +64,10 @@ class CIEMReader:
         self.account_id = account_id
         self.days = days
 
+    def close(self) -> None:
+        """No-op — CIEMReader opens/closes connections per call."""
+        pass
+
     def _resolve_latest_ciem_scan_run_id(self) -> Optional[str]:
         """Return the scan_run_id of the latest completed CIEM scan for this tenant.
 
@@ -74,7 +78,7 @@ class CIEMReader:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    SELECT scan_run_id FROM ciem_report
+                    SELECT scan_run_id FROM cdr_report
                     WHERE tenant_id = %s AND status = 'completed'
                     ORDER BY completed_at DESC NULLS LAST
                     LIMIT 1
@@ -273,7 +277,7 @@ class CIEMReader:
                            actor_principal, resource_uid, resource_type,
                            event_time, title, action_category, primary_engine,
                            account_id, region
-                    FROM ciem_findings
+                    FROM cdr_findings
                     WHERE tenant_id = %s
                     {scope_clause}
                     {rule_id_clause}

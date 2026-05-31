@@ -1,0 +1,30 @@
+id: PAT-OCI-T1-002
+version: 1
+description: "OCI IAM user with no managed key restriction and org SCPs not enabled — unrestricted IAM actions possible without org guardrails."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Persistence]
+mitre_techniques: [T1078.004, T1098]
+tactic_chain_order: [Privilege Escalation, Persistence]
+csps: [oci]
+entry:
+  node_type: Resource
+  resource_types: [oci_iam_user, oci_identity_user]
+  conditions:
+    check_rules_failing:
+      - oci.identity.user.sa_no_user_managed_keys
+      - oci.identity.policy.org_scps_enabled
+    is_admin_role: true
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "OCI IAM user with user-managed keys and no org SCPs"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "OCI IAM user with no user-managed keys, org SCPs enforced"
+    expected_tier: 1
+    expected_severity: low

@@ -26,6 +26,25 @@ logger = logging.getLogger(__name__)
 
 CATALOG_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent / "catalog"
 
+# ── Deployment type detection ─────────────────────────────────────────────────
+
+_CLOUD_MANAGED_SUFFIXES: tuple = (
+    ".rds.amazonaws.com",
+    ".database.azure.com",
+    ".postgres.database.azure.com",
+    ".mysql.database.azure.com",
+    ".database.windows.net",
+    ".cloudsql.google.com",
+)
+
+
+def _detect_deployment_type(host: str) -> str:
+    """Return 'cloud_managed' or 'self_hosted' based on the DB hostname."""
+    h = host.lower().split(":")[0]  # strip port if present
+    if any(h.endswith(s) for s in _CLOUD_MANAGED_SUFFIXES):
+        return "cloud_managed"
+    return "self_hosted"
+
 
 class TechYAMLExecutor:
     """Loads and dispatches the discovery YAMLs for a tech_type."""
@@ -57,6 +76,12 @@ class TechYAMLExecutor:
             raise FileNotFoundError(
                 f"No discovery YAMLs found for {self.tech_category}/{self.tech_type} in {base}"
             )
+
+        # Append manually-authored internal checks when present.
+        # This file uses a distinct name so generate_tech_rules.py --apply never touches it.
+        internal_file = base / "step6_internal.discovery.yaml"
+        if internal_file.exists():
+            files_to_load = list(files_to_load) + [internal_file]
 
         for path in files_to_load:
             with path.open() as f:
@@ -104,16 +129,39 @@ class TechYAMLExecutor:
         Returns:
             List of dicts each containing ``raw_data`` and ``resource_uid``.
         """
-        action  = entry.get("action", "query_table")
         disc_id = entry.get("discovery_id", "unknown")
         emit_as = entry.get("emit_as", "single")
+
+        # Action may be at the top level OR inside calls[0] (generated YAMLs use calls[])
+        action = entry.get("action")
+        if not action:
+            first_call = next(iter(entry.get("calls") or []), {})
+            action = first_call.get("action", "query_table")
+
+        # ── applicable_to filter ──────────────────────────────────────────────
+        applicable = entry.get("applicable_to")
+        if applicable:
+            deployment_type = _detect_deployment_type(host)
+            if deployment_type not in applicable:
+                logger.debug(
+                    "Skipping %s — applicable_to=%s but deployment_type=%s",
+                    disc_id, applicable, deployment_type,
+                )
+                return []
 
         # ── dispatch ──────────────────────────────────────────────────────────
         if action == "run_command":
             return self._exec_command(entry, connector, host, disc_id, emit_as)
 
         # SQL actions (query_setting, query_table, or unknown default)
+        # Try top-level query/sql first, then fall back to calls[].query
+        # (catalog YAMLs nest the query inside calls[] — mirror local_executor._extract_sql)
         sql = (entry.get("query") or entry.get("sql") or "").strip()
+        if not sql:
+            for call in entry.get("calls", []):
+                if call.get("action") in ("query_setting", "query_table"):
+                    sql = (call.get("query") or call.get("sql") or "").strip()
+                    break
         if not sql:
             logger.warning("No SQL for discovery_id=%s — skipping", disc_id)
             return []

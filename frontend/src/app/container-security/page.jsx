@@ -661,8 +661,8 @@ export default function ContainerSecurityPage() {
         </div>
       ) : (
         <PageLayout icon={Container} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
-          tabData={tabData} loading={loading} error={error} defaultTab="overview" hideHeader topNav
-          onRowClick={handleRowClick} />
+          tabData={tabData} persistenceKey="container_security" loading={loading} error={error}
+          defaultTab="overview" hideHeader topNav onRowClick={handleRowClick} />
       )}
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </EngineShell>

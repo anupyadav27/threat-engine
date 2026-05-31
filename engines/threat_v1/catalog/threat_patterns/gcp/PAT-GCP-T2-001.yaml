@@ -1,0 +1,39 @@
+id: PAT-GCP-T2-001
+version: 1
+description: "GCE instance with admin service account accesses GCS bucket — metadata server token theft enables data exfiltration lateral path."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Credential Access, Collection]
+mitre_techniques: [T1552.005, T1530]
+tactic_chain_order: [Credential Access, Collection]
+csps: [gcp]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [gcp_compute_instance, gcp_gce_instance]
+  conditions:
+    check_rules_failing:
+      - gcp.iam.service_account.instance_profile_no_instance_profile_with_admin_star
+    internet_exposed: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [gcp_storage_bucket, gcp_gcs_bucket]
+      conditions:
+        check_rules_failing:
+          - gcp.storage.policy.bucket_policy_deny_unencrypted_puts
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Public GCE with admin SA → GCS bucket without policy controls"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Private GCE scoped SA, GCS with policy controls"
+    expected_tier: 2
+    expected_severity: low

@@ -1027,7 +1027,7 @@ class ThreatAnalyzer:
     # ── Attack path + asset category loaders ─────────────────────────────
 
     def _load_attack_path_categories(self) -> Dict[str, Optional[str]]:
-        """Load attack_path_category mapping from resource_security_relationship_rules.
+        """Load attack_path_category mapping from di_relationship_rules.
 
         Returns dict: relation_type → category (or None for non-attack edges).
         Falls back to inline _ATTACK_PATH_CATEGORIES if DB read fails.
@@ -1036,12 +1036,25 @@ class ThreatAnalyzer:
         from psycopg2.extras import RealDictCursor
 
         try:
-            conn = psycopg2.connect(self._inventory_conn_str())
+            di_host = os.getenv("DI_DB_HOST", os.getenv("DB_HOST", ""))
+            di_port = os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))
+            di_db = os.getenv("DI_DB_NAME", "threat_engine_di")
+            di_user = os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres"))
+            di_pwd = (
+                os.getenv("DI_DB_PASSWORD")
+                or os.getenv("DB_PASSWORD")
+                or os.getenv("DISCOVERIES_DB_PASSWORD", "")
+            )
+            conn = psycopg2.connect(
+                host=di_host, port=di_port, dbname=di_db,
+                user=di_user, password=di_pwd,
+                sslmode=os.getenv("DB_SSLMODE", "prefer"),
+            )
             try:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
                         SELECT DISTINCT relation_type, attack_path_category
-                        FROM resource_security_relationship_rules
+                        FROM di_relationship_rules
                         WHERE is_active = TRUE
                     """)
                     categories: Dict[str, Optional[str]] = {}
@@ -1065,13 +1078,44 @@ class ThreatAnalyzer:
     def _load_asset_categories(self, tenant_id: str) -> Dict[str, str]:
         """Load asset_category for all inventoried resources.
 
-        Joins inventory_findings with resource_inventory_identifier to map
-        each resource_uid → asset_category.
+        di_resource_catalog (threat_engine_di) and inventory_findings
+        (threat_engine_inventory) are in different databases. The join is
+        done in Python: load catalog index first, then fetch inventory rows.
 
         Returns dict: resource_uid → asset_category (only non-None entries).
         """
         import psycopg2
         from psycopg2.extras import RealDictCursor
+
+        # Step 1: load asset_category index from di_resource_catalog (DI DB)
+        catalog_index: Dict[Any, str] = {}
+        try:
+            di_host = os.getenv("DI_DB_HOST", os.getenv("DB_HOST", ""))
+            di_port = os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))
+            di_db = os.getenv("DI_DB_NAME", "threat_engine_di")
+            di_user = os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres"))
+            di_pwd = (
+                os.getenv("DI_DB_PASSWORD")
+                or os.getenv("DB_PASSWORD")
+                or os.getenv("DISCOVERIES_DB_PASSWORD", "")
+            )
+            di_conn = psycopg2.connect(
+                host=di_host, port=di_port, dbname=di_db,
+                user=di_user, password=di_pwd,
+                sslmode=os.getenv("DB_SSLMODE", "prefer"),
+            )
+            try:
+                with di_conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT csp, service, resource_type, asset_category"
+                        " FROM di_resource_catalog WHERE asset_category IS NOT NULL"
+                    )
+                    for csp, svc, rt, cat in cur.fetchall():
+                        catalog_index[(csp, svc, rt)] = cat
+            finally:
+                di_conn.close()
+        except Exception as exc:
+            logger.warning(f"Could not load di_resource_catalog index: {exc}")
 
         categories: Dict[str, str] = {}
         try:
@@ -1079,34 +1123,26 @@ class ThreatAnalyzer:
             try:
                 with conn.cursor(cursor_factory=RealDictCursor) as cur:
                     cur.execute("""
-                        SELECT f.resource_uid, r.asset_category
-                        FROM inventory_findings f
-                        JOIN resource_inventory_identifier r
-                          ON r.csp = split_part(f.resource_type, '.', 1)
-                         AND r.service = split_part(f.resource_type, '.', 1)
-                         AND r.canonical_type = split_part(f.resource_type, '.', 2)
-                        WHERE f.tenant_id = %s
-                          AND r.asset_category IS NOT NULL
+                        SELECT resource_uid, resource_type, provider
+                        FROM inventory_findings
+                        WHERE tenant_id = %s AND resource_uid IS NOT NULL
                     """, (tenant_id,))
                     for row in cur.fetchall():
-                        if row["resource_uid"] and row["asset_category"]:
-                            categories[row["resource_uid"]] = row["asset_category"]
+                        uid = row["resource_uid"]
+                        rt_full = row.get("resource_type") or ""
+                        csp = row.get("provider") or ""
+                        parts = rt_full.split(".", 1)
+                        svc = parts[0] if len(parts) >= 1 else ""
+                        rt_bare = parts[1] if len(parts) >= 2 else ""
 
-                    # Fallback: infer from resource_type if JOIN yielded few results
-                    if len(categories) < 10:
-                        cur.execute("""
-                            SELECT resource_uid, resource_type
-                            FROM inventory_findings
-                            WHERE tenant_id = %s AND resource_uid IS NOT NULL
-                        """, (tenant_id,))
-                        for row in cur.fetchall():
-                            uid = row["resource_uid"]
-                            if uid in categories:
-                                continue
-                            rt = (row.get("resource_type") or "").lower()
-                            cat = _infer_asset_category(rt)
-                            if cat:
-                                categories[uid] = cat
+                        cat = catalog_index.get((csp, svc, rt_bare))
+                        if cat:
+                            categories[uid] = cat
+                        else:
+                            # Fallback: infer from resource_type string
+                            inferred = _infer_asset_category(rt_full.lower())
+                            if inferred:
+                                categories[uid] = inferred
 
                 logger.info(f"Loaded asset_category for {len(categories)} resources")
             finally:

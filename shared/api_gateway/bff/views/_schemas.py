@@ -23,7 +23,7 @@ EngineSlug = Literal[
     "container-security",
     "dbsec",
     "ai-security",
-    "ciem",
+    "cdr",
     "secops",
 ]
 

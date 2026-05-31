@@ -1,10 +1,17 @@
 import hashlib
 import json
 import logging
+import os
+import secrets
+import uuid
+from datetime import timedelta
 from typing import Optional
+
+from django.db import transaction
 
 import requests as http_requests
 from django.http import HttpResponse, HttpResponseNotModified, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.encoding import force_bytes
 from rest_framework import status, viewsets, mixins
@@ -18,13 +25,17 @@ from .serializers import (
     TenantSerializer, TenantIDPConfigSerializer,
     GroupSerializer, GroupMemberSerializer,
     TenantGroupAccessSerializer, AccountGroupAccessSerializer,
+    TenantAssignSerializer, AccountAssignSerializer,
+    OrgProfilePatch, TenantTypePatch,
 )
 from .filters import build_tenant_query
+from shared.permissions import OrgScopedPermission
 from user_auth.drf_auth import CookieTokenAuthentication
 from user_auth.drf_permissions import HasPermission
 from user_auth.throttles import IDPByDomainRateThrottle
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.idp_validation import validate_idp_config
+from utils.rbac import enforce_org_boundary, is_platform_admin
 
 logger = logging.getLogger(__name__)
 
@@ -46,16 +57,20 @@ class TenantViewSet(
     serializer_class = TenantSerializer
     pagination_class = TenantsPagination
     authentication_classes = [CookieTokenAuthentication]
-    permission_classes = [HasPermission("tenants:read")]
+    permission_classes = [HasPermission("tenants:read"), OrgScopedPermission]
 
     def get_permissions(self):
         write_actions = {"create", "update", "partial_update", "destroy"}
         if self.action in write_actions:
-            return [HasPermission("tenants:write")()]
-        return [HasPermission("tenants:read")()]
+            return [HasPermission("tenants:write")(), OrgScopedPermission()]
+        return [HasPermission("tenants:read")(), OrgScopedPermission()]
 
     def get_queryset(self):
-        return build_tenant_query(self.request.query_params, user=self.request.user)
+        # build_tenant_query applies field-level filters (status, plan, search terms).
+        # enforce_org_boundary is the canonical AC7 utility: scopes org_admin to their
+        # own customer_id and lets platform_admin see all tenants.
+        base_qs = build_tenant_query(self.request.query_params, user=self.request.user)
+        return enforce_org_boundary(self.request.user, base_qs)
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -165,6 +180,32 @@ class TenantViewSet(
                 {"error": "Export failed", "details": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+    def perform_create(self, serializer):
+        """Set engine_tenant_id = id (same UUID) and trigger onboarding sync.
+
+        engine_tenant_id MUST equal the Django UUID so all engine DBs use the
+        same identifier. The Celery task syncs the new tenant row to the
+        onboarding engine (needed for cloud account FK constraints).
+        customer_id is always taken from the authenticated user's org — never
+        from the request body.
+        """
+        tenant_id = str(uuid.uuid4())
+        tenant = serializer.save(
+            id=tenant_id,
+            engine_tenant_id=tenant_id,
+            customer_id=_user_customer_id(self.request.user),
+            created_by=self.request.user,
+        )
+        # Async sync to onboarding engine — idempotent (409 = already exists).
+        try:
+            from user_auth.celery_tasks import sync_tenant_to_onboarding
+            sync_tenant_to_onboarding.apply_async(
+                args=[tenant_id, str(tenant.customer_id or tenant_id)],
+                queue="tenant-sync",
+            )
+        except Exception as exc:
+            logger.warning("TenantViewSet.create: failed to enqueue onboarding sync for %s: %s", tenant_id, exc)
 
 
 # ── IDP Config CRUD (AUTH-05) ─────────────────────────────────────────────────
@@ -470,8 +511,10 @@ class TenantIDPByDomainView(APIView):
 class ResyncTenantView(APIView):
     """POST /api/v1/tenants/{tenant_id}/resync/
 
-    Re-enqueue the onboarding sync task for a tenant whose status is 'sync_failed'.
-    Restricted to platform_admin only.
+    Re-enqueue the onboarding sync task for the given tenant.
+    Restricted to platform_admin only (AC5). Returns 202 with task_id (AC6).
+    Allows resync regardless of current tenant status so admins can force
+    re-sync after config changes (AC7 — failure is logged, not raised).
     """
 
     def post(self, request, tenant_id: str) -> JsonResponse:
@@ -494,11 +537,8 @@ class ResyncTenantView(APIView):
         except Tenants.DoesNotExist:
             return JsonResponse({"message": "Not found"}, status=404)
 
-        if tenant.status == "active":
-            return JsonResponse({"message": "Tenant is already active"}, status=409)
-
         from user_auth.celery_tasks import sync_tenant_to_onboarding
-        sync_tenant_to_onboarding.apply_async(
+        async_result = sync_tenant_to_onboarding.apply_async(
             args=[tenant_id, str(tenant.customer_id or tenant_id)],
             queue="tenant-sync",
         )
@@ -508,40 +548,141 @@ class ResyncTenantView(APIView):
             user=user,
             tenant_id=tenant_id,
         )
-        return JsonResponse({"message": "Resync enqueued"}, status=200)
+        return JsonResponse(
+            {"task_id": async_result.id, "tenant_id": tenant_id},
+            status=202,
+        )
 
 
 # ── D-4: Org profile ──────────────────────────────────────────────────────────
 
 class OrgProfileView(APIView):
-    """GET/PATCH /api/v1/org/profile/ — read/update org display name."""
+    """GET /api/org/profile/ — read org profile (AC1).
+    PATCH /api/org/profile/ — update org_name and contact_email (AC2, AC3).
+
+    Org profile is derived from the first Tenants row for the caller's
+    customer_id.  plan and customer_id are read-only (AC3).
+    platform_admin sees any org (AC9).
+    """
+
     authentication_classes = [CookieTokenAuthentication]
-    permission_classes     = [HasPermission("orgs:read")]
+    permission_classes = [HasPermission("orgs:read")]
+
+    def _get_customer_id(self, request) -> str:
+        """Return caller's customer_id, or raise 403 if absent."""
+        if is_platform_admin(request.user):
+            # platform_admin: if a ?customer_id= query param is supplied, honour it;
+            # otherwise fall back to their own customer_id.
+            cid = request.query_params.get("customer_id") or getattr(request.user, "customer_id", None)
+        else:
+            cid = getattr(request.user, "customer_id", None)
+        return cid or str(request.user.id)
 
     def get(self, request):
-        user = request.user
-        customer_id = getattr(user, "customer_id", None) or str(user.id)
-        tenants = list(
-            Tenants.objects.filter(customer_id=customer_id)
-            .values("id", "name", "status", "tenant_type")
-        )
+        """AC1: return org profile for the caller's customer_id."""
+        customer_id = self._get_customer_id(request)
+        # Use the first tenant for the org-level fields (name, contact_email, plan).
+        # All tenants under the same customer_id share the same org.
+        tenant = Tenants.objects.filter(customer_id=customer_id).order_by("created_at").first()
         return Response({
-            "customer_id":   customer_id,
-            "email":         user.email,
-            "display_name":  user.get_full_name() or user.email,
-            "tenants":       tenants,
+            "customer_id": customer_id,
+            "org_name": tenant.name if tenant else "",
+            "contact_email": tenant.contact_email if tenant else "",
+            "plan": tenant.plan if tenant else "",
         })
 
     def patch(self, request):
-        from user_auth.drf_permissions import HasPermission as _HP
-        _HP("orgs:write")().has_permission(request, self)
-        name = (request.data.get("display_name") or "").strip()
-        if name:
-            parts = name.split(" ", 1)
-            request.user.first_name = parts[0]
-            request.user.last_name  = parts[1] if len(parts) > 1 else ""
-            request.user.save(update_fields=["first_name", "last_name"])
-        return Response({"updated": True})
+        """AC2/AC3: update org_name and/or contact_email; reject customer_id/plan/billing_org_id."""
+        # Require orgs:write — fail fast with 403 if missing.
+        if not HasPermission("orgs:write")().has_permission(request, self):
+            return Response({"detail": "You do not have permission to perform this action."}, status=403)
+
+        # Reject attempts to modify read-only fields (AC3).
+        read_only_fields = {"customer_id", "plan", "billing_org_id"}
+        forbidden = read_only_fields & set(request.data.keys())
+        if forbidden:
+            return Response(
+                {"detail": f"Fields are read-only and cannot be modified: {sorted(forbidden)}"},
+                status=400,
+            )
+
+        serializer = OrgProfilePatch(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=422)
+
+        customer_id = self._get_customer_id(request)
+        update_kwargs: dict = {}
+        if "org_name" in serializer.validated_data:
+            update_kwargs["name"] = serializer.validated_data["org_name"]
+        if "contact_email" in serializer.validated_data:
+            update_kwargs["contact_email"] = serializer.validated_data["contact_email"]
+
+        if update_kwargs:
+            Tenants.objects.filter(customer_id=customer_id).update(**update_kwargs)
+
+        return Response({"updated": True, "customer_id": customer_id})
+
+
+class TenantTypeView(APIView):
+    """GET /api/tenants/{id}/type/ — read tenant_type (AC4).
+    PATCH /api/tenants/{id}/type/ — update tenant_type (AC5, AC6).
+
+    Tenant must belong to the caller's org (AC8).
+    platform_admin can access any tenant (AC9).
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = [HasPermission("orgs:read")]
+
+    def _get_tenant(self, request, tenant_id: str) -> Tenants:
+        """Return tenant scoped to caller's org, or raise 404."""
+        qs = Tenants.objects.filter(id=tenant_id)
+        if not is_platform_admin(request.user):
+            customer_id = getattr(request.user, "customer_id", None)
+            if not customer_id:
+                raise Tenants.DoesNotExist
+            qs = qs.filter(customer_id=customer_id)
+        return get_object_or_404(qs)
+
+    def get(self, request, tenant_id: str):
+        """AC4: return tenant_type; 404 if cross-org."""
+        tenant = self._get_tenant(request, tenant_id)
+        return Response({"tenant_id": str(tenant.id), "tenant_type": tenant.tenant_type})
+
+    def patch(self, request, tenant_id: str):
+        """AC5/AC6: update tenant_type; 422 on invalid value; 404 on cross-org."""
+        if not HasPermission("orgs:write")().has_permission(request, self):
+            return Response({"detail": "You do not have permission to perform this action."}, status=403)
+
+        serializer = TenantTypePatch(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=422)
+
+        tenant = self._get_tenant(request, tenant_id)
+        tenant.tenant_type = serializer.validated_data["tenant_type"]
+        tenant.save(update_fields=["tenant_type"])
+        return Response({"tenant_id": str(tenant.id), "tenant_type": tenant.tenant_type})
+
+
+class InternalTenantTypeView(APIView):
+    """GET /internal/tenants/{id}/type — internal endpoint for onboarding engine (AC7).
+
+    Authentication: X-Internal-Secret header only.  No cookie/session auth.
+    Used by onboarding-C5 to validate account_type against tenant_type.
+    """
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, tenant_id: str):
+        """AC7: return tenant_type for any tenant; requires X-Internal-Secret."""
+        secret = request.headers.get("X-Internal-Secret", "")
+        expected = os.environ.get("X_INTERNAL_SECRET", "")
+        if not expected or secret != expected:
+            return Response({"detail": "Unauthorized"}, status=401)
+
+        tenant = get_object_or_404(Tenants, id=tenant_id)
+        return Response({"tenant_type": tenant.tenant_type})
 
 
 # ── D-1: Group management ─────────────────────────────────────────────────────
@@ -551,27 +692,35 @@ def _user_customer_id(user) -> str:
 
 
 class GroupViewSet(viewsets.ModelViewSet):
-    """CRUD for customer-scoped groups. customer_id is ALWAYS server-side."""
+    """CRUD for customer-scoped groups. customer_id is ALWAYS server-side.
+
+    Permission matrix (AC8):
+      GET /api/groups/         → users:read
+      GET /api/groups/{id}/    → users:read
+      POST /api/groups/        → users:write  (org_admin / platform_admin)
+      PATCH /api/groups/{id}/  → users:write  (org_admin / platform_admin)
+      DELETE /api/groups/{id}/ → users:write  (org_admin / platform_admin)
+
+    Org boundary (AC1, AC9): enforced by get_queryset() + OrgScopedPermission.
+    customer_id is set server-side on create — never trusted from request body.
+    """
+
     authentication_classes = [CookieTokenAuthentication]
-    permission_classes     = [HasPermission("groups:read")]
+    permission_classes     = [HasPermission("users:read"), OrgScopedPermission]
     serializer_class       = GroupSerializer
 
     def get_queryset(self):
-        customer_id = _user_customer_id(self.request.user)
-        if not customer_id:
-            return CsmGroups.objects.none()
-        from user_auth.models import UserRoles
-        role = UserRoles.objects.filter(user=self.request.user).select_related("role").order_by("role__level").first()
-        if role and role.role.level == 1:  # platform_admin — see all
-            return CsmGroups.objects.all().order_by("name")
-        return CsmGroups.objects.filter(customer_id=customer_id).order_by("name")
+        from utils.rbac import enforce_org_boundary
+        return enforce_org_boundary(self.request.user, CsmGroups.objects.all()).order_by("name")
 
     def get_permissions(self):
-        if self.action in ("create", "update", "partial_update", "destroy"):
-            return [HasPermission("groups:write")()]
-        return super().get_permissions()
+        write_actions = {"create", "update", "partial_update", "destroy"}
+        if self.action in write_actions:
+            return [HasPermission("users:write")(), OrgScopedPermission()]
+        return [HasPermission("users:read")(), OrgScopedPermission()]
 
     def perform_create(self, serializer):
+        # customer_id is always set from authenticated user — never from request body (AC2, security checklist)
         serializer.save(
             customer_id=_user_customer_id(self.request.user),
             created_by=self.request.user,
@@ -579,19 +728,23 @@ class GroupViewSet(viewsets.ModelViewSet):
 
 
 class GroupMemberViewSet(viewsets.ModelViewSet):
-    """Nested under /groups/{group_pk}/members/."""
+    """Nested under /groups/{group_pk}/members/.
+
+    AC6: POST /api/groups/{id}/members/ — add a user (users:write)
+    AC7: DELETE /api/groups/{id}/members/{user_id}/ — remove a user (users:write)
+    """
+
     authentication_classes = [CookieTokenAuthentication]
-    permission_classes     = [HasPermission("groups:write")]
+    permission_classes     = [HasPermission("users:write")]
     serializer_class       = GroupMemberSerializer
     http_method_names      = ["get", "post", "delete", "head", "options"]
 
     def _get_group(self):
+        """Return the group only if it belongs to the caller's org (AC9)."""
         from django.shortcuts import get_object_or_404
-        return get_object_or_404(
-            CsmGroups,
-            pk=self.kwargs["group_pk"],
-            customer_id=_user_customer_id(self.request.user),
-        )
+        from utils.rbac import enforce_org_boundary
+        scoped_qs = enforce_org_boundary(self.request.user, CsmGroups.objects.all())
+        return get_object_or_404(scoped_qs, pk=self.kwargs["group_pk"])
 
     def get_queryset(self):
         return GroupMembers.objects.filter(group=self._get_group()).select_related("user")
@@ -665,7 +818,17 @@ class InviteCreateView(APIView):
             group=group,
         )
         try:
-            send_invite_email(email, invite_token=raw_token, tenant_name=tenant.name, invited_by=request.user.email)
+            # Legacy path-based accept URL (/auth/invite/{token}/) used by
+            # ValidateInviteView / AcceptInviteView (user_auth/views/invite.py).
+            from user_auth.utils.email_utils import FRONTEND_URL as _FRONTEND_URL
+            send_invite_email(
+                email,
+                invite_token=raw_token,
+                tenant_name=tenant.name,
+                invited_by=request.user.email,
+                ttl_hours=48,
+                accept_url=f"{_FRONTEND_URL}/auth/invite/{raw_token}",
+            )
         except Exception:
             pass  # non-fatal — invite record created, email may be queued
 
@@ -802,3 +965,297 @@ class AccountGroupAccessView(APIView):
         access = get_object_or_404(AccountGroupAccess, id=access_id, tenant=tenant, account_id=account_id)
         access.delete()
         return Response(status=204)
+
+
+# ── D-3: Group-centric access assignment (onboarding-D3) ─────────────────────
+
+
+def _get_group_org_scoped(request, group_id: str) -> CsmGroups:
+    """Return group scoped to caller's org.
+
+    platform_admin bypasses the customer_id filter (AC9).
+    Raises Http404 if the group does not exist or belongs to a different org.
+    This prevents cross-org group lookups from leaking existence (AC5).
+    """
+    qs = CsmGroups.objects.filter(id=group_id)
+    if not is_platform_admin(request.user):
+        qs = qs.filter(customer_id=_user_customer_id(request.user))
+    return get_object_or_404(qs)
+
+
+def _get_tenant_org_scoped(request, tenant_id: str) -> Tenants:
+    """Return tenant scoped to caller's org.
+
+    platform_admin bypasses the customer_id filter (AC9).
+    Raises Http404 if tenant does not exist or belongs to another org (AC6).
+    """
+    qs = Tenants.objects.filter(id=tenant_id)
+    if not is_platform_admin(request.user):
+        qs = qs.filter(customer_id=_user_customer_id(request.user))
+    return get_object_or_404(qs)
+
+
+class GroupTenantAssignView(APIView):
+    """Assign or remove a tenant from a group (group-centric direction).
+
+    POST   /api/groups/{group_id}/tenants/
+        Body: {"tenant_id": "<uuid>", "role": "tenant_admin"}
+        Returns 201 on create, 200 on idempotent re-assign (role updated).
+
+    GET    /api/groups/{group_id}/tenants/
+        Returns list of TenantGroupAccess rows for this group.
+
+    DELETE /api/groups/{group_id}/tenants/{tenant_id}/
+        Removes the group-tenant assignment. Returns 204.
+
+    Permission: users:write for POST/DELETE, users:read for GET (AC8).
+    Org boundary enforced on group (AC5) and tenant (AC6) separately.
+    platform_admin bypasses org boundary checks (AC9).
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = [HasPermission("users:write"), OrgScopedPermission]
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [HasPermission("users:read")(), OrgScopedPermission()]
+        return [HasPermission("users:write")(), OrgScopedPermission()]
+
+    def get(self, request, group_id: str):
+        """AC1-list: return all tenant assignments for this group."""
+        group = _get_group_org_scoped(request, group_id)
+        accesses = (
+            TenantGroupAccess.objects
+            .filter(group=group)
+            .select_related("tenant", "role")
+        )
+        return Response(TenantGroupAccessSerializer(accesses, many=True).data)
+
+    def post(self, request, group_id: str):
+        """AC1: assign a tenant to a group; idempotent via get_or_create."""
+        from user_auth.models import Roles
+
+        ser = TenantAssignSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        group = _get_group_org_scoped(request, group_id)
+        tenant = _get_tenant_org_scoped(request, ser.validated_data["tenant_id"])
+        role = get_object_or_404(Roles, name=ser.validated_data["role"])
+
+        access, created = TenantGroupAccess.objects.get_or_create(
+            group=group,
+            tenant=tenant,
+            defaults={"role": role},
+        )
+        if not created:
+            # Idempotent: update role on duplicate (AC — duplicate returns 200)
+            access.role = role
+            access.save(update_fields=["role"])
+
+        return Response(
+            TenantGroupAccessSerializer(access).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class GroupTenantDeleteView(APIView):
+    """DELETE /api/groups/{group_id}/tenants/{tenant_id}/ — remove group-tenant assignment (AC2).
+
+    Permission: users:write (AC8).
+    Org boundary enforced on group (AC5) and tenant (AC6).
+    Returns 204 on success; 404 if assignment does not exist.
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = [HasPermission("users:write"), OrgScopedPermission]
+
+    def delete(self, request, group_id: str, tenant_id: str):
+        group = _get_group_org_scoped(request, group_id)
+        tenant = _get_tenant_org_scoped(request, tenant_id)
+        access = get_object_or_404(TenantGroupAccess, group=group, tenant=tenant)
+        access.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class GroupAccountAssignView(APIView):
+    """Assign or remove a cloud account from a group (group-centric direction).
+
+    POST   /api/groups/{group_id}/accounts/
+        Body: {"account_id": "<id>", "tenant_id": "<uuid>", "role": "analyst"}
+        Returns 201 on create, 200 on idempotent re-assign.
+
+    GET    /api/groups/{group_id}/accounts/
+        Returns list of AccountGroupAccess rows for this group.
+
+    DELETE /api/groups/{group_id}/accounts/{account_id}/
+        Removes the group-account assignment. Returns 204.
+
+    Permission: users:write for POST/DELETE, users:read for GET (AC8).
+    Org boundary enforced on group (AC5) and tenant/account's tenant (AC7).
+    platform_admin bypasses org boundary checks (AC9).
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = [HasPermission("users:write"), OrgScopedPermission]
+
+    def get_permissions(self):
+        if self.request.method in ("GET", "HEAD", "OPTIONS"):
+            return [HasPermission("users:read")(), OrgScopedPermission()]
+        return [HasPermission("users:write")(), OrgScopedPermission()]
+
+    def get(self, request, group_id: str):
+        """List all account assignments for this group."""
+        group = _get_group_org_scoped(request, group_id)
+        accesses = (
+            AccountGroupAccess.objects
+            .filter(group=group)
+            .select_related("tenant", "role")
+        )
+        return Response(AccountGroupAccessSerializer(accesses, many=True).data)
+
+    def post(self, request, group_id: str):
+        """AC3: assign a cloud account (scoped to a tenant) to a group; idempotent."""
+        from user_auth.models import Roles
+
+        ser = AccountAssignSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        group = _get_group_org_scoped(request, group_id)
+        # AC7: verify the account's owning tenant belongs to the caller's org
+        tenant = _get_tenant_org_scoped(request, ser.validated_data["tenant_id"])
+        role = get_object_or_404(Roles, name=ser.validated_data["role"])
+        account_id = ser.validated_data["account_id"]
+
+        access, created = AccountGroupAccess.objects.get_or_create(
+            group=group,
+            tenant=tenant,
+            account_id=account_id,
+            defaults={"role": role},
+        )
+        if not created:
+            access.role = role
+            access.save(update_fields=["role"])
+
+        return Response(
+            AccountGroupAccessSerializer(access).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
+
+
+class GroupAccountDeleteView(APIView):
+    """DELETE /api/groups/{group_id}/accounts/{account_id}/ — remove group-account assignment (AC4).
+
+    Requires tenant_id query param to resolve the correct AccountGroupAccess row
+    (unique_together: group, tenant, account_id).
+    Permission: users:write (AC8).
+    Returns 204 on success; 404 if assignment does not exist.
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = [HasPermission("users:write"), OrgScopedPermission]
+
+    def delete(self, request, group_id: str, account_id: str):
+        group = _get_group_org_scoped(request, group_id)
+        tenant_id = request.query_params.get("tenant_id") or request.data.get("tenant_id")
+        if not tenant_id:
+            return Response(
+                {"detail": "tenant_id query param is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        tenant = _get_tenant_org_scoped(request, tenant_id)
+        access = get_object_or_404(
+            AccountGroupAccess, group=group, tenant=tenant, account_id=account_id
+        )
+        access.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ProvisionOrgView(APIView):
+    """POST /api/admin/provision-org — platform admin provisions a new customer org.
+
+    Creates a new user (status=pending), provisions a tenant and billing trial
+    via provision_tenant_for_new_user(), renames the tenant to org_name, and
+    generates a 72-hour invite token the platform admin can share with the org admin.
+
+    Requires platform_admin role. Returns 409 if the email is already in an org.
+    """
+
+    authentication_classes = [CookieTokenAuthentication]
+    permission_classes = []
+
+    def post(self, request):
+        from user_auth.models import Users, InviteTokens, Roles
+        from services.provisioning import provision_tenant_for_new_user
+
+        if not is_platform_admin(request.user):
+            return Response({"detail": "Platform admin required"}, status=status.HTTP_403_FORBIDDEN)
+
+        org_name = (request.data.get("org_name") or "").strip()
+        contact_email = (request.data.get("contact_email") or "").strip().lower()
+
+        if not org_name or not contact_email:
+            return Response(
+                {"detail": "org_name and contact_email are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        existing = Users.objects.filter(email=contact_email).first()
+        if existing and existing.customer_id:
+            return Response(
+                {"detail": f"{contact_email} is already assigned to an org ({existing.customer_id})"},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        try:
+            org_admin_role = Roles.objects.get(name="org_admin")
+        except Roles.DoesNotExist:
+            return Response(
+                {"detail": "org_admin role not seeded — run migration user_auth.0009"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        with transaction.atomic():
+            if existing:
+                user = existing
+            else:
+                user = Users.objects.create_user(email=contact_email, password=None, status="pending")
+                user.set_unusable_password()
+                user.save(update_fields=["password"])
+
+            result = provision_tenant_for_new_user(user)
+
+            # Override the auto-generated "Domain (auto)" tenant name with the given org_name.
+            Tenants.objects.filter(id=result["tenant_id"]).update(name=org_name)
+
+            raw_token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+            InviteTokens.objects.create(
+                id=str(uuid.uuid4()),
+                token=token_hash,
+                email=contact_email,
+                tenant=None,
+                role=org_admin_role,
+                invited_by=request.user,
+                expires_at=timezone.now() + timedelta(hours=72),
+                used=False,
+                group=None,
+            )
+
+        logger.info(
+            "ProvisionOrgView: org '%s' provisioned by %s (customer_id=%s, tenant_id=%s)",
+            org_name, request.user.email, result["customer_id"], result["tenant_id"],
+        )
+
+        return Response(
+            {
+                "customer_id": result["customer_id"],
+                "tenant_id": result["tenant_id"],
+                "org_name": org_name,
+                "contact_email": contact_email,
+                "invite_token": raw_token,
+            },
+            status=status.HTTP_201_CREATED,
+        )

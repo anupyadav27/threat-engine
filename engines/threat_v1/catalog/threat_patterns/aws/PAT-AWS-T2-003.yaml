@@ -1,0 +1,43 @@
+id: PAT-AWS-T2-003
+version: 1
+description: "EKS cluster with wildcard RBAC verbs and anonymous auth — privilege escalation path from unauthenticated to cluster admin."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Privilege Escalation]
+mitre_techniques: [T1190, T1613]
+tactic_chain_order: [Initial Access, Privilege Escalation]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_eks_cluster]
+  conditions:
+    check_rules_failing:
+      - aws.eks.cluster.anonymous_auth_disabled
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [aws_eks_cluster]
+      conditions:
+        check_rules_failing:
+          - aws.eks.api.wildcard_verbs_disallowed_configured
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1613, T1610]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+tests:
+  positive:
+    description: "EKS with anonymous-auth + ClusterRole with wildcard verbs"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "EKS with OIDC, no anonymous auth, no wildcard RBAC"
+    expected_tier: 2
+    expected_severity: low

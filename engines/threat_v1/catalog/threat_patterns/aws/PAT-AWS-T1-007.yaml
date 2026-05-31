@@ -1,0 +1,29 @@
+id: PAT-AWS-T1-007
+version: 1
+description: "Lambda function with admin IAM role — any code execution vulnerability grants full account control."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Execution]
+mitre_techniques: [T1078.004, T1648]
+tactic_chain_order: [Execution, Privilege Escalation]
+csps: [aws]
+entry:
+  node_type: Resource
+  resource_types: [aws_lambda_function]
+  conditions:
+    check_rules_failing:
+      - aws.iam.instanceprofile.role_policies_least_privilege
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "Lambda function with AdministratorAccess execution role"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "Lambda with scoped role (S3 read-only for specific bucket)"
+    expected_tier: 1
+    expected_severity: low

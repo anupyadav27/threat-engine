@@ -11,7 +11,7 @@ export const FALLBACK_VIEWER_PERMISSIONS = [
   'inventory:read',
   'compliance:read',
   'iam:read',
-  'ciem:read',
+  'cdr:read',
   'network:read',
   'risk:read',
 ];

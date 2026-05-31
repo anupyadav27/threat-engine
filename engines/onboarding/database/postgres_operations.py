@@ -515,88 +515,8 @@ def update_scan_metadata(
     )
 
 
-# ==================== ORCHESTRATION STATUS ====================
-
-def create_orchestration_status(
-    scan_run_id: str,
-    engine: str,
-    status: str = 'running',
-    account_id: Optional[str] = None,
-    tenant_id: Optional[str] = None,
-    metadata: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """Create orchestration status record (uses scan_runs table)"""
-    from sqlalchemy import text
-    from datetime import datetime, timezone
-
-    if not account_id:
-        raise ValueError("account_id is required for orchestration status")
-
-    with get_db_session() as db:
-        # Insert into scan_runs table
-        # Note: This assumes the shared schema is accessible
-        # For now, we'll use a simple approach - store in scan_results metadata
-        # In production, this should use the scan_runs table
-
-        # For backward compatibility, we'll create a scan_result entry
-        # with orchestration metadata
-        result = create_scan_result(
-            scan_id=f"{scan_run_id}_{engine}",
-            account_id=account_id,
-            provider_type=engine,
-            scan_type="orchestration"
-        )
-        
-        # Update with orchestration metadata
-        if metadata:
-            update_scan_result(
-                scan_id=f"{scan_run_id}_{engine}",
-                status=status,
-                metadata={"orchestration": metadata, "scan_run_id": scan_run_id}
-            )
-        
-        return {
-            "scan_run_id": scan_run_id,
-            "engine": engine,
-            "status": status,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-
-
-def update_orchestration_status(
-    scan_run_id: str,
-    engine: str,
-    status: str,
-    response_data: Optional[Dict[str, Any]] = None,
-    error: Optional[str] = None
-) -> Dict[str, Any]:
-    """Update orchestration status record"""
-    from datetime import datetime, timezone
-
-    scan_id = f"{scan_run_id}_{engine}"
-
-    metadata = {
-        "scan_run_id": scan_run_id,
-        "engine": engine,
-        "status": status,
-        "updated_at": datetime.now(timezone.utc).isoformat()
-    }
-
-    if response_data:
-        metadata["response_data"] = response_data
-
-    if error:
-        metadata["error"] = error
-
-    return update_scan_result(
-        scan_id=scan_id,
-        status=status,
-        metadata=metadata
-    )
-
-
 # ============================================================================
-# NEW ORCHESTRATION FUNCTIONS (scan_runs table)
+# NEW ORCHESTRATION FUNCTIONS (scan_orchestration table)
 # ============================================================================
 
 def create_orchestration_record(
@@ -614,7 +534,7 @@ def create_orchestration_record(
     engines_requested: Optional[List[str]] = None
 ) -> str:
     """
-    Create new orchestration record in scan_runs table (LOCAL to onboarding DB).
+    Create new orchestration record in scan_orchestration table (LOCAL to onboarding DB).
 
     Args:
         scan_run_id: UUID for this scan run (pipeline-wide identifier)

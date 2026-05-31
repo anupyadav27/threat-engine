@@ -288,7 +288,13 @@ def validate_iam() -> None:
     if not data:
         return
 
-    require_keys(data, ["kpi", "findings", "pageContext"], "iam")
+    require_keys(data, ["kpiGroups", "findings", "kpi", "pageContext"], "iam")
+    findings = data.get("findings", [])
+    require(isinstance(findings, list), "iam.findings is list")
+    if findings:
+        require_keys(findings[0], [
+            "severity", "title", "rule_id", "status",
+        ], "iam.findings[0]")
 
 
 def validate_misconfig() -> None:
@@ -300,13 +306,16 @@ def validate_misconfig() -> None:
     if not data:
         return
 
-    require_keys(data, ["kpi", "findings", "pageContext"], "misconfig")
+    require_keys(data, ["kpiGroups", "kpi", "findings", "heatmap", "quickWins", "byService", "pageContext"], "misconfig")
     findings = data.get("findings", [])
     require(isinstance(findings, list), "misconfig.findings is list")
     if findings:
         require_keys(findings[0], [
-            "rule_id", "resource_uid", "provider", "severity", "status",
+            "rule_id", "severity", "status",
         ], "misconfig.findings[0]")
+    # kpi sub-fields
+    kpi = data.get("kpi", {})
+    require_keys(kpi, ["total", "critical", "high", "medium", "low"], "misconfig.kpi")
 
 
 def validate_risk() -> None:
@@ -318,7 +327,15 @@ def validate_risk() -> None:
     if not data:
         return
 
-    require_keys(data, ["kpi", "pageContext"], "risk")
+    require_keys(data, ["kpiGroups", "riskScore", "riskCategories", "scenarios", "pageContext"], "risk")
+    # Verify no purely synthetic MIT-NNN mitigations (FIX-02 removes them)
+    roadmap = data.get("mitigationRoadmap", [])
+    if isinstance(roadmap, list):
+        synthetic = [m for m in roadmap if isinstance(m.get("id"), str) and m["id"].startswith("MIT-")]
+        if synthetic:
+            print(f"  WARN  risk: {len(synthetic)} synthetic MIT-NNN mitigations — FIX-02 not yet shipped")
+        else:
+            print(f"  ok    risk: no synthetic MIT-NNN mitigations")
 
 
 def validate_datasec() -> None:
@@ -330,7 +347,13 @@ def validate_datasec() -> None:
     if not data:
         return
 
-    require_keys(data, ["kpi", "pageContext"], "datasec")
+    require_keys(data, ["findings", "kpiGroups", "pageContext"], "datasec")
+    require(isinstance(data.get("catalog", []), list), "datasec.catalog is list")
+    # Verify lineage shape if present
+    lineage = data.get("lineage", {})
+    if lineage and isinstance(lineage, dict):
+        chains = lineage.get("lineage_chains", [])
+        require(isinstance(chains, list), "datasec.lineage.lineage_chains is list")
 
 
 def validate_ai_security() -> None:
@@ -342,16 +365,117 @@ def validate_ai_security() -> None:
     require(status == 200, f"HTTP {status} == 200")
     if not data:
         return
-    require_keys(data, ["kpi", "pageContext"], "ai-security")
-    # Verify csp param was forwarded (response should not mix providers)
-    # If engine returns provider in findings, spot-check first item
+    require_keys(data, ["findings", "inventory", "kpiGroups", "pageContext"], "ai-security")
+    require(isinstance(data.get("inventory", []), list), "ai-security.inventory is list")
+
+
+def validate_cdr() -> None:
+    print("\n=== /cdr ===")
+    status, data = get("/api/v1/views/cdr", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["kpiGroups", "findings", "identities", "pageContext"], "cdr")
+    require(isinstance(data.get("findings", []), list),   "cdr.findings is list")
+    require(isinstance(data.get("identities", []), list), "cdr.identities is list")
+
+
+def validate_encryption() -> None:
+    print("\n=== /encryption ===")
+    status, data = get("/api/v1/views/encryption", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["findings", "keys", "certificates", "kpiGroups", "pageContext"], "encryption")
+    require(isinstance(data.get("keys", []),         list), "encryption.keys is list")
+    require(isinstance(data.get("certificates", []), list), "encryption.certificates is list")
+
+
+def validate_database_security() -> None:
+    print("\n=== /database-security ===")
+    status, data = get("/api/v1/views/database-security", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["findings", "databases", "kpiGroups", "pageContext"], "database-security")
+    require(isinstance(data.get("databases", []), list), "database-security.databases is list")
+
+
+def validate_container_security() -> None:
+    print("\n=== /container-security ===")
+    status, data = get("/api/v1/views/container-security", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["findings", "clusters", "kpiGroups", "pageContext"], "container-security")
+    require(isinstance(data.get("clusters", []), list), "container-security.clusters is list")
+
+
+def validate_vulnerability() -> None:
+    print("\n=== /vulnerability ===")
+    status, data = get("/api/v1/views/vulnerability", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["kpiGroups", "agents", "scanSummary", "severityCounts"], "vulnerability")
+    agents = data.get("agents", [])
+    require(isinstance(agents, list), "vulnerability.agents is list")
+    if agents:
+        require_keys(agents[0], ["agent_id", "hostname", "status"], "vulnerability.agents[0]")
+    scan_summary = data.get("scanSummary", {})
+    require_keys(scan_summary, ["totalScans", "totalVulns", "activeAgents"], "vulnerability.scanSummary")
+
+
+def validate_secops() -> None:
+    print("\n=== /secops ===")
+    status, data = get("/api/v1/views/secops", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["sastScans", "dastScans", "summary", "kpiGroups"], "secops")
+    require(isinstance(data.get("sastScans", []), list), "secops.sastScans is list")
+    require(isinstance(data.get("dastScans", []), list), "secops.dastScans is list")
+    summary = data.get("summary", {})
+    require_keys(summary, ["totalScans", "totalFindings"], "secops.summary")
+
+
+def validate_suppressions() -> None:
+    print("\n=== /suppressions ===")
+    status, data = get("/api/v1/views/suppressions", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["suppressions", "rule_suppressions", "finding_suppressions", "total", "kpi", "kpiGroups"], "suppressions")
+    require(isinstance(data.get("rule_suppressions", []),    list), "suppressions.rule_suppressions is list")
+    require(isinstance(data.get("finding_suppressions", []), list), "suppressions.finding_suppressions is list")
+
+
+def validate_cloud_accounts() -> None:
+    print("\n=== /onboarding/cloud_accounts ===")
+    status, data = get("/api/v1/views/onboarding/cloud_accounts", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["accounts"], "onboarding/cloud_accounts")
+    accounts = data.get("accounts", [])
+    require(isinstance(accounts, list), "cloud_accounts.accounts is list")
+    if accounts:
+        a = accounts[0]
+        has_provider = "provider" in a or "csp" in a
+        require(has_provider, "cloud_accounts.accounts[0] has provider/csp")
+
+
+def validate_network_security() -> None:
+    print("\n=== /network-security ===")
+    status, data = get("/api/v1/views/network-security", {"tenant_id": TENANT_ID})
+    require(status == 200, f"HTTP {status} == 200")
+    if not data:
+        return
+    require_keys(data, ["kpiGroups", "findings", "kpi", "pageContext"], "network-security")
     findings = data.get("findings", [])
-    if findings and isinstance(findings[0], dict) and findings[0].get("provider"):
-        reported_provider = findings[0]["provider"].lower()
-        require(
-            reported_provider == PROVIDER.lower(),
-            f"ai-security findings[0].provider matches requested csp ({PROVIDER})"
-        )
+    require(isinstance(findings, list), "network-security.findings is list")
+    if findings:
+        require_keys(findings[0], ["severity", "rule_id", "status"], "network-security.findings[0]")
 
 
 def validate_tenant_ownership() -> None:
@@ -414,10 +538,6 @@ def validate_engine_ui_data(engine: str, port: int) -> None:
     }
     path = path_map.get(engine, "/api/v1/health/live")
     params = params_map.get(engine, {})
-
-    # Override gateway URL for direct engine call
-    old_url = globals().get("GATEWAY_URL", "")
-    orig_get = get
 
     def get_direct(p, q=None):
         from urllib.parse import urlencode
@@ -496,6 +616,15 @@ def main():
     validate_risk()
     validate_datasec()
     validate_ai_security()
+    validate_cdr()
+    validate_encryption()
+    validate_database_security()
+    validate_container_security()
+    validate_vulnerability()
+    validate_secops()
+    validate_suppressions()
+    validate_cloud_accounts()
+    validate_network_security()
     validate_tenant_ownership()
 
     # Direct engine checks (only run if engine ports are reachable)

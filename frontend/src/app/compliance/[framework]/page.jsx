@@ -5,8 +5,9 @@ import { useRouter, useParams } from 'next/navigation';
 import {
   Shield, ChevronRight, CheckCircle, XCircle, AlertTriangle,
   ChevronDown, ChevronUp, Database, Network, Eye, Lock, Server,
-  ExternalLink, Filter, Search,
+  ExternalLink, Filter, Search, Info, Download,
 } from 'lucide-react';
+import Tooltip from '@/components/shared/Tooltip';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiCard from '@/components/shared/KpiCard';
 import GaugeChart from '@/components/charts/GaugeChart';
@@ -135,29 +136,46 @@ function ControlRow({ control }) {
         </td>
 
         {/* Control ID */}
-        <td className="py-3 pr-4">
+        <td className="py-3 pr-4" style={{ overflow: 'hidden' }}>
           <code
             className="text-xs font-mono px-2 py-1 rounded"
-            style={{ backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-primary)' }}
+            style={{
+              backgroundColor: 'var(--bg-secondary)', color: 'var(--accent-primary)',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+              overflow: 'hidden', wordBreak: 'break-all',
+            }}
+            title={control.control_id}
           >
             {control.control_id}
           </code>
         </td>
 
         {/* Name */}
-        <td className="py-3 pr-6">
-          <span className="text-sm" style={{ color: 'var(--text-primary)' }}>
+        <td className="py-3 pr-6" style={{ overflow: 'hidden' }}>
+          <span
+            className="text-sm"
+            style={{
+              color: 'var(--text-primary)',
+              display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+              overflow: 'hidden', lineHeight: 1.45,
+            }}
+            title={control.control_name}
+          >
             {control.control_name}
           </span>
         </td>
 
         {/* Domain */}
-        <td className="py-3 pr-4 hidden md:table-cell">
+        <td className="py-3 pr-4 hidden md:table-cell" style={{ overflow: 'hidden' }}>
           <span
-            className="flex items-center gap-1.5 text-xs whitespace-nowrap"
-            style={{ color: 'var(--text-secondary)' }}
+            className="flex items-center gap-1.5 text-xs"
+            style={{
+              color: 'var(--text-secondary)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}
+            title={control.domain}
           >
-            {domainIcon(control.domain)}
+            <span style={{ flexShrink: 0 }}>{domainIcon(control.domain)}</span>
             {control.domain}
           </span>
         </td>
@@ -257,6 +275,21 @@ function DomainCard({ domain, controls, onClick, active }) {
   );
 }
 
+/* ─── CSV export helper ────────────────────────────────────── */
+function exportControlsCsv(frameworkId, families) {
+  const header = ['Control ID', 'Title', 'Domain', 'Status', 'Severity', 'Fail Count'];
+  const rows = (families || []).flatMap(fam =>
+    (fam.controls || []).map(c => [
+      c.control_id, c.title || c.control_name, fam.family, c.status, c.severity, c.fail_count ?? 0,
+    ])
+  );
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = `${frameworkId}_controls.csv`;
+  a.click();
+}
+
 /* ─── Main page ───────────────────────────────────────────── */
 
 export default function FrameworkDetailPage() {
@@ -304,6 +337,7 @@ export default function FrameworkDetailPage() {
           const score = d.score || (total > 0 ? Math.round(100 * passed / total * 10) / 10 : 0);
           const summary = {
             score,
+            assessed_score: d.assessed_score ?? null,
             total_controls: total,
             passed_controls: passed,
             failed_controls: failed + partial,
@@ -386,6 +420,21 @@ export default function FrameworkDetailPage() {
   return (
     <div className="space-y-6">
 
+      {/* ── Legacy banner — this route is the older per-framework page; the primary view is now the accordion in /compliance ── */}
+      <div style={{
+        padding: '8px 16px', borderRadius: 8, fontSize: 12,
+        backgroundColor: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)',
+        color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8,
+      }}>
+        <Info className="w-4 h-4 shrink-0" />
+        <span>
+          You&rsquo;re viewing the standalone framework page. For the full compliance overview with all frameworks and filters, go back to{' '}
+          <button onClick={() => router.push('/compliance')} style={{ color: '#f59e0b', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, padding: 0, fontWeight: 700 }}>
+            Compliance
+          </button>.
+        </span>
+      </div>
+
       {/* ── Breadcrumb ── */}
       <div className="flex items-center gap-2">
         <button
@@ -427,19 +476,57 @@ export default function FrameworkDetailPage() {
         </div>
 
         <div className="flex items-center gap-6">
-          {/* Big score */}
+          {/* Pass Rate — strict auditor number */}
           <div className="text-right">
-            <p className={`text-5xl font-extrabold tabular-nums ${col.text}`}>
-              {summary.score}
-            </p>
-            <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--text-muted)' }}>/ 100</p>
-          </div>
-          <div>
-            <span
-              className={`px-3 py-1.5 rounded-full text-sm font-semibold ${col.bg} ${col.text}`}
+            <Tooltip
+              text={`Pass Rate — out of every control in this framework (including those not yet assessed), ${summary.score}% are fully passing. This is the number a compliance auditor would verify: ${summary.passed_controls} passing out of ${summary.total_controls} total controls.`}
+              position="top"
+              maxWidth={280}
             >
+              <div style={{ cursor: 'help' }}>
+                <p className="text-xs font-semibold mb-1 flex items-center justify-end gap-1" style={{ color: 'var(--text-muted)' }}>
+                  Pass Rate <Info size={11} style={{ opacity: 0.6 }} />
+                </p>
+                <p className={`text-5xl font-extrabold tabular-nums ${col.text}`}>
+                  {summary.score}
+                </p>
+                <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--text-muted)' }}>/ 100</p>
+              </div>
+            </Tooltip>
+          </div>
+
+          {/* Assessed Score — engine's weighted score for tested controls */}
+          {summary.assessed_score != null && (
+            <div className="text-right pl-4 border-l" style={{ borderColor: 'var(--border-primary)' }}>
+              <Tooltip
+                text="Assessed Score — of the controls we were able to test (controls with no applicable cloud resources are excluded), this percentage are implemented. Some credit is given for controls that are partly met."
+                position="top"
+                maxWidth={280}
+              >
+                <div style={{ cursor: 'help' }}>
+                  <p className="text-xs font-semibold mb-1 flex items-center justify-end gap-1" style={{ color: 'var(--text-muted)' }}>
+                    Assessed Score <Info size={11} style={{ opacity: 0.6 }} />
+                  </p>
+                  <p className="text-3xl font-bold tabular-nums" style={{ color: '#3b82f6' }}>
+                    {summary.assessed_score}
+                  </p>
+                  <p className="text-xs mt-0.5 font-medium" style={{ color: 'var(--text-muted)' }}>/ 100</p>
+                </div>
+              </Tooltip>
+            </div>
+          )}
+
+          <div>
+            <span className={`px-3 py-1.5 rounded-full text-sm font-semibold ${col.bg} ${col.text}`}>
               {scoreLabel(summary.score)}
             </span>
+            <button
+              onClick={() => exportControlsCsv(frameworkId, data?.families)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-opacity hover:opacity-75"
+              style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)', backgroundColor: 'var(--bg-card)' }}
+            >
+              <Download className="w-3.5 h-3.5" /> Export CSV
+            </button>
           </div>
         </div>
       </div>
@@ -566,10 +653,19 @@ export default function FrameworkDetailPage() {
 
         {/* Table */}
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full" style={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: 36 }} />   {/* expand toggle */}
+              <col style={{ width: '18%' }} /> {/* Control ID */}
+              <col style={{ width: '36%' }} /> {/* Control name */}
+              <col style={{ width: '20%' }} /> {/* Domain */}
+              <col style={{ width: '10%' }} /> {/* Severity */}
+              <col style={{ width: '8%' }} />  {/* Status */}
+              <col style={{ width: '8%' }} />  {/* Resources */}
+            </colgroup>
             <thead>
               <tr style={{ backgroundColor: 'var(--bg-secondary)' }}>
-                <th className="w-8 pl-4 py-2.5" />
+                <th className="pl-4 py-2.5" />
                 <th className="text-left text-xs font-semibold uppercase tracking-wider py-2.5 pr-4" style={{ color: 'var(--text-muted)' }}>
                   Control ID
                 </th>

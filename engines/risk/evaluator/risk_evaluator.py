@@ -4,6 +4,7 @@ Risk Evaluator — Task 5.5 [Phase 5 | BD] — STAGE 2: Evaluate
 Reads:
   risk_input_transformed (Stage 1 output)
   risk_model_config (FAIR parameters)
+  resource_security_posture (inventory DB — attack path graph signals)
 
 Writes:
   risk_scenarios (one FAIR scenario per finding)
@@ -14,13 +15,25 @@ For each CRITICAL/HIGH finding, computes:
   - Regulatory fines (GDPR, HIPAA, PCI-DSS, CCPA, SOX)
   - Total exposure = (LM + regulatory_fine) × LEF
   - Risk tier classification (critical >$10M, high >$1M, medium >$100K, low)
+
+Attack path graph signal boosts applied to exposure_factor (AP-P3-02):
+  - is_on_attack_path=true       → +25 flat points (exposure amplified)
+  - attack_path_count > 3        → +10 flat points
+  - is_choke_point=true          → +15 flat points
+  - has_active_cdr_actor=true    → +30 flat points
+  - cert_days_to_expiry < 30     → +10 flat points
+  - blast_radius_count > 50      → ×1.20 final multiplier
 """
 
 from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List
+import os
+from typing import Any, Dict, List, Optional
+
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 logger = logging.getLogger(__name__)
 
@@ -29,11 +42,152 @@ class RiskEvaluator:
     """
     Stage 2: Apply FAIR model to each transformed finding,
     produce risk_scenarios rows.
+
+    AP-P3-02: Also reads attack path graph signals from resource_security_posture
+    (inventory DB) and applies them as exposure_factor boosts.
     """
 
     def __init__(self, risk_conn, discovery_conn=None) -> None:
         self._risk_conn = risk_conn
         self._discovery_conn = discovery_conn
+
+    # ------------------------------------------------------------------
+    # Attack path signal loading (AP-P3-02)
+    # ------------------------------------------------------------------
+
+    def _get_inventory_conn(self) -> Optional[psycopg2.extensions.connection]:
+        """Open a connection to the DI DB (threat_engine_di) for posture signals.
+
+        Returns None (non-fatal) if the DB is unreachable.
+        """
+        try:
+            return psycopg2.connect(
+                host=os.getenv("DI_DB_HOST", os.getenv("DB_HOST", "localhost")),
+                port=int(os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))),
+                dbname=os.getenv("DI_DB_NAME", "threat_engine_di"),
+                user=os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres")),
+                password=(
+                    os.getenv("DI_DB_PASSWORD")
+                    or os.getenv("DB_PASSWORD")
+                    or os.getenv("DISCOVERIES_DB_PASSWORD", "")
+                ),
+                sslmode=os.getenv("DB_SSLMODE", "prefer"),
+                connect_timeout=5,
+            )
+        except Exception as exc:
+            logger.warning("AP signals: cannot connect to DI DB: %s", exc)
+            return None
+
+    def _load_attack_path_signals(
+        self,
+        resource_uids: List[str],
+        tenant_id: str,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Read attack path posture signals from resource_security_posture.
+
+        Returns a dict keyed by resource_uid with the 6 signal fields.
+        If inventory DB is unreachable or the table is missing, returns {}.
+
+        Multi-tenant: query scoped by tenant_id (AP-P3-02).
+        """
+        if not resource_uids:
+            return {}
+
+        conn = self._get_inventory_conn()
+        if not conn:
+            return {}
+
+        signals: Dict[str, Dict[str, Any]] = {}
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT
+                        resource_uid,
+                        is_on_attack_path,
+                        attack_path_count,
+                        is_choke_point,
+                        has_active_cdr_actor,
+                        cert_days_remaining,
+                        blast_radius_count,
+                        is_crown_jewel,
+                        crown_jewel_type
+                    FROM resource_security_posture
+                    WHERE tenant_id = %s
+                      AND resource_uid = ANY(%s)
+                """, (tenant_id, resource_uids))
+                for row in cur.fetchall():
+                    uid = row["resource_uid"]
+                    signals[uid] = {
+                        "is_on_attack_path":    bool(row.get("is_on_attack_path") or False),
+                        "attack_path_count":    int(row.get("attack_path_count") or 0),
+                        "is_choke_point":       bool(row.get("is_choke_point") or False),
+                        "has_active_cdr_actor": bool(row.get("has_active_cdr_actor") or False),
+                        "cert_days_to_expiry":  row.get("cert_days_remaining"),
+                        "blast_radius_count":   int(row.get("blast_radius_count") or 0),
+                        "is_crown_jewel":       bool(row.get("is_crown_jewel") or False),
+                        "crown_jewel_type":     row.get("crown_jewel_type"),
+                    }
+            logger.info(
+                "AP signals: loaded posture rows for %d / %d resource UIDs",
+                len(signals), len(resource_uids),
+            )
+        except Exception as exc:
+            # Non-fatal: risk scan proceeds without attack path signals
+            logger.warning("AP signals: failed to load from resource_security_posture: %s", exc)
+        finally:
+            conn.close()
+
+        return signals
+
+    @staticmethod
+    def _apply_attack_path_boosts(
+        exposure_factor: float,
+        signals: Dict[str, Any],
+    ) -> float:
+        """Apply attack-path posture signal boosts to exposure_factor.
+
+        Boost rules (AP-P3-02):
+          +25 if is_on_attack_path
+          +10 if attack_path_count > 3
+          +15 if is_choke_point
+          +30 if has_active_cdr_actor
+          +10 if cert_days_to_expiry < 30 (and value is set)
+          ×1.20 if blast_radius_count > 50
+
+        The flat additions are applied as a percentage-point increase to
+        exposure_factor (which normally ranges 0.0–1.5).  To avoid
+        unbounded growth the additive boosts are expressed as a fraction
+        of 100 so a +25 point boost = +0.25 to exposure_factor.
+
+        Returns the boosted exposure_factor clamped to [original, 3.0].
+        """
+        if not signals:
+            return exposure_factor
+
+        flat_boost = 0.0
+        if signals.get("is_on_attack_path"):
+            flat_boost += 25.0
+        if signals.get("attack_path_count", 0) > 3:
+            flat_boost += 10.0
+        if signals.get("is_choke_point"):
+            flat_boost += 15.0
+        if signals.get("has_active_cdr_actor"):
+            flat_boost += 30.0
+        if signals.get("active_cdr_actor_on_admin_role"):
+            # Highest single risk signal: admin credential actively exploited
+            flat_boost += 50.0
+        cert_days = signals.get("cert_days_to_expiry")
+        if cert_days is not None and 0 <= int(cert_days) < 30:
+            flat_boost += 10.0
+
+        # Convert flat points → exposure factor delta (divide by 100)
+        boosted = exposure_factor + (flat_boost / 100.0)
+
+        # Blast radius multiplier applied last
+        if signals.get("blast_radius_count", 0) > 50:
+            boosted *= 1.20
+
+        return min(3.0, boosted)
 
     def run(
         self,
@@ -80,8 +234,48 @@ class RiskEvaluator:
         # AC-S1: all Cypher uses $param syntax; AC-S3: credentials never logged
         blast_radius_cache: Dict[str, Dict[str, Any]] = compute_blast_radius_batch(unique_uids)
 
+        # AP-P3-02: Load attack path posture signals from inventory DB
+        # Non-fatal — signals are empty dict if inventory DB is unreachable
+        ap_signals_cache: Dict[str, Dict[str, Any]] = self._load_attack_path_signals(
+            resource_uids=unique_uids,
+            tenant_id=tenant_id,
+        )
+        cj_count = sum(1 for s in ap_signals_cache.values() if s.get("is_crown_jewel"))
+        logger.info(
+            "AP signals: %d resources have posture data (%d crown jewels)",
+            len(ap_signals_cache), cj_count,
+        )
+
         scenarios: List[Dict[str, Any]] = []
         for finding in findings:
+            # AP-P3-02: Apply attack path boosts to exposure_factor before FAIR computation
+            resource_uid = finding.get("asset_arn") or finding.get("asset_id") or ""
+            ap_sig = ap_signals_cache.get(resource_uid, {})
+            if ap_sig:
+                original_ef = finding.get("exposure_factor", 1.0)
+                boosted_ef = self._apply_attack_path_boosts(original_ef, ap_sig)
+                if boosted_ef != original_ef:
+                    logger.debug(
+                        "AP boost for %s: exposure_factor %.3f → %.3f (signals: %s)",
+                        resource_uid, original_ef, boosted_ef,
+                        {k: v for k, v in ap_sig.items() if v},
+                    )
+                    finding = {**finding, "exposure_factor": boosted_ef}
+
+                # Inject crown jewel classification into finding for FAIR compute_scenario().
+                # Crown jewel signals are written by CrownJewelClassifier (attack-path engine)
+                # and available in resource_security_posture by the time risk engine runs (Stage 7).
+                if ap_sig.get("is_crown_jewel"):
+                    finding = {
+                        **finding,
+                        "is_crown_jewel": True,
+                        "crown_jewel_type": ap_sig.get("crown_jewel_type"),
+                    }
+                    logger.debug(
+                        "Crown jewel signal for %s: type=%s",
+                        resource_uid, ap_sig.get("crown_jewel_type"),
+                    )
+
             scenario = compute_scenario(finding, model_config)
 
             # Neo4j blast radius — ONLY place in the platform that sets non-zero score

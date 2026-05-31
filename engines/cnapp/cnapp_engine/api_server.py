@@ -36,7 +36,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from .pillars import cspm, ciem, cwpp, dspm, network, threat, appsec
+from .pillars import cspm, cdr, cwpp, dspm, network, threat, appsec
 from .core.aggregator import compute_cnapp_score, risk_band
 from .core.pillar_health import (
     CNAPP_PILLAR_HEALTH_ENDPOINTS,
@@ -90,7 +90,7 @@ app.add_middleware(
 
 PILLARS = {
     "cspm":    cspm.fetch,
-    "ciem":    ciem.fetch,
+    "cdr":     cdr.fetch,
     "cwpp":    cwpp.fetch,
     "dspm":    dspm.fetch,
     "network": network.fetch,
@@ -146,7 +146,7 @@ class CnappScoreResponse(_CnappBase):
 
 PILLAR_META = {
     "cspm":    {"name": "Cloud Security Posture Management", "engines": ["check", "compliance"]},
-    "ciem":    {"name": "Cloud Identity & Entitlement Management", "engines": ["ciem", "iam"]},
+    "cdr":     {"name": "CDR — Cloud Detection & Response", "engines": ["cdr", "iam"]},
     "cwpp":    {"name": "Cloud Workload Protection Platform", "engines": ["container-sec", "vul-engine"]},
     "dspm":    {"name": "Data Security Posture Management", "engines": ["datasec"]},
     "network": {"name": "Network Security (7-layer)", "engines": ["network-security"]},

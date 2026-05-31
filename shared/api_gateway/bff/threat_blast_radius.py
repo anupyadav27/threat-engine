@@ -50,6 +50,7 @@ async def view_threat_blast_radius(
     if scan_run_id:
         params["scan_run_id"] = scan_run_id
 
+    # TODO: decommission after engine-threat teardown — no attack-path equivalent.
     results = await fetch_many([
         ("threat", "/api/v1/threat/analysis/blast-radius", params),
     ], auth_headers=fwd_headers)

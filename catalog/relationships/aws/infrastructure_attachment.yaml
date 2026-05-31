@@ -1,0 +1,520 @@
+---
+# AWS infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure — describes physical/logical attachment between cloud resources.
+#
+# IMPORTANT — resource_type must match asset_inventory.resource_type exactly.
+# Discovery stores resources with underscore naming (ec2_instance, lambda_function, etc.).
+# Dot-notation types (ec2.instance) come from a different discovery path and have
+# double-nested emitted_fields that the catalog writer cannot traverse.
+
+csp: aws
+category: infrastructure
+rules:
+
+  # ── EC2 → EBS (volume attachments) ──────────────────────────────────────────
+  - source_resource_type: ec2_instance
+    target_resource_type: ec2_volume
+    relation_type: ATTACHED_TO
+    field_path: "BlockDeviceMappings[*].Ebs.VolumeId"
+    field_path_type: array_field_ref
+    target_identifier_field: VolumeId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: EC2 instance mounts EBS volume
+
+  # ── EC2 → IAM Instance Profile ───────────────────────────────────────────────
+  - source_resource_type: ec2_instance
+    target_resource_type: iam_instance_profile
+    relation_type: HAS_PROFILE
+    field_path: "IamInstanceProfile.Arn"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: EC2 instance attached IAM instance profile
+
+  # ── EC2 → Security Group ─────────────────────────────────────────────────────
+  - source_resource_type: ec2_instance
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "SecurityGroups[*].GroupId"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: EC2 instance members of security groups
+
+  # ── EC2 → Subnet ────────────────────────────────────────────────────────────
+  - source_resource_type: ec2_instance
+    target_resource_type: ec2_subnet
+    relation_type: PLACED_IN
+    field_path: "SubnetId"
+    field_path_type: field_ref
+    target_identifier_field: SubnetId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: EC2 instance placed in subnet
+
+  # ── EC2 → VPC ──────────────────────────────────────────────────────────────
+  - source_resource_type: ec2_instance
+    target_resource_type: ec2_vpc
+    relation_type: PLACED_IN
+    field_path: "VpcId"
+    field_path_type: field_ref
+    target_identifier_field: VpcId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: EC2 instance placed in VPC
+
+  # ── Lambda → IAM Execution Role ──────────────────────────────────────────────
+  - source_resource_type: lambda_function
+    target_resource_type: iam_role
+    relation_type: HAS_ROLE
+    field_path: "Role"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Lambda function uses IAM execution role
+
+  # ── Lambda → KMS Key ─────────────────────────────────────────────────────────
+  - source_resource_type: lambda_function
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "KMSKeyArn"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: Lambda function environment encrypted by KMS key
+
+  # ── Lambda → Security Group ──────────────────────────────────────────────────
+  - source_resource_type: lambda_function
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "VpcConfig.SecurityGroupIds[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Lambda function VPC security groups
+
+  # ── Lambda → Subnet ──────────────────────────────────────────────────────────
+  - source_resource_type: lambda_function
+    target_resource_type: ec2_subnet
+    relation_type: PLACED_IN
+    field_path: "VpcConfig.SubnetIds[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: SubnetId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Lambda function VPC subnets
+
+  # ── Lambda Event Source → Lambda Function ────────────────────────────────────
+  # EventSourceArn (SQS/Kinesis/DynamoDB stream) triggers the Lambda function.
+  # TRIGGERS edge: attacker compromising an event source reaches the Lambda.
+  - source_resource_type: lambda_event_source_mapping
+    target_resource_type: lambda_function
+    relation_type: TRIGGERS
+    field_path: "FunctionArn"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Event source mapping triggers Lambda function
+
+  # ── KMS Alias → KMS Key ───────────────────────────────────────────────────────
+  # TargetKeyId is the raw key UUID; _resolve_target_uid suffix-matches to ARN.
+  - source_resource_type: kms_alias
+    target_resource_type: kms_key
+    relation_type: RESOLVES_TO
+    field_path: "TargetKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_exfil
+    graph_role: context
+    description: KMS alias resolves to underlying KMS key
+
+  # ── API Gateway v2 Integration → Lambda ──────────────────────────────────────
+  # Populated after discovery adds get_integrations to apigatewayv2 YAML.
+  # IntegrationUri for Lambda integrations = function ARN.
+  - source_resource_type: apigatewayv2_integration
+    target_resource_type: lambda_function
+    relation_type: INVOKES
+    field_path: "IntegrationUri"
+    field_path_type: field_ref
+    attack_path_category: internet_exposure
+    graph_role: attack_traversal
+    description: API Gateway v2 integration invokes Lambda function
+
+  # ── API Gateway v2 → Integration (parent-child) ───────────────────────────────
+  - source_resource_type: apigatewayv2_api
+    target_resource_type: apigatewayv2_integration
+    relation_type: HAS_INTEGRATION
+    field_path: "ApiId"
+    field_path_type: field_ref
+    attack_path_category: internet_exposure
+    graph_role: attack_traversal
+    description: API Gateway v2 API has integration
+
+  # ── API Gateway REST API Integration → Lambda ─────────────────────────────────
+  # Populated after discovery adds get_resources+get_integration to apigateway YAML.
+  - source_resource_type: apigateway_integration
+    target_resource_type: lambda_function
+    relation_type: INVOKES
+    field_path: "uri"
+    field_path_type: field_ref
+    attack_path_category: internet_exposure
+    graph_role: attack_traversal
+    description: API Gateway REST integration invokes Lambda function
+
+  # ── ELBv2 Target Group → Load Balancer (reverse lookup for context) ──────────
+  # TGs have LoadBalancerArns; LBs don't embed TG ARNs. This writes a context edge
+  # TG→LB so the relationship is visible in the graph. The attack-direction edge
+  # (LB→TG→EC2) is derived at scan time by the service_chain elb_chain_builder.
+  - source_resource_type: elbv2_target_group
+    target_resource_type: elbv2_load_balancer
+    relation_type: ATTACHED_TO
+    field_path: "LoadBalancerArns[*]"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    graph_role: context
+    description: ELBv2 target group attached to load balancer (reverse lookup)
+
+  # ── ELBv2 Target Group → EC2 (via target health) ─────────────────────────────
+  # describe_target_health emits records with Target.Id = instance ID or Lambda ARN.
+  # source_resource_type is the TG ARN (for_each target group); Target.Id is the target.
+  - source_resource_type: elbv2_target_group
+    target_resource_type: ec2_instance
+    relation_type: ROUTES_TO
+    field_path: "Target.Id"
+    field_path_type: field_ref
+    attack_path_category: internet_exposure
+    graph_role: attack_traversal
+    description: ELBv2 target group routes traffic to EC2 instance (from target health)
+
+  # ── ELBv2 Target Group → Lambda (via target health) ──────────────────────────
+  - source_resource_type: elbv2_target_group
+    target_resource_type: lambda_function
+    relation_type: ROUTES_TO
+    field_path: "Target.Id"
+    field_path_type: field_ref
+    attack_path_category: internet_exposure
+    graph_role: attack_traversal
+    description: ELBv2 target group routes traffic to Lambda function (from target health)
+
+  # ── CloudFront → S3 Origin ────────────────────────────────────────────────────
+  # cloudfront.distribution from Resource Explorer has empty Properties.
+  # This rule waits for step6 cloudfront discovery to emit cloudfront_distribution rows.
+  - source_resource_type: cloudfront_distribution
+    target_resource_type: s3_bucket
+    relation_type: ROUTES_TO
+    field_path: "Origins.Items[*].DomainName"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    graph_role: attack_traversal
+    description: CloudFront distribution with S3 bucket origin
+
+  # ── EKS Cluster → Node Group ──────────────────────────────────────────────────
+  # Nodegroups[*] emits bare nodegroup names; match against nodegroupName field.
+  - source_resource_type: eks_cluster
+    target_resource_type: eks_nodegroup
+    relation_type: CONTAINS
+    field_path: "Nodegroups[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: nodegroupName
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: EKS cluster contains node groups
+
+  # ── EKS Node Group → EC2 ─────────────────────────────────────────────────────
+  - source_resource_type: eks_nodegroup
+    target_resource_type: ec2_instance
+    relation_type: CONTAINS
+    field_path: "Resources.AutoScalingGroups[*].Name"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: EKS node group autoscaling group instances
+
+  # ── EFS → KMS Key ────────────────────────────────────────────────────────────
+  - source_resource_type: efs_file_system
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "KmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: EFS file system encrypted by KMS key
+
+  # ── RDS Instance → KMS ────────────────────────────────────────────────────────
+  - source_resource_type: rds_db_instance
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "KmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: RDS instance encrypted by KMS key
+
+  # ── RDS Instance → Security Group ───────────────────────────────────────────
+  - source_resource_type: rds_db_instance
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "VpcSecurityGroups[*].VpcSecurityGroupId"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: RDS DB instance governed by security groups
+
+  # ── S3 → KMS ──────────────────────────────────────────────────────────────────
+  # DI engine merges get_bucket_encryption for_each data into s3_bucket emitted_fields.
+  # The emit block maps: Rules → response.ServerSideEncryptionConfiguration.Rules
+  # so after merge, emitted_fields has "Rules" at top level (not nested under SSE config).
+  - source_resource_type: s3_bucket
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "Rules[*].ApplyServerSideEncryptionByDefault.KMSMasterKeyID"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: S3 bucket encrypted by KMS key
+
+  # ── EC2 Network Interface → Subnet ──────────────────────────────────────────
+  # ENI is the VPC interface reachability artifact (L1/L2).
+  # ec2_network_interface (301 rows) has SubnetId populated.
+  - source_resource_type: ec2_network_interface
+    target_resource_type: ec2_subnet
+    relation_type: PLACED_IN
+    field_path: "SubnetId"
+    field_path_type: field_ref
+    target_identifier_field: SubnetId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Network interface placed in subnet (VPC reachability L1/L2)
+
+  # ── EC2 Network Interface → Security Group ───────────────────────────────────
+  # ENI security groups are the L4 gate for interface-based reachability.
+  - source_resource_type: ec2_network_interface
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "Groups[*].GroupId"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Network interface governed by security groups (VPC reachability L4)
+
+  # ── EC2 Network Interface → VPC ──────────────────────────────────────────────
+  - source_resource_type: ec2_network_interface
+    target_resource_type: ec2_vpc
+    relation_type: PLACED_IN
+    field_path: "VpcId"
+    field_path_type: field_ref
+    target_identifier_field: VpcId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Network interface placed in VPC (isolation boundary L1)
+
+  # ── VPC Interface Endpoint → Subnet ──────────────────────────────────────────
+  # Interface-type VPC endpoints (not Gateway) have SubnetIds.
+  # No interface endpoints in current account; rules ready for when they exist.
+  - source_resource_type: vpc_endpoint
+    target_resource_type: ec2_subnet
+    relation_type: PLACED_IN
+    field_path: "SubnetIds[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: SubnetId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: VPC Interface Endpoint placed in subnet
+
+  # ── VPC Interface Endpoint → Security Group ───────────────────────────────────
+  - source_resource_type: vpc_endpoint
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "Groups[*].GroupId"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: VPC Interface Endpoint governed by security groups
+
+  # ── IAM Instance Profile → IAM Role ─────────────────────────────────────────
+  # Bridges the HAS_PROFILE → instance_profile → LINKED_TO → role chain in BFS.
+  # Without this, ec2 → HAS_PROFILE → instance_profile is a dead-end in the graph.
+  # Roles[*].Arn is the role ARN embedded in the instance profile resource.
+  - source_resource_type: iam_instance_profile
+    target_resource_type: iam_role
+    relation_type: LINKED_TO
+    field_path: "Roles[*].Arn"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: IAM instance profile links to IAM role (completes EC2 privilege escalation chain)
+
+  # ── IAM Role → IAM Role (trust chain) ────────────────────────────────────────
+  # AssumeRolePolicyDocument.Statement[*].Principal.AWS = role that can assume this role.
+  # Direction: trusted_role → [CAN_ASSUME] → this_role (lateral movement via role chaining).
+  - source_resource_type: iam_role
+    target_resource_type: iam_role
+    relation_type: CAN_ASSUME
+    field_path: "AssumeRolePolicyDocument.Statement[*].Principal.AWS"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: IAM role trust relationship — one role can assume another
+
+  # ── SSM Agent → EC2 Instance (MANAGED_BY_AGENT) ─────────────────────────────
+  - source_resource_type: ssm_describe_instance_information
+    target_resource_type: ec2_instance
+    relation_type: MANAGED_BY_AGENT
+    field_path: "InstanceId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: SSM-managed EC2 instance reachable via StartSession (remote shell)
+
+  # ── Neptune Cluster → Security Group ─────────────────────────────────────────
+  - source_resource_type: neptune_db_cluster
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "VpcSecurityGroups[*].VpcSecurityGroupId"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Neptune cluster governed by security groups (VPC network boundary)
+
+  # ── Neptune Cluster → Subnet ──────────────────────────────────────────────────
+  - source_resource_type: neptune_db_cluster
+    target_resource_type: ec2_subnet
+    relation_type: PLACED_IN
+    field_path: "AvailabilityZones[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: SubnetId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Neptune cluster placed in VPC subnets
+
+  # ── Neptune Cluster → KMS Key ─────────────────────────────────────────────────
+  - source_resource_type: neptune_db_cluster
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "KmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: Neptune cluster encrypted by KMS key
+
+  # ── DocumentDB Cluster → Security Group ──────────────────────────────────────
+  - source_resource_type: docdb_db_cluster
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "VpcSecurityGroups[*].VpcSecurityGroupId"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: DocumentDB cluster governed by security groups
+
+  # ── DocumentDB Cluster → KMS Key ──────────────────────────────────────────────
+  - source_resource_type: docdb_db_cluster
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "KmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: DocumentDB cluster encrypted by KMS key
+
+  # ── MSK Cluster → Security Group ─────────────────────────────────────────────
+  - source_resource_type: msk_cluster
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "BrokerNodeGroupInfo.SecurityGroups[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: MSK (Kafka) cluster governed by security groups
+
+  # ── MSK Cluster → Subnet ─────────────────────────────────────────────────────
+  - source_resource_type: msk_cluster
+    target_resource_type: ec2_subnet
+    relation_type: PLACED_IN
+    field_path: "BrokerNodeGroupInfo.ClientSubnets[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: SubnetId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: MSK (Kafka) cluster placed in VPC subnets
+
+  # ── MSK Cluster → KMS Key ────────────────────────────────────────────────────
+  - source_resource_type: msk_cluster
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "EncryptionInfo.EncryptionAtRest.DataVolumeKMSKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: MSK cluster broker volumes encrypted by KMS key
+
+  # ── Cognito User Pool → Lambda Triggers ──────────────────────────────────────
+  # LambdaConfig contains trigger ARNs for PreSignUp, PostConfirmation, etc.
+  # Only populated when triggers are configured — sparse field.
+  - source_resource_type: cognito_user_pool
+    target_resource_type: lambda_function
+    relation_type: TRIGGERS
+    field_path: "LambdaConfig.PreAuthentication"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Cognito user pool triggers Lambda on pre-authentication event
+
+  - source_resource_type: cognito_user_pool
+    target_resource_type: lambda_function
+    relation_type: TRIGGERS
+    field_path: "LambdaConfig.PostAuthentication"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Cognito user pool triggers Lambda on post-authentication event
+
+  - source_resource_type: cognito_user_pool
+    target_resource_type: lambda_function
+    relation_type: TRIGGERS
+    field_path: "LambdaConfig.DefineAuthChallenge"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Cognito user pool triggers Lambda for custom auth challenge
+
+  # ── Step Functions → IAM Role ─────────────────────────────────────────────────
+  - source_resource_type: stepfunctions_state_machine
+    target_resource_type: iam_role
+    relation_type: HAS_ROLE
+    field_path: "roleArn"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Step Functions state machine uses IAM execution role
+
+  # ── FSx File System → Security Group ──────────────────────────────────────────
+  - source_resource_type: fsx_file_system
+    target_resource_type: ec2_security_group
+    relation_type: GOVERNED_BY
+    field_path: "SecurityGroupIds[*]"
+    field_path_type: array_field_ref
+    target_identifier_field: GroupId
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: FSx file system governed by security groups
+
+  # ── FSx File System → KMS Key ─────────────────────────────────────────────────
+  - source_resource_type: fsx_file_system
+    target_resource_type: kms_key
+    relation_type: ENCRYPTED_BY
+    field_path: "KmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: FSx file system encrypted by KMS key

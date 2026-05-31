@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, Download } from 'lucide-react';
+import { ArrowLeft, Download, Info } from 'lucide-react';
+import Tooltip from '@/components/shared/Tooltip';
 import { TENANT_ID, FRAMEWORKS, CLOUD_PROVIDERS } from '@/lib/constants';
 import { fetchView } from '@/lib/api';
+import { useGlobalFilter } from '@/lib/global-filter-context';
+import { useTenant } from '@/lib/tenant-context';
 
 const C = {
   pass: '#22c55e', fail: '#ef4444', partial: '#f59e0b', na: '#6b7280',
@@ -31,21 +34,38 @@ function scoreText(score) {
 
 export default function ComplianceMatrixPage() {
   const router = useRouter();
-  const [matrix, setMatrix] = useState({});   // { framework_id: { provider: score } }
+  const { provider: gProvider, account: gAccount } = useGlobalFilter();
+  const { activeTenant } = useTenant();
+
+  const [matrix, setMatrix] = useState({});       // { fw_key: { provider: score } }
+  const [frameworkIds, setFrameworkIds] = useState({}); // { fw_key: { provider: engine_id } }
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('config'); // config | ciem | combined
+  const [view, setView] = useState('config'); // config | cdr | combined
 
   useEffect(() => {
-    fetchView('compliance/matrix', { view })
-      .then(d => setMatrix(d?.matrix || {}))
+    setLoading(true);
+    const params = { view };
+    if (gProvider) params.provider = gProvider;
+    if (gAccount)  params.account  = gAccount;
+    fetchView('compliance/matrix', params)
+      .then(d => {
+        setMatrix(d?.matrix || {});
+        setFrameworkIds(d?.frameworkIds || {});
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [view]);
+  }, [view, gProvider, gAccount, activeTenant]);
 
   const handleCellClick = (fwId, provider) => {
     const score = matrix[fwId]?.[provider];
     if (score == null) return;
-    router.push(`/compliance?fw=${fwId}&provider=${provider}`);
+    // Navigate directly to the framework detail page using the engine's actual framework_id
+    const engineId = frameworkIds[fwId]?.[provider];
+    if (engineId) {
+      router.push(`/compliance/${engineId}`);
+    } else {
+      router.push(`/compliance?fw=${fwId}&provider=${provider}`);
+    }
   };
 
   const exportCsv = () => {
@@ -72,7 +92,7 @@ export default function ComplianceMatrixPage() {
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           {/* View toggle */}
-          {['config', 'ciem', 'combined'].map(v => (
+          {['config', 'cdr', 'combined'].map(v => (
             <button key={v} onClick={() => setView(v)}
               style={{ padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                 border: view === v ? '2px solid var(--accent-primary)' : `1px solid ${C.border}`,
@@ -89,14 +109,23 @@ export default function ComplianceMatrixPage() {
       </div>
 
       {/* Legend */}
-      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
         {[['90%+', '#22c55e'], ['75–89%', '#3b82f6'], ['50–74%', '#f59e0b'], ['<50%', '#ef4444']].map(([l, c]) => (
           <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: c, opacity: 0.6 }} />
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l}</span>
           </div>
         ))}
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— N/A</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— Not Scanned</span>
+        <Tooltip
+          text="Each cell shows the Assessed Score for that framework on that cloud provider — the percentage of tested controls that are implemented, including partial credit for partly-met controls. Controls with no applicable resources are excluded. Click any coloured cell to see the full control-by-control breakdown."
+          position="bottom"
+          maxWidth={300}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--accent-primary)', cursor: 'help', marginLeft: 8 }}>
+            <Info size={12} /> What do these scores mean?
+          </span>
+        </Tooltip>
       </div>
 
       {/* Matrix table */}

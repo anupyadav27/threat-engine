@@ -22,9 +22,12 @@ Aggregates:
 from __future__ import annotations
 
 import logging
+import os
 from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+
+import psycopg2
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +132,10 @@ class RiskReporter:
         )
         writer.batch_insert_summaries(summaries)
 
-        # 7. Write trend data point
+        # 7. Write per-resource risk scores back to resource_security_posture (DI)
+        self._write_risk_scores_to_posture(scenarios, scan_id, tenant_id)
+
+        # 8. Write trend data point
         top_type = max(scenario_type_breakdown, key=scenario_type_breakdown.get) if scenario_type_breakdown else None
         top_engine = max(engine_breakdown, key=engine_breakdown.get) if engine_breakdown else None
         writer.insert_trend({
@@ -267,6 +273,103 @@ class RiskReporter:
         return summaries
 
     # ------------------------------------------------------------------
+    # DI write-back
+    # ------------------------------------------------------------------
+
+    def _write_risk_scores_to_posture(
+        self,
+        scenarios: List[Dict[str, Any]],
+        risk_scan_id: str,
+        tenant_id: str,
+    ) -> None:
+        """Write per-resource FAIR risk output to resource_security_posture in DI DB.
+
+        Aggregates across all scenarios for the same resource_uid:
+          total_exposure_likely — SUM (each scenario is an independent risk event)
+          fair_risk_score       — SUM
+          risk_tier             — worst tier across all scenarios
+
+        Non-fatal: logs a warning on failure so the main pipeline still completes.
+        """
+        if not scenarios:
+            return
+
+        # Tier ordering for worst-case selection
+        _tier_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+        # Aggregate per resource_uid
+        agg: Dict[str, Dict[str, Any]] = {}
+        for s in scenarios:
+            uid = s.get("asset_arn") or s.get("asset_id") or ""
+            if not uid:
+                continue
+            if uid not in agg:
+                agg[uid] = {"exposure": 0.0, "score": 0.0, "tier_rank": 0, "tier": "low"}
+            agg[uid]["exposure"] += float(s.get("total_exposure_likely") or 0)
+            agg[uid]["score"] += float(s.get("fair_risk_score") or 0)
+            tier = s.get("risk_tier") or "low"
+            if _tier_rank.get(tier, 0) > agg[uid]["tier_rank"]:
+                agg[uid]["tier_rank"] = _tier_rank[tier]
+                agg[uid]["tier"] = tier
+
+        if not agg:
+            return
+
+        conn = None
+        try:
+            conn = psycopg2.connect(
+                host=os.getenv("DI_DB_HOST", os.getenv("DB_HOST", "localhost")),
+                port=int(os.getenv("DI_DB_PORT", os.getenv("DB_PORT", "5432"))),
+                dbname=os.getenv("DI_DB_NAME", "threat_engine_di"),
+                user=os.getenv("DI_DB_USER", os.getenv("DB_USER", "postgres")),
+                password=(
+                    os.getenv("DI_DB_PASSWORD")
+                    or os.getenv("DB_PASSWORD")
+                    or os.getenv("DISCOVERIES_DB_PASSWORD", "")
+                ),
+                sslmode=os.getenv("DB_SSLMODE", "prefer"),
+                connect_timeout=10,
+            )
+            updated = 0
+            with conn.cursor() as cur:
+                for uid, vals in agg.items():
+                    cur.execute(
+                        """
+                        UPDATE resource_security_posture
+                        SET
+                            total_exposure_likely = %s,
+                            fair_risk_score       = %s,
+                            risk_tier             = %s,
+                            risk_scan_id          = %s::uuid,
+                            updated_at            = NOW()
+                        WHERE resource_uid = %s
+                          AND tenant_id    = %s
+                        """,
+                        (
+                            round(vals["exposure"], 2),
+                            round(vals["score"], 4),
+                            vals["tier"],
+                            risk_scan_id,
+                            uid,
+                            tenant_id,
+                        ),
+                    )
+                    updated += cur.rowcount
+            conn.commit()
+            logger.info(
+                "Risk posture write-back: updated %d / %d resource rows in resource_security_posture",
+                updated, len(agg),
+            )
+        except Exception as exc:
+            logger.warning("Risk posture write-back failed (non-fatal): %s", exc)
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+
+    # ------------------------------------------------------------------
     # Data loading
     # ------------------------------------------------------------------
 
@@ -296,7 +399,7 @@ class RiskReporter:
                     regulatory_fine_min, regulatory_fine_max,
                     applicable_regulations,
                     total_exposure_min, total_exposure_max, total_exposure_likely,
-                    risk_tier, calculation_model,
+                    risk_tier, fair_risk_score, calculation_model,
                     account_id, region, csp
                 FROM risk_scenarios
                 WHERE risk_scan_id = %s::uuid
@@ -326,10 +429,11 @@ class RiskReporter:
                     "total_exposure_max": float(row[18]) if row[18] else 0,
                     "total_exposure_likely": float(row[19]) if row[19] else 0,
                     "risk_tier": row[20],
-                    "calculation_model": row[21],
-                    "account_id": row[22],
-                    "region": row[23],
-                    "csp": row[24],
+                    "fair_risk_score": float(row[21]) if row[21] else 0,
+                    "calculation_model": row[22],
+                    "account_id": row[23],
+                    "region": row[24],
+                    "csp": row[25],
                 })
         except Exception as exc:
             logger.error("Failed to load risk scenarios: %s", exc)

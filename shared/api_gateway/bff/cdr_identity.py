@@ -1,0 +1,209 @@
+"""BFF view: /cdr_identity — per-identity profile page (Stage 2).
+
+Returns identity summary, finding list, activity heatmap data, and
+hourly/DOW access patterns for a single CDR principal.
+
+Security: tenant_id is resolved from AuthContext (X-Auth-Context header),
+never from the principal URL parameter. The principal parameter is a
+filter hint only.
+"""
+
+import datetime
+import json as _json
+import logging
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Query, Request
+
+from ._auth import _parse_auth_context, resolve_tenant_id
+from ._shared import ENGINE_URLS, _fetch_engine
+import httpx
+
+logger = logging.getLogger("api-gateway.bff.cdr_identity")
+_jny03_audit_logger = logging.getLogger("api-gateway.audit")
+
+router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
+
+CDR_URL = ENGINE_URLS.get("cdr", "http://engine-cdr")
+
+_EMPTY: Dict[str, Any] = {
+    "identity": {},
+    "findings": [],
+    "hourlyData": [],
+    "dowData": [],
+}
+
+
+def _emit_audit(
+    *,
+    user_id: str,
+    tenant_id: Optional[str],
+    principal: str,
+    result: int,
+    request: Request,
+    findings: Optional[List[Dict[str, Any]]] = None,
+) -> None:
+    """Emit JSON-serialized audit log for CDR identity profile access.
+
+    SOC2 CC7.2 / ISO27001 A.12.4 / CSA CCM LOG-08.
+    """
+    top_arns: List[str] = []
+    if findings:
+        for f in findings[:50]:
+            if not isinstance(f, dict):
+                continue
+            arn = f.get("actor_principal") or f.get("principal") or f.get("identity_arn")
+            if arn and arn not in top_arns:
+                top_arns.append(arn)
+            if len(top_arns) >= 5:
+                break
+    payload = {
+        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "user_id": user_id,
+        "tenant_id": tenant_id,
+        "endpoint": "GET /api/v1/views/cdr_identity",
+        "principal": principal,
+        "result": result,
+        "request_id": (
+            request.headers.get("X-Request-Id")
+            or request.headers.get("X-Correlation-Id")
+            or getattr(request.state, "request_id", None)
+        ),
+        "top_5_identity_arns": top_arns,
+    }
+    _jny03_audit_logger.info(_json.dumps(payload))
+
+
+@router.get("/cdr_identity")
+async def view_cdr_identity(
+    request: Request,
+    principal: str = Query(..., description="URL-encoded principal ARN — filter hint only"),
+    scan_run_id: Optional[str] = Query(None),
+) -> Dict[str, Any]:
+    """BFF view for Stage 2 identity profile page.
+
+    Permission gate: cdr:sensitive — analyst+ only. Viewer returns 403.
+    All access (200 + 403) is audit-logged.
+
+    Args:
+        request: FastAPI Request — AuthContext header must be present.
+        principal: The principal ARN to look up. Used as a query filter only.
+            Tenant scoping comes from resolve_tenant_id(request), not this param.
+        scan_run_id: Optional scan run filter.
+
+    Returns:
+        Dict with identity summary, findings list, and activity pattern data.
+    """
+    ctx = _parse_auth_context(request)
+    tenant_id = resolve_tenant_id(request)
+    user_id = getattr(ctx, "user_id", "unknown") if ctx is not None else "unknown"
+
+    if ctx is None:
+        _emit_audit(
+            user_id=user_id, tenant_id=tenant_id, principal=principal,
+            result=401, request=request,
+        )
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    if "cdr:sensitive" not in (ctx.permissions or []):
+        _emit_audit(
+            user_id=user_id, tenant_id=tenant_id, principal=principal,
+            result=403, request=request,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="You need Analyst access to view identity activity data",
+        )
+
+    auth_ctx_header = (
+        request.headers.get("X-Auth-Context")
+        or getattr(request.state, "auth_header", None)
+    )
+    fwd_headers = {"X-Auth-Context": auth_ctx_header} if auth_ctx_header else None
+
+    findings_params: Dict[str, str] = {
+        "actor_principal": principal,
+        "limit": "100",
+    }
+    activity_params: Dict[str, str] = {}
+    summary_params: Dict[str, str] = {"limit": "500"}
+    if scan_run_id:
+        findings_params["scan_run_id"] = scan_run_id
+        activity_params["scan_run_id"] = scan_run_id
+        summary_params["scan_run_id"] = scan_run_id
+
+    activity_params["actor_principal"] = principal
+
+    try:
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            findings_data = await _fetch_engine(
+                client, "cdr", "/api/v1/cdr/findings",
+                params=findings_params, auth_headers=fwd_headers,
+            )
+            activity_data = await _fetch_engine(
+                client, "cdr", "/api/v1/cdr/identities/hourly-activity",
+                params=activity_params, auth_headers=fwd_headers,
+            )
+            identities_data = await _fetch_engine(
+                client, "cdr", "/api/v1/cdr/identities",
+                params=summary_params, auth_headers=fwd_headers,
+            )
+            baseline_data = await _fetch_engine(
+                client, "cdr", "/api/v1/cdr/actor/baseline-trend",
+                params={"principal": principal}, auth_headers=fwd_headers,
+            )
+    except Exception as exc:
+        logger.warning("cdr_identity BFF fetch failed: %s", exc)
+        _emit_audit(
+            user_id=user_id, tenant_id=tenant_id, principal=principal,
+            result=200, request=request,
+        )
+        return _EMPTY
+
+    if findings_data is None and activity_data is None and identities_data is None:
+        _emit_audit(
+            user_id=user_id, tenant_id=tenant_id, principal=principal,
+            result=200, request=request,
+        )
+        return _EMPTY
+
+    findings = (findings_data or {}).get("findings", []) if isinstance(findings_data, dict) else (findings_data or [])
+    hourly   = (activity_data or {}).get("hourly_distribution", []) if isinstance(activity_data, dict) else []
+    dow      = (activity_data or {}).get("day_of_week_distribution", []) if isinstance(activity_data, dict) else []
+
+    identity: Dict[str, Any] = {}
+    principal_lower = principal.lower()
+    if isinstance(identities_data, dict):
+        for row in identities_data.get("identities", []) or []:
+            if isinstance(row, dict) and (
+                row.get("actor_principal") == principal
+                or (row.get("actor_principal") or "").lower() == principal_lower
+            ):
+                identity = row
+                break
+    if not identity:
+        identity = {"actor_principal": principal, "total_findings": len(findings)}
+
+    for f in findings:
+        if isinstance(f, dict):
+            f.pop("event_raw", None)
+            f.pop("credential_ref", None)
+
+    _emit_audit(
+        user_id=user_id, tenant_id=tenant_id, principal=principal,
+        result=200, request=request,
+        findings=findings if isinstance(findings, list) else None,
+    )
+
+    baseline_metrics = (baseline_data or {}).get("metrics", []) if isinstance(baseline_data, dict) else []
+
+    return {
+        "identity": identity,
+        "findings": findings,
+        "hourlyData": hourly,
+        "dowData": dow,
+        "baselineTrend": {
+            "metrics": baseline_metrics,
+            "has_data": len(baseline_metrics) > 0,
+        },
+    }

@@ -372,8 +372,11 @@ def _extract_internet_exposed(a: dict) -> bool:
     Checks common AWS indicators: PubliclyAccessible (RDS, Redshift),
     PublicAccess / PublicAccessBlockConfiguration (S3), PublicIp (EC2),
     IsPublic (Lambda URL), Scheme 'internet-facing' (ELB).
+    Also checks emitted_fields (DI engine format) and raw_response.
     """
-    config = a.get("config") or a.get("configuration") or {}
+    # DI engine stores resource data in emitted_fields; old engines use config/configuration
+    config = (a.get("emitted_fields") or a.get("config") or a.get("configuration")
+              or a.get("raw_response") or {})
     if not isinstance(config, dict):
         return a.get("internet_exposed", False)
 
@@ -427,10 +430,17 @@ def normalize_asset(a: dict) -> dict:
     status = _extract_status(a)
     internet_exposed = _extract_internet_exposed(a)
 
+    resource_name = (
+        a.get("resource_name")
+        or metadata.get("name")
+        or uid.rsplit("/", 1)[-1]
+        or uid.rsplit(":", 1)[-1]
+    )
+
     return {
         "resource_id": uid,
-        "resource_uid": uid,  # UI uses resource_uid for navigation links
-        "resource_name": metadata.get("name") or uid.rsplit("/", 1)[-1],
+        "resource_uid": uid,
+        "resource_name": resource_name,
         "resource_type": rt,
         "service": service,
         "provider": _safe_lower(a.get("provider")),
@@ -440,12 +450,14 @@ def normalize_asset(a: dict) -> dict:
         "risk_score": metadata.get("risk_score") or a.get("risk_score", 0),
         "severity": severity,
         "findings": findings if isinstance(findings, dict) else {},
-        "owner": tags.get("Owner", ""),
-        "tags": tags,
-        "last_scanned": a.get("discovered_at") or a.get("last_scanned"),
-        "created_at": a.get("discovered_at") or a.get("created_at"),
+        "owner": tags.get("Owner") or tags.get("owner", ""),
+        "tags": tags if isinstance(tags, dict) else {},
+        "last_scanned": a.get("last_scanned") or a.get("last_seen_at") or a.get("discovered_at"),
+        "last_seen_at": a.get("last_seen_at") or a.get("last_scanned"),
+        "created_at": a.get("created_at") or a.get("first_seen_at") or a.get("discovered_at"),
         "internet_exposed": internet_exposed,
         "public": internet_exposed or a.get("public") or a.get("public_access", False),
+        "drift_detected": bool(a.get("drift_detected", False)),
     }
 
 

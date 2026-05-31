@@ -80,8 +80,6 @@ discovery:
   emit:
     as: item
     items_for: '{{ response.clusters }}'
-    item:
-      nextToken: '{{ response.nextToken }}'
 - calls:
   - action: list_addons
     on_error: continue
@@ -125,11 +123,15 @@ discovery:
 - calls:
   - action: describe_nodegroup
     on_error: continue
+    params:
+      clusterName: '{{ item.clusterName }}'
+      nodegroupName: '{{ item.nodegroupName }}'
     save_as: response
   discovery_id: aws.eks.describe_nodegroup
   emit:
     as: item
     item:
+      resource_type: eks_nodegroup
       amiType: '{{ response.nodegroup.amiType }}'
       capacityType: '{{ response.nodegroup.capacityType }}'
       clusterName: '{{ response.nodegroup.clusterName }}'
@@ -165,6 +167,21 @@ discovery:
       maxUnavailable: '{{ response.nodegroup.updateConfig.maxUnavailable }}'
       maxUnavailablePercentage: '{{ response.nodegroup.updateConfig.maxUnavailablePercentage }}'
       updateStrategy: '{{ response.nodegroup.updateConfig.updateStrategy }}'
+  for_each: aws.eks.list_nodegroups
+- calls:
+  - action: list_nodegroups
+    on_error: continue
+    params:
+      clusterName: '{{ item }}'
+    save_as: response
+  discovery_id: aws.eks.list_nodegroups
+  emit:
+    as: ng
+    items_for: '{{ response.nodegroups }}'
+    item:
+      clusterName: '{{ item }}'
+      nodegroupName: '{{ ng }}'
+  for_each: aws.eks.list_clusters
 - calls:
   - action: describe_cluster
     on_error: continue
@@ -175,6 +192,7 @@ discovery:
   emit:
     as: item
     item:
+      resource_type: eks_cluster
       accessConfig: '{{ response.cluster.accessConfig }}'
       arn: '{{ response.cluster.arn }}'
       certificateAuthority: '{{ response.cluster.certificateAuthority.data }}'

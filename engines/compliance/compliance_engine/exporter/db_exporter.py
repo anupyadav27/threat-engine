@@ -123,7 +123,7 @@ class DatabaseExporter:
             last_seen_at TIMESTAMP WITH TIME ZONE NOT NULL,
             resource_type VARCHAR(100),
             resource_id VARCHAR(255),
-            resource_arn TEXT,
+            resource_uid TEXT,
             region VARCHAR(50),
             finding_data JSONB NOT NULL,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -254,14 +254,14 @@ class DatabaseExporter:
             if report.findings:
                 finding_rows = []
                 for finding in report.findings:
-                    resource_arn = None
+                    resource_uid = None
                     resource_type = None
                     resource_id = None
                     region = None
 
                     if finding.affected_assets:
                         first_asset = finding.affected_assets[0]
-                        resource_arn = first_asset.arn
+                        resource_uid = first_asset.arn
                         resource_type = first_asset.resource_type
                         resource_id = first_asset.resource_id
                         region = first_asset.region
@@ -280,7 +280,7 @@ class DatabaseExporter:
                         self._parse_ts(finding.last_seen_at),
                         resource_type,
                         resource_id,
-                        resource_arn,
+                        resource_uid,
                         region,
                         # Slim finding_data — only compliance mappings (full model_dump OOMs at scale)
                         json.dumps({

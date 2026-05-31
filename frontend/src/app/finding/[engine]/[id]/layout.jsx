@@ -10,7 +10,7 @@ export const ENGINE_SLUG_WHITELIST = new Set([
   'container-security',
   'dbsec',
   'ai-security',
-  'ciem',
+  'cdr',
   'check',
   'threat',
   'secops',

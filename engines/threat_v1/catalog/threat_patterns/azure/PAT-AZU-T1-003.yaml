@@ -1,0 +1,30 @@
+id: PAT-AZU-T1-003
+version: 1
+description: "Azure RBAC role with wildcard admin permissions (not restricted to specific resources) — excessive blast radius on compromise."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation]
+mitre_techniques: [T1078.004]
+tactic_chain_order: [Privilege Escalation]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_role_definition, azure_rbac_role]
+  conditions:
+    check_rules_failing:
+      - azure.rbac.role_definition.identity_access_role_attached_policies_not_admin_star
+      - azure.rbac.role.custom_role_permissions_restricted
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "Custom RBAC role with * Actions and no scope restriction"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "Role with scoped actions on specific resource group"
+    expected_tier: 1
+    expected_severity: low

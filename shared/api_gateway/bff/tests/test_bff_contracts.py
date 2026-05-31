@@ -230,14 +230,14 @@ class TestNetworkSecurityContract:
 
 @pytest.mark.skipif(_SKIP, reason=_SKIP_REASON)
 class TestCiemContract:
-    """Verify /views/ciem returns expected top-level keys."""
+    """Verify /views/cdr returns expected top-level keys."""
 
     def test_top_level_keys(self) -> None:
-        data = _get_view("ciem")
+        data = _get_view("cdr")
         assert "findings" in data or "total" in data or "kpiGroups" in data
 
     def test_kpi_groups_present(self) -> None:
-        data = _get_view("ciem")
+        data = _get_view("cdr")
         assert "kpiGroups" in data or "kpi" in data
 
 
@@ -265,7 +265,7 @@ _ALL_VIEWS = [
     "risk",
     "misconfig",
     "network-security",
-    "ciem",
+    "cdr",
     "vulnerability",
     "datasec",
     "encryption",

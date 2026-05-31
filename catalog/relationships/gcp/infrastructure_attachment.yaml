@@ -1,0 +1,191 @@
+---
+# GCP infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure
+
+csp: gcp
+category: infrastructure
+rules:
+
+  # ── GCE Instance → Disk ──────────────────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: compute.disk
+    relation_type: ATTACHED_TO
+    field_path: "disks[*].source"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: GCE instance attached to persistent disks
+
+  # ── GCE Instance → Subnetwork ────────────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: compute.subnetwork
+    relation_type: PLACED_IN
+    field_path: "networkInterfaces[*].subnetwork"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: GCE instance placed in subnetworks
+
+  # ── GCE Instance → Service Account ──────────────────────────────────────────
+  - source_resource_type: compute.instance
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "serviceAccounts[*].email"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: GCE instance uses service account
+
+  # ── GKE Cluster → Node Pool ──────────────────────────────────────────────────
+  - source_resource_type: container.cluster
+    target_resource_type: container.node_pool
+    relation_type: CONTAINS
+    field_path: "nodePools[*].name"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: GKE cluster contains node pools
+
+  # ── Cloud SQL → VPC Network ───────────────────────────────────────────────────
+  - source_resource_type: sqladmin.instance
+    target_resource_type: compute.network
+    relation_type: PLACED_IN
+    field_path: "settings.ipConfiguration.privateNetwork"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Cloud SQL instance in VPC network
+
+  # ── Cloud Function → VPC Connector ───────────────────────────────────────────
+  - source_resource_type: cloudfunctions.function
+    target_resource_type: vpcaccess.connector
+    relation_type: ROUTES_VIA
+    field_path: "vpcConnector"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: Cloud Function uses VPC connector
+
+  # ── Cloud Function → Service Account ─────────────────────────────────────────
+  - source_resource_type: cloudfunctions.function
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "serviceAccountEmail"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Cloud Function uses service account
+
+  # ── Cloud Run → Service Account ───────────────────────────────────────────────
+  - source_resource_type: run.service
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "spec.template.spec.serviceAccountName"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Cloud Run service uses service account
+
+  # ── GCS Bucket → KMS Key (CMEK) ──────────────────────────────────────────────
+  - source_resource_type: storage.bucket
+    target_resource_type: cloudkms.crypto_key
+    relation_type: ENCRYPTED_BY
+    field_path: "encryption.defaultKmsKeyName"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: GCS bucket encrypted by CMEK key
+
+  # ── Load Balancer → Backend Service ──────────────────────────────────────────
+  - source_resource_type: compute.url_map
+    target_resource_type: compute.backend_service
+    relation_type: ROUTES_TO
+    field_path: "pathMatchers[*].defaultService"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    graph_role: attack_traversal
+    description: GCP URL map routes to backend services
+
+  # ── GCP OS Config Agent → GCE Instance (MANAGED_BY_AGENT) ───────────────────
+  # GCE instances enrolled in OS Config can be targeted via OS policies and
+  # patch management. "gcloud compute os-config patch-jobs" = remote execution.
+  # attack-path BFS seeds ENDPOINT_AGENT_ENTRY from these resources.
+  # Prerequisite: add catalog/discovery_generator_data/gcp/step6_osconfig.discovery.yaml
+  # Source field: instance (resource name of the managed GCE instance)
+  - source_resource_type: osconfig_inventory
+    target_resource_type: compute.instance
+    relation_type: MANAGED_BY_AGENT
+    field_path: "name"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: GCP OS Config managed GCE instance (OS policy / patch job execution)
+
+  # ── GKE Node Pool → GCE Instance Group ───────────────────────────────────────
+  # Node pools reference managed instance groups which contain GCE worker nodes.
+  # Completes the GKE cluster → CONTAINS → node pool → CONTAINS → GCE chain.
+  - source_resource_type: container.node_pool
+    target_resource_type: compute.instance_group_manager
+    relation_type: CONTAINS
+    field_path: "instanceGroupUrls[*]"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: GKE node pool references managed instance group (GCE worker nodes)
+
+  # ── Pub/Sub Topic → Cloud Function (TRIGGERS) ────────────────────────────────
+  # Pub/Sub subscriptions with a Cloud Function push endpoint create an
+  # event-driven trigger chain. Lateral movement: compromise topic → invoke function.
+  - source_resource_type: pubsub.subscription
+    target_resource_type: cloudfunctions.function
+    relation_type: TRIGGERS
+    field_path: "pushConfig.pushEndpoint"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Pub/Sub subscription triggers Cloud Function via push endpoint
+
+  # ── Pub/Sub Topic → Cloud Run (TRIGGERS) ────────────────────────────────────
+  - source_resource_type: pubsub.subscription
+    target_resource_type: run.service
+    relation_type: TRIGGERS
+    field_path: "pushConfig.pushEndpoint"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Pub/Sub subscription triggers Cloud Run service via push endpoint
+
+  # ── BigQuery Dataset → KMS Key ────────────────────────────────────────────────
+  - source_resource_type: bigquery.dataset
+    target_resource_type: cloudkms.crypto_key
+    relation_type: ENCRYPTED_BY
+    field_path: "defaultEncryptionConfiguration.kmsKeyName"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: BigQuery dataset encrypted by CMEK key
+
+  # ── Secret Manager → Service Account (accessed via IAM) ──────────────────────
+  # IAM bindings on secrets grant service accounts secretAccessor role.
+  # This is written by the IAM engine as GRANTS_ACCESS_TO; this catalog rule
+  # adds a second path via direct resource policy if discoverable.
+  - source_resource_type: iam.service_account
+    target_resource_type: secretmanager.secret_version
+    relation_type: GRANTS_ACCESS_TO
+    field_path: "bindings[*].members[*]"
+    field_path_type: array_field_ref
+    attack_path_category: data_access
+    graph_role: attack_traversal
+    description: GCP service account granted access to Secret Manager secret
+
+  # ── Cloud SQL → Service Account ───────────────────────────────────────────────
+  - source_resource_type: sqladmin.instance
+    target_resource_type: iam.service_account
+    relation_type: USES_IDENTITY
+    field_path: "serviceAccountEmailAddress"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Cloud SQL instance uses service account for data access

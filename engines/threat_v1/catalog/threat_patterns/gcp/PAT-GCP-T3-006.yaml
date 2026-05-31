@@ -1,0 +1,47 @@
+id: PAT-GCP-T3-006
+version: 1
+description: "GKE cluster role binding creation (CDR) on GKE cluster connected to GCS crown jewel via Workload Identity over-scoped SA."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Collection]
+mitre_techniques: [T1613, T1530]
+tactic_chain_order: [Privilege Escalation, Collection]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_gke_cluster]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - gcp.gke.admission_controller.admission_image_registry_allowlist_enforced
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [gcp_service_account]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [gcp_storage_bucket, gcp_gcs_bucket]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1613]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "GKE cluster role binding CDR + admin SA → GCS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "No CDR events on GKE, scoped SA, GCS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

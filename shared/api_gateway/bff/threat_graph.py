@@ -147,6 +147,8 @@ async def _check_cve_nodes_exist(tenant_id: str, fwd_headers: Optional[Dict[str,
     Returns:
         True if at least one CVE node exists for this tenant, False otherwise.
     """
+    # TODO: decommission after engine-threat teardown — graph query endpoints not yet
+    # ported to engine-attack-path.
     try:
         results = await fetch_many([
             ("threat", "/api/v1/graph/summary", {"tenant_id": tenant_id}),
@@ -444,6 +446,8 @@ async def view_threat_graph(
     auth_ctx = _parse_auth_context(request)
     role = auth_ctx.role if auth_ctx else "viewer"
 
+    # TODO: decommission after engine-threat teardown — graph query endpoints not yet
+    # ported to engine-attack-path.
     # Only call summary + subgraph — attack-paths and orca-paths hit Neo4j OOM
     # at the 250MB transaction memory limit when run concurrently with subgraph.
     results = await fetch_many([
@@ -592,6 +596,8 @@ async def view_threat_graph_node_security(
     auth_ctx = _parse_auth_context(request)
     role = auth_ctx.role if auth_ctx else "viewer"
 
+    # TODO: decommission after engine-threat teardown — graph query endpoints not yet
+    # ported to engine-attack-path.
     results = await fetch_many([
         ("threat", f"/api/v1/graph/resource/{resource_uid}", {"tenant_id": tenant_id}),
     ], auth_headers=fwd_headers)
@@ -697,6 +703,8 @@ async def view_threat_graph_filtered(
         params["edge_kind"] = edge_kind
     params["within_hops"] = str(within_hops)
 
+    # TODO: decommission after engine-threat teardown — graph query endpoints not yet
+    # ported to engine-attack-path.
     results = await fetch_many([
         ("threat", "/api/v1/graph/explore", params)
     ], auth_headers=fwd_headers)

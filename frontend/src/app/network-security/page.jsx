@@ -642,6 +642,7 @@ export default function NetworkSecurityPage() {
         kpiGroups={[]}
         insightRow={insightStrip}
         tabData={tabData}
+        persistenceKey="network_security"
         loading={loading}
         error={error}
         defaultTab="overview"

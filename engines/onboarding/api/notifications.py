@@ -27,7 +27,7 @@ async def get_notifications(
 ):
     """
     Generate notifications dynamically from:
-    - Recent scan_runs events (completed/failed scans)
+    - Recent scan_orchestration events (completed/failed scans)
     - cloud_accounts with credential validation failures
     """
     try:
@@ -105,7 +105,7 @@ async def get_notifications(
                         "read": False,
                     })
         except Exception as exc:
-            logger.warning("notifications: scan_runs query failed: %s", exc)
+            logger.warning("notifications: scan_orchestration query failed: %s", exc)
 
         # ── Credential validation failures ────────────────────────────────────
         try:

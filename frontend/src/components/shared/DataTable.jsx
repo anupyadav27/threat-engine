@@ -54,17 +54,31 @@ export default function DataTable({
   showExport = false,
   renderExpandedRow,
   hideToolbar = false,
-  defaultDensity = 'comfortable',
+  defaultDensity = 'compact',
+  persistenceKey = null,
 }) {
+  // Read persisted column/group prefs from localStorage (keyed per page)
+  const readPref = (suffix, fallback) => {
+    if (!persistenceKey || typeof window === 'undefined') return fallback;
+    try {
+      const raw = localStorage.getItem(`cspm_${suffix}_${persistenceKey}`);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch { return fallback; }
+  };
+  const writePref = (suffix, value) => {
+    if (!persistenceKey || typeof window === 'undefined') return;
+    try { localStorage.setItem(`cspm_${suffix}_${persistenceKey}`, JSON.stringify(value)); } catch {}
+  };
+
   const [searchText, setSearchText] = useState('');
   const [columnSearches, setColumnSearches] = useState({});
   const [sorting, setSorting] = useState([]);
   const [currentPageSize, setCurrentPageSize] = useState(pageSize);
   const [goToPageInput, setGoToPageInput] = useState('');
   const [exportProgress, setExportProgress] = useState(null);
-  // Column visibility & density
-  const [columnVisibility, setColumnVisibility] = useState({});
-  const [density, setDensity] = useState(defaultDensity); // 'compact' | 'comfortable' | 'spacious'
+  // Column visibility & density — restored from localStorage when persistenceKey is set
+  const [columnVisibility, setColumnVisibility] = useState(() => readPref('cols', {}));
+  const [density, setDensity] = useState(() => readPref('density', defaultDensity));
   const [showColPicker, setShowColPicker] = useState(false);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [hoveredRow, setHoveredRow] = useState(null);
@@ -72,9 +86,14 @@ export default function DataTable({
   const [openFilterCol, setOpenFilterCol] = useState(null);
   const [filterBtnPos, setFilterBtnPos] = useState(null); // { top, left } for fixed popover
   const [filterSearch, setFilterSearch] = useState({});
-  const [groupBy, setGroupBy] = useState('');
+  const [groupBy, setGroupBy] = useState(() => readPref('groupby', ''));
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // tracks collapsed groups; default = all expanded
   const [showGroupPicker, setShowGroupPicker] = useState(false);
+
+  // Persist column visibility, density, groupBy whenever they change
+  useEffect(() => { writePref('cols', columnVisibility); }, [columnVisibility]);      // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { writePref('density', density); }, [density]);                    // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { writePref('groupby', groupBy); }, [groupBy]);                    // eslint-disable-line react-hooks/exhaustive-deps
 
   // Severity left-border stripe color
   const SEV_STRIPE = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#3b82f6' };
@@ -152,8 +171,8 @@ export default function DataTable({
     return () => document.removeEventListener('mousedown', handler);
   }, [showGroupPicker]);
 
-  const densityPadding = { compact: 'px-4 py-1.5 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-6 text-sm' };
-  const densityHeaderPadding = { compact: 'px-4 py-2.5', comfortable: 'px-6 py-4', spacious: 'px-6 py-5' };
+  const densityPadding = { compact: 'px-3 py-2 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-6 text-sm' };
+  const densityHeaderPadding = { compact: 'px-3 py-2 text-xs', comfortable: 'px-6 py-4 text-sm', spacious: 'px-6 py-5 text-sm' };
 
   // Debounce timer for column search
   const debounceTimers = useMemo(() => ({}), []);
@@ -657,16 +676,16 @@ export default function DataTable({
                             boxShadow: '4px 0 8px rgba(0, 0, 0, 0.1)',
                           }),
                         }}
-                        className={`${densityHeaderPadding[density]} text-left font-semibold border-r last:border-r-0 transition-colors duration-200`}
+                        className={`${densityHeaderPadding[density]} text-left font-semibold uppercase tracking-wide border-r last:border-r-0 transition-colors duration-200 align-middle`}
                       >
                         <div className="flex items-center gap-1">
-                          {/* Sort button */}
-                          <button
-                            onClick={header.column.getToggleSortingHandler()}
-                            className={`flex items-center gap-1 ${header.column.getCanSort() ? 'cursor-pointer hover:opacity-75' : 'cursor-default'}`}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {header.column.getCanSort() && (
+                          {/* Sort button — use div when not sortable to avoid nested-button hydration error */}
+                          {header.column.getCanSort() ? (
+                            <button
+                              onClick={header.column.getToggleSortingHandler()}
+                              className="flex items-center gap-1 cursor-pointer hover:opacity-75"
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
                               <span className="flex-shrink-0" style={{
                                 color: header.column.getIsSorted() ? 'var(--accent-primary)' : 'var(--text-secondary)',
                                 opacity: header.column.getIsSorted() ? 1 : 0.5,
@@ -675,8 +694,12 @@ export default function DataTable({
                                   ? <ArrowDown className="w-3.5 h-3.5" />
                                   : <ArrowUp className="w-3.5 h-3.5" />}
                               </span>
-                            )}
-                          </button>
+                            </button>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                            </div>
+                          )}
                           {/* Column filter button */}
                           {columnDistinctValues[header.column.columnDef.accessorKey] && (
                             <button
@@ -759,7 +782,7 @@ export default function DataTable({
                                   boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
                                 }),
                               }}
-                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                             >
                               <div className="min-w-0">
                                 {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
@@ -878,7 +901,7 @@ export default function DataTable({
                                       ...(colSize && colSize !== 150 && { width: colSize, minWidth: colSize }),
                                       ...(isSticky && { position: 'sticky', left: 0, zIndex: 9, boxShadow: '4px 0 8px rgba(0,0,0,0.05)' }),
                                     }}
-                                    className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                                    className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                                   >
                                     <div className="break-words">
                                       {colDef.cell
@@ -960,7 +983,7 @@ export default function DataTable({
                                   boxShadow: '4px 0 8px rgba(0, 0, 0, 0.05)',
                                 }),
                               }}
-                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200`}
+                              className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                             >
                               <div className="min-w-0">
                                 {flexRender(cell.column.columnDef.cell, cell.getContext())}

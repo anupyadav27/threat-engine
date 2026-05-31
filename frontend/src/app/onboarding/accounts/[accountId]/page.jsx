@@ -7,7 +7,7 @@
  *   Schedule     — active schedule + edit inline
  *   Scan History — recent scan_runs for this account
  *   Credentials  — re-validate, credential type/ref
- *   Log Sources  — CIEM log source config (CloudTrail, VPC Flow, etc.)
+ *   Log Sources  — CDR log source config (CloudTrail, VPC Flow, etc.)
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -15,9 +15,10 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, RefreshCw, Play, Loader2, CheckCircle2, XCircle,
   Clock, Calendar, Shield, Key, Layers, Radio, AlertTriangle,
-  Edit2, Save, X, ChevronDown, Plus, Trash2,
+  Edit2, Save, X, ChevronDown, Plus, Trash2, ExternalLink, RotateCcw,
 } from 'lucide-react';
 import { getFromEngine, postToEngine } from '@/lib/api';
+import { useToast } from '@/lib/toast-context';
 import ScanRunDetailModal from '@/components/domain/ScanRunDetailModal';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -153,7 +154,7 @@ function TabSchedule({ account }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const d = await getFromEngine('onboarding', `/api/v1/schedules?account_id=${account.account_id}`);
+    const d = await getFromEngine('gateway', `/api/v1/schedules?account_id=${account.account_id}`);
     setSchedules(d?.schedules || []);
     setLoading(false);
   }, [account.account_id]);
@@ -162,14 +163,14 @@ function TabSchedule({ account }) {
 
   async function handleToggle(sched) {
     const endpoint = sched.enabled ? 'disable' : 'enable';
-    await postToEngine('onboarding', `/api/v1/schedules/${sched.schedule_id}/${endpoint}`, {});
+    await postToEngine('gateway', `/api/v1/schedules/${sched.schedule_id}/${endpoint}`, {});
     load();
   }
 
   async function handleRunNow(sched) {
     setRunningId(sched.schedule_id);
     try {
-      const r = await postToEngine('onboarding', `/api/v1/schedules/${sched.schedule_id}/run-now`, {});
+      const r = await postToEngine('gateway', `/api/v1/schedules/${sched.schedule_id}/run-now`, {});
       if (r.scan_run_id) setSelectedRunId(r.scan_run_id);
     } finally {
       setRunningId(null);
@@ -180,7 +181,7 @@ function TabSchedule({ account }) {
     setSaving(true);
     try {
       const cron = CRON_PRESETS.find(p => p.key === editing._preset)?.cron || editing.cron_expression;
-      await postToEngine('onboarding', `/api/v1/schedules/${editing.schedule_id}`, {
+      await postToEngine('gateway', `/api/v1/schedules/${editing.schedule_id}`, {
         ...editing, cron_expression: cron,
       }, 'PATCH');
       setEditing(null);
@@ -350,15 +351,42 @@ const STATUS_CFG = {
 };
 
 function TabScanHistory({ account }) {
-  const [runs, setRuns]       = useState([]);
-  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+  const toast = useToast();
+  const [runs, setRuns]         = useState([]);
+  const [loading, setLoading]   = useState(true);
   const [selected, setSelected] = useState(null);
+  const [rerunning, setRerunning] = useState({});  // scan_run_id → true
 
-  useEffect(() => {
-    getFromEngine('onboarding', `/api/v1/scan-runs?account_id=${account.account_id}&limit=20`)
-      .then(d => setRuns(d?.scan_runs || []))
-      .finally(() => setLoading(false));
+  const loadRuns = useCallback(async () => {
+    const d = await getFromEngine('gateway', `/api/v1/scan-runs?account_id=${account.account_id}&limit=20`);
+    setRuns(d?.scan_runs || []);
+    setLoading(false);
   }, [account.account_id]);
+
+  useEffect(() => { loadRuns(); }, [loadRuns]);
+
+  async function handleRerun(e, runId) {
+    e.stopPropagation();
+    setRerunning(p => ({ ...p, [runId]: true }));
+    try {
+      const result = await postToEngine('gateway', '/api/v1/scans/run-now', {
+        scan_run_id: runId,
+        account_id: account.account_id,
+      });
+      if (result.error) {
+        toast.error(`Re-run failed: ${result.error}`);
+        return;
+      }
+      const newId = result.scan_run_id;
+      toast.success(`Re-run queued — ID: ${newId?.slice(0, 8)}…`);
+      setTimeout(loadRuns, 1500);
+    } catch (err) {
+      toast.error('Re-run failed. Please try again.');
+    } finally {
+      setRerunning(p => ({ ...p, [runId]: false }));
+    }
+  }
 
   if (loading) return <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--text-muted)' }} /></div>;
   if (!runs.length) return <div className="py-8 text-center text-sm" style={{ color: 'var(--text-muted)' }}>No scan runs yet.</div>;
@@ -369,7 +397,7 @@ function TabScanHistory({ account }) {
         <table className="w-full text-xs">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border-primary)', backgroundColor: 'var(--bg-secondary)' }}>
-              {['Scan Run', 'Trigger', 'Status', 'Engines Done', 'Duration', 'Started'].map(h => (
+              {['Scan Run', 'Trigger', 'Status', 'Engines Done', 'Duration', 'Started', 'Actions'].map(h => (
                 <th key={h} className="px-4 py-2.5 text-left font-semibold" style={{ color: 'var(--text-muted)' }}>{h}</th>
               ))}
             </tr>
@@ -383,6 +411,8 @@ function TabScanHistory({ account }) {
               const sec = run.started_at && run.completed_at
                 ? Math.floor((new Date(run.completed_at) - new Date(run.started_at)) / 1000) : null;
               const dur = sec == null ? '—' : sec < 60 ? `${sec}s` : `${Math.floor(sec/60)}m ${sec%60}s`;
+              const isActive = run.overall_status === 'running' || run.overall_status === 'pending';
+              const canRerun = run.overall_status === 'completed' || run.overall_status === 'failed';
               return (
                 <tr key={run.scan_run_id} onClick={() => setSelected(run.scan_run_id)}
                   className="cursor-pointer hover:opacity-80" style={{ borderBottom: '1px solid var(--border-primary)' }}>
@@ -399,6 +429,35 @@ function TabScanHistory({ account }) {
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-secondary)' }}>{done}/{total}</td>
                   <td className="px-4 py-2.5 font-mono" style={{ color: 'var(--text-muted)' }}>{dur}</td>
                   <td className="px-4 py-2.5" style={{ color: 'var(--text-muted)' }}>{fmtRelative(run.started_at)}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                      {/* View Progress — always available (AC9) */}
+                      <button
+                        onClick={() => router.push(`/scans/${run.scan_run_id}`)}
+                        className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium hover:opacity-80"
+                        style={{ backgroundColor: 'rgba(59,130,246,0.1)', color: 'var(--accent-primary)', border: '1px solid rgba(59,130,246,0.25)' }}
+                        title="View pipeline progress"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        {isActive ? 'Progress' : 'Pipeline'}
+                      </button>
+                      {/* Re-run — only for completed/failed (AC10) */}
+                      {canRerun && (
+                        <button
+                          onClick={e => handleRerun(e, run.scan_run_id)}
+                          disabled={rerunning[run.scan_run_id]}
+                          className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium hover:opacity-80 disabled:opacity-40"
+                          style={{ backgroundColor: 'rgba(34,197,94,0.1)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)' }}
+                          title="Re-run this scan"
+                        >
+                          {rerunning[run.scan_run_id]
+                            ? <Loader2 className="w-3 h-3 animate-spin" />
+                            : <RotateCcw className="w-3 h-3" />}
+                          Re-run
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -420,7 +479,7 @@ function TabCredentials({ account, onRefresh }) {
     setValidating(true);
     setResult(null);
     try {
-      const r = await postToEngine('onboarding', `/api/v1/cloud-accounts/${account.account_id}/validate-credentials`, {});
+      const r = await postToEngine('gateway', `/api/v1/cloud-accounts/${account.account_id}/validate-credentials`, {});
       setResult(r);
       onRefresh();
     } finally {
@@ -517,7 +576,7 @@ function TabLogSources({ account, onRefresh }) {
   async function handleSave() {
     setSaving(true);
     try {
-      await postToEngine('onboarding', `/api/v1/cloud-accounts/${account.account_id}/log-sources`, sources, 'PUT');
+      await postToEngine('gateway', `/api/v1/cloud-accounts/${account.account_id}/log-sources`, sources, 'PUT');
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
       onRefresh();
@@ -532,7 +591,7 @@ function TabLogSources({ account, onRefresh }) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-          Configure S3 bucket locations for CIEM log collection.
+          Configure S3 bucket locations for CDR log collection.
           Leave empty to use auto-discovery mode.
         </p>
         <button onClick={handleSave} disabled={saving}
@@ -602,7 +661,7 @@ export default function AccountDetailPage() {
 
   const loadAccount = useCallback(async () => {
     try {
-      const data = await getFromEngine('onboarding', `/api/v1/cloud-accounts/${accountId}`);
+      const data = await getFromEngine('gateway', `/api/v1/cloud-accounts/${accountId}`);
       setAccount(data);
     } catch (e) {
       console.error(e);

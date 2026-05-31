@@ -16,11 +16,18 @@ from django.views.decorators.http import require_GET
 from rest_framework.views import APIView
 
 from user_auth.models import Users, UserRoles, UserSessions
-from user_auth.throttles import LoginRateThrottle, RefreshRateThrottle, SignupRateThrottle
+from user_auth.throttles import (
+    LoginRateThrottle,
+    PasswordResetRateThrottle,
+    RefreshRateThrottle,
+    RegisterRateThrottle,
+    SignupRateThrottle,
+)
 from user_auth.utils.audit_utils import log_auth_event
 from user_auth.utils.auth_utils import compute_auth_caches, generate_token, hash_token, verify_token
+from user_auth.utils.captcha import validate_captcha
 from user_auth.utils.cookie_utils import set_auth_cookies, clear_auth_cookies
-from user_auth.utils.tenant_utils import provision_first_tenant
+from user_auth.utils.tenant_utils import provision_tenant_for_new_user
 
 logger = logging.getLogger(__name__)
 
@@ -131,15 +138,21 @@ class LoginView(APIView):
         if not email or not password:
             return JsonResponse({"message": "Email and password are required."}, status=400)
 
-        # Fetch user
+        # BLOCK-01: fetch user without leaking whether the email exists.
+        # Both "email not found" and "wrong password" return 401 with the same
+        # body so an attacker cannot enumerate valid addresses by comparing
+        # response status codes or messages.
+        _invalid_credentials = JsonResponse(
+            {"detail": "Invalid credentials"}, status=401
+        )
         try:
             user = Users.objects.get(email=email)
         except Users.DoesNotExist:
-            return JsonResponse({"message": "Invalid email or password."}, status=404)
+            return _invalid_credentials
 
-        # Verify password
+        # Use Django's constant-time check_password (AC8) to avoid timing oracle.
         if not user.password or not check_password(password, user.password):
-            return JsonResponse({"message": "Invalid email or password."}, status=401)
+            return _invalid_credentials
 
         # Revoke all existing sessions for this user
         UserSessions.objects.filter(user=user).delete()
@@ -193,6 +206,7 @@ class LoginView(APIView):
         )
         role_names = [ur.role.name for ur in user_role_qs]
         primary_role = role_names[0] if role_names else None
+        primary_level = user_role_qs[0].role.level if user_role_qs else None
 
         # Build tenant list (same as MeView) so frontend has engine_tenant_id immediately
         from tenant_management.models import TenantUsers as TUModel
@@ -220,6 +234,7 @@ class LoginView(APIView):
                 "name": full_name,
                 "role": primary_role,
                 "roles": role_names,
+                "level": primary_level,
                 "permissions": permissions_cache,
                 "tenants": tenants_list,
             },
@@ -236,7 +251,7 @@ _ALLOW_LOCAL_SIGNUP = os.getenv("ALLOW_LOCAL_SIGNUP", "false").lower() in ("true
 
 @method_decorator(ensure_csrf_cookie, name='dispatch')
 class SignupView(APIView):
-    throttle_classes = [SignupRateThrottle]
+    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request):
         if not _ALLOW_LOCAL_SIGNUP:
@@ -265,7 +280,9 @@ class SignupView(APIView):
         if len(password) < 8:
             return JsonResponse({"message": "Password must be at least 8 characters."}, status=400)
 
-        if not _verify_hcaptcha(data.get("hcaptcha_token", "")):
+        # AC7: call the centralised CAPTCHA hook from utils/captcha.py.
+        # Returns True immediately when CAPTCHA_SECRET_KEY is not configured.
+        if not validate_captcha(data.get("hcaptcha_token", "")):
             return JsonResponse({"message": "CAPTCHA verification failed."}, status=400)
 
         if Users.objects.filter(email=email).exists():
@@ -283,7 +300,7 @@ class SignupView(APIView):
         )
 
         # Auto-provision first tenant
-        provision_first_tenant(user, company_name=company_name)
+        provision_tenant_for_new_user(user)
 
         # Create session
         access_token = generate_token()
@@ -340,6 +357,7 @@ class MeView(APIView):
             .order_by('role__level')
         )
         role_names = [ur.role.name for ur in user_role_qs]
+        primary_level = user_role_qs[0].role.level if user_role_qs else None
 
         # Build per-tenant permissions list from the TenantUsers role assignment
         tenant_memberships = TenantUsers.objects.filter(
@@ -381,6 +399,7 @@ class MeView(APIView):
             "sso_provider": user.sso_provider,
             "role": role_names[0] if role_names else None,
             "roles": role_names,
+            "level": primary_level,
             "permissions": permissions,
             "tenants": tenants,
             "subscription": subscription,

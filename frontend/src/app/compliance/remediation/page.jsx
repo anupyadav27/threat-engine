@@ -1,7 +1,7 @@
 'use client';
 
-import { Shield, AlertTriangle, CheckCircle, Search } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Shield, AlertTriangle, CheckCircle, Search, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 
@@ -17,6 +17,7 @@ const C = {
 };
 
 const SEVERITY_ORDER = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, INFO: 4 };
+const PAGE_SIZE = 25;
 
 const sevColor = (s) => C[(s || '').toLowerCase()] || C.low;
 
@@ -42,11 +43,12 @@ export default function ComplianceRemediationPage() {
   const { data, loading, error } = useViewFetch('compliance/remediation');
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
 
   const { failingControls = [], totalFailing = 0, bySeverity = {} } = data ?? {};
 
-  /* Client-side filter + search (data is already severity-sorted from BFF) */
-  const displayed = useMemo(() => {
+  /* Client-side filter + search across the full loaded dataset */
+  const filtered = useMemo(() => {
     let rows = failingControls;
     if (severityFilter !== 'ALL') {
       rows = rows.filter(c => (c.severity || '').toUpperCase() === severityFilter);
@@ -61,6 +63,14 @@ export default function ComplianceRemediationPage() {
     }
     return rows;
   }, [failingControls, severityFilter, searchTerm]);
+
+  /* Reset to page 1 whenever the filter/search changes */
+  useEffect(() => { setCurrentPage(1); }, [severityFilter, searchTerm]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pageStart  = (currentPage - 1) * PAGE_SIZE;
+  const pageEnd    = pageStart + PAGE_SIZE;
+  const displayed  = filtered.slice(pageStart, pageEnd);
 
   /* ── Loading ── */
   if (loading) {
@@ -115,6 +125,22 @@ export default function ComplianceRemediationPage() {
             Failing compliance controls sorted by severity
           </p>
         </div>
+        <button
+          onClick={() => {
+            const header = ['Control ID', 'Title', 'Framework', 'Severity', 'Status', 'Resources'];
+            const rows = failingControls.map(c => [
+              c.control_id, c.control_title || c.title, c.framework, c.severity, c.status, c.resources ?? 0,
+            ]);
+            const csv = [header, ...rows].map(r => r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' }));
+            a.download = 'remediation_queue.csv';
+            a.click();
+          }}
+          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
+        >
+          <Download size={14} /> Export CSV
+        </button>
       </div>
 
       {/* ── Severity summary strip ── */}
@@ -186,18 +212,30 @@ export default function ComplianceRemediationPage() {
             </div>
 
             <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
-              {displayed.length} result{displayed.length !== 1 ? 's' : ''}
+              {filtered.length < totalFailing
+                ? `${filtered.length} matching · ${totalFailing} total`
+                : `${totalFailing} control${totalFailing !== 1 ? 's' : ''}`}
             </span>
           </div>
 
           {/* Table */}
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '12%' }} />  {/* Framework */}
+              <col style={{ width: '18%' }} />  {/* Control ID */}
+              <col style={{ width: '28%' }} />  {/* Title */}
+              <col style={{ width: '9%' }} />   {/* Severity */}
+              <col style={{ width: '15%' }} />  {/* Account */}
+              <col style={{ width: '9%' }} />   {/* Days Open */}
+              <col style={{ width: '9%' }} />   {/* Last Checked */}
+            </colgroup>
             <thead>
               <tr style={{ borderBottom: `1px solid ${C.border}`, backgroundColor: 'var(--bg-secondary)' }}>
-                {['Framework', 'Control ID', 'Title', 'Severity', 'Affected Accounts', 'Last Checked'].map(h => (
+                {['Framework', 'Control ID', 'Title', 'Severity', 'Account', 'Days Open', 'Last Checked'].map(h => (
                   <th key={h} style={{
                     padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 600,
                     color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5,
+                    overflow: 'hidden',
                   }}>{h}</th>
                 ))}
               </tr>
@@ -205,69 +243,147 @@ export default function ComplianceRemediationPage() {
             <tbody>
               {displayed.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  <td colSpan={7} style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
                     No controls match your filter.
                   </td>
                 </tr>
-              ) : displayed.map((ctrl, i) => (
-                <tr
-                  key={`${ctrl.framework}-${ctrl.control_id}-${i}`}
-                  style={{ borderBottom: `1px solid ${C.border}`, transition: 'background 0.1s' }}
-                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                >
-                  {/* Framework */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
-                      backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
-                    }}>
-                      {ctrl.framework || '—'}
-                    </span>
-                  </td>
+              ) : displayed.map((ctrl, i) => {
+                const daysOpen = ctrl.days_open || 0;
+                const daysColor = daysOpen > 90 ? '#ef4444' : daysOpen > 30 ? '#f59e0b' : 'var(--text-secondary)';
+                const acctDisplay = ctrl.affected_account_names?.[0] || ctrl.affected_accounts?.[0] || '—';
+                return (
+                  <tr
+                    key={`${ctrl.framework}-${ctrl.control_id}-${i}`}
+                    style={{ borderBottom: `1px solid ${C.border}`, transition: 'background 0.1s' }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                  >
+                    {/* Framework */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <span style={{
+                        fontSize: 11, padding: '2px 8px', borderRadius: 4, fontWeight: 700,
+                        backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)',
+                        display: 'inline-block', maxWidth: '100%',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }} title={ctrl.framework || ''}>
+                        {ctrl.framework || '—'}
+                      </span>
+                    </td>
 
-                  {/* Control ID */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <code style={{ fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace' }}>
-                      {ctrl.control_id || '—'}
-                    </code>
-                  </td>
+                    {/* Control ID */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <code style={{
+                        fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'monospace',
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden', wordBreak: 'break-all',
+                      }} title={ctrl.control_id || ''}>
+                        {ctrl.control_id || '—'}
+                      </code>
+                    </td>
 
-                  {/* Title */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                      {ctrl.control_title || ctrl.control_id || '—'}
-                    </span>
-                  </td>
+                    {/* Title */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <span style={{
+                        fontSize: 13, color: 'var(--text-primary)',
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden', lineHeight: 1.4,
+                      }} title={ctrl.control_title || ctrl.control_id || ''}>
+                        {ctrl.control_title || ctrl.control_id || '—'}
+                      </span>
+                    </td>
 
-                  {/* Severity */}
-                  <td style={{ padding: '12px 16px' }}>
-                    {ctrl.severity
-                      ? <SeverityBadge severity={ctrl.severity.toLowerCase()} />
-                      : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
-                    }
-                  </td>
-
-                  {/* Affected Accounts */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {ctrl.affected_account_count ?? (ctrl.affected_accounts?.length ?? 0)}
-                    </span>
-                  </td>
-
-                  {/* Last Checked */}
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      {ctrl.last_checked
-                        ? new Date(ctrl.last_checked).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-                        : '—'
+                    {/* Severity */}
+                    <td style={{ padding: '10px 16px' }}>
+                      {ctrl.severity
+                        ? <SeverityBadge severity={ctrl.severity.toLowerCase()} />
+                        : <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
                       }
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+
+                    {/* Account */}
+                    <td style={{ padding: '10px 16px', overflow: 'hidden' }}>
+                      <span style={{
+                        fontSize: 12, color: 'var(--text-secondary)',
+                        display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      }} title={acctDisplay}>
+                        {acctDisplay}
+                      </span>
+                    </td>
+
+                    {/* Days Open */}
+                    <td style={{ padding: '10px 16px' }}>
+                      {daysOpen > 0 ? (
+                        <span style={{ fontSize: 13, fontWeight: 700, color: daysColor }}>
+                          {daysOpen}d
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>
+                      )}
+                    </td>
+
+                    {/* Last Checked */}
+                    <td style={{ padding: '10px 16px' }}>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {ctrl.last_checked
+                          ? new Date(ctrl.last_checked).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+                          : '—'
+                        }
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+
+          {/* Pagination footer */}
+          {totalPages > 1 && (
+            <div style={{
+              padding: '12px 20px', borderTop: `1px solid ${C.border}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              backgroundColor: 'var(--bg-secondary)',
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Showing {pageStart + 1}–{Math.min(pageEnd, filtered.length)} of {filtered.length}
+                {filtered.length < totalFailing && ` (${totalFailing} total)`}
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    cursor: currentPage === 1 ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${C.border}`,
+                    backgroundColor: currentPage === 1 ? 'var(--bg-tertiary)' : 'var(--bg-card)',
+                    color: currentPage === 1 ? 'var(--text-muted)' : 'var(--text-primary)',
+                    opacity: currentPage === 1 ? 0.5 : 1,
+                  }}
+                >
+                  <ChevronLeft size={13} /> Previous
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', minWidth: 80, textAlign: 'center' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600,
+                    cursor: currentPage === totalPages ? 'not-allowed' : 'pointer',
+                    border: `1px solid ${C.border}`,
+                    backgroundColor: currentPage === totalPages ? 'var(--bg-tertiary)' : 'var(--bg-card)',
+                    color: currentPage === totalPages ? 'var(--text-muted)' : 'var(--text-primary)',
+                    opacity: currentPage === totalPages ? 0.5 : 1,
+                  }}
+                >
+                  Next <ChevronRight size={13} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -112,7 +112,11 @@ def main():
         start = datetime.now(timezone.utc)
 
         # 1. Load data
-        from container_security_engine.input.discovery_reader import ContainerDiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from container_security_engine.input.di_reader import ContainerDIReader as ContainerDiscoveryReader
+        else:
+            from container_security_engine.input.discovery_reader import ContainerDiscoveryReader
         from container_security_engine.input.check_reader import ContainerCheckReader
 
         disc_reader = ContainerDiscoveryReader()
@@ -291,6 +295,28 @@ def main():
                 "finding_data": asf.get("finding_data", {}),
             })
 
+        # 6b. Pattern A: provider.analyze() — workload-level rule findings (non-fatal)
+        try:
+            from engine_common.db_connections import get_discoveries_conn as _get_disc_conn
+            _disc_conn = _get_disc_conn()
+            try:
+                pa_findings = container_provider.analyze(
+                    scan_run_id=scan_run_id,
+                    tenant_id=tenant_id,
+                    account_id=account_id,
+                    discoveries_conn=_disc_conn,
+                )
+                if pa_findings:
+                    for pf in pa_findings:
+                        pf.setdefault("credential_ref", metadata.get("credential_ref"))
+                        pf.setdefault("credential_type", metadata.get("credential_type"))
+                    findings.extend(pa_findings)
+                    logger.info("Pattern A: %d additional workload findings from provider.analyze()", len(pa_findings))
+            finally:
+                _disc_conn.close()
+        except Exception as _pa_err:
+            logger.warning("Container Pattern A analyze() failed (non-fatal): %s", _pa_err)
+
         # 7. Summary
         sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         domain_counts = {}
@@ -394,6 +420,194 @@ def main():
         except Exception as _ret_err:
             logger.warning("Retention cleanup skipped: %s", _ret_err)
 
+        # Write container FAIL findings to shared security_findings table (SF-P1-03, non-fatal)
+        # detail JSONB: namespace/kind/name/rule_id/cluster_provider ONLY — no raw pod spec or env vars
+        try:
+            import hashlib
+            import psycopg2.extras as _extras
+            from engine_common.security_findings_writer import upsert_findings
+            from engine_common.db_connections import get_di_conn, get_container_sec_conn
+
+            container_conn = get_container_sec_conn()
+            inv_conn = get_di_conn()
+            rows: list = []
+
+            # Derive cluster_provider from provider string
+            _PROVIDER_MAP = {
+                "aws": "eks", "azure": "aks", "gcp": "gke",
+                "oci": "oke", "k8s": "self_managed", "alicloud": "self_managed",
+            }
+            cluster_provider = _PROVIDER_MAP.get((provider or "").lower(), "self_managed")
+
+            with container_conn.cursor(cursor_factory=_extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT finding_id, resource_uid, resource_type, account_id,
+                           severity, status, rule_id, finding_data,
+                           container_service, security_domain
+                    FROM container_sec_findings
+                    WHERE scan_run_id = %s AND tenant_id = %s AND status = 'FAIL'
+                    ORDER BY severity DESC
+                    LIMIT 2000
+                    """,
+                    (scan_run_id, tenant_id),
+                )
+                image_risk_count = 0
+                for r in cur.fetchall():
+                    fd = r.get("finding_data") or {}
+                    if not isinstance(fd, dict):
+                        fd = {}
+
+                    # Determine finding_type
+                    sec_domain = (r.get("security_domain") or "").lower()
+                    rule = (r.get("rule_id") or "").lower()
+                    is_image = ("image" in sec_domain or "image" in rule
+                                or "registry" in sec_domain or "cve" in sec_domain)
+
+                    if is_image:
+                        if image_risk_count >= 200:  # cap per AC-8
+                            continue
+                        image_risk_count += 1
+                        ftype = "container_risk"
+                    else:
+                        ftype = "k8s_violation"
+
+                    uid = r.get("resource_uid") or ""
+                    # Build k8s/{namespace}/{kind}/{name} if resource_uid not already in that format
+                    if not uid.startswith("k8s/") and fd.get("namespace"):
+                        kind = (fd.get("kind") or r.get("resource_type") or "resource").lower()
+                        name = fd.get("name") or fd.get("resource_name") or uid.split("/")[-1]
+                        uid = f"k8s/{fd['namespace']}/{kind}/{name}"
+
+                    # detail: ONLY safe fields — no pod spec, no env vars, no image digests > 32 chars
+                    detail = {
+                        "namespace": fd.get("namespace"),
+                        "kind": fd.get("kind") or r.get("resource_type"),
+                        "name": fd.get("name") or fd.get("resource_name"),
+                        "rule_id": r.get("rule_id"),
+                        "cluster_provider": cluster_provider,
+                    }
+
+                    rows.append({
+                        "source_finding_id": str(r["finding_id"]),
+                        "resource_uid": uid,
+                        "account_id": r.get("account_id", ""),
+                        "provider": "k8s",
+                        "resource_type": (r.get("resource_type") or "").lower(),
+                        "finding_type": ftype,
+                        "severity": (r.get("severity") or "medium").lower(),
+                        "rule_id": r.get("rule_id", ""),
+                        "title": fd.get("title", ""),
+                        "detail": detail,
+                        "status": "open",
+                    })
+
+            if rows:
+                written = upsert_findings(
+                    conn=inv_conn,
+                    findings=rows,
+                    source_engine="container",
+                    tenant_id=tenant_id,
+                    scan_run_id=scan_run_id,
+                )
+                logger.info("security_findings: wrote %d container rows (k8s_violation + container_risk)", written)
+            inv_conn.close()
+            container_conn.close()
+        except Exception as _sf_err:
+            logger.warning("Container security_findings write skipped: %s", _sf_err)
+
+        # Write container posture signals to resource_security_posture (PC-P1-03, non-fatal)
+        try:
+            from engine_common.db_connections import get_di_conn as _get_inv_conn, get_container_sec_conn as _get_csec_conn
+            import psycopg2.extras as _pextras
+
+            _csec_conn = _get_csec_conn()
+            _clusters: dict = {}
+            with _csec_conn.cursor(cursor_factory=_pextras.RealDictCursor) as _cur2:
+                _cur2.execute(
+                    """SELECT account_id, severity, rule_id, security_domain
+                       FROM container_sec_findings
+                       WHERE scan_run_id = %s AND tenant_id = %s""",
+                    (scan_run_id, tenant_id),
+                )
+                for _r in _cur2.fetchall():
+                    _cid = _r.get("account_id") or account_id or ""
+                    if _cid not in _clusters:
+                        _clusters[_cid] = {
+                            "critical": 0, "high": 0, "medium": 0,
+                            "has_privileged": False, "has_image_cve": False,
+                            "has_rbac": False, "has_netpol": False,
+                            "ecr_scan_on_push_disabled": False, "eks_node_ami_outdated": False,
+                        }
+                    _sev = (_r.get("severity") or "").lower()
+                    _rule = (_r.get("rule_id") or "").lower()
+                    _dom = (_r.get("security_domain") or "").lower()
+                    _status = (_r.get("status") or "FAIL").upper()
+                    if _status == "FAIL":
+                        if _sev == "critical":
+                            _clusters[_cid]["critical"] += 1
+                        elif _sev == "high":
+                            _clusters[_cid]["high"] += 1
+                        elif _sev == "medium":
+                            _clusters[_cid]["medium"] += 1
+                        if "privileged" in _rule or "privileged" in _dom:
+                            _clusters[_cid]["has_privileged"] = True
+                        if _sev == "critical" and ("image" in _dom or "cve" in _dom or "image" in _rule):
+                            _clusters[_cid]["has_image_cve"] = True
+                        if "rbac" in _rule or "rbac" in _dom:
+                            _clusters[_cid]["has_rbac"] = True
+                        if "network_policy" in _rule or "netpol" in _rule or "network_policy" in _dom:
+                            _clusters[_cid]["has_netpol"] = True
+                        if "scan_on_push" in _rule or "imagescan" in _rule:
+                            _clusters[_cid]["ecr_scan_on_push_disabled"] = True
+                        if "eks" in _rule and ("nodegroup" in _rule or "node" in _rule) and ("version" in _rule or "ami" in _rule or "outdated" in _rule or "launch" in _rule):
+                            _clusters[_cid]["eks_node_ami_outdated"] = True
+            _csec_conn.close()
+
+            if _clusters:
+                _inv_conn2 = _get_inv_conn()
+                try:
+                    with _inv_conn2.cursor() as _cur3:
+                        _cur3.execute(
+                            "INSERT INTO tenants (tenant_id, tenant_name) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+                            (tenant_id, tenant_id),
+                        )
+                        _prsp_rows = []
+                        for _cid, _cl in _clusters.items():
+                            _score = max(0, 100 - _cl["critical"] * 20 - _cl["high"] * 10 - _cl["medium"] * 5)
+                            _prsp_rows.append((
+                                tenant_id, scan_run_id, _cid, provider, "", _cid, "k8s::cluster",
+                                _cl["has_privileged"], _cl["has_image_cve"],
+                                _cl["has_rbac"], _cl["has_netpol"], min(_score, 100),
+                                not _cl["ecr_scan_on_push_disabled"],
+                                _cl["eks_node_ami_outdated"],
+                            ))
+                        _cur3.executemany(
+                            """INSERT INTO resource_security_posture
+                               (tenant_id, scan_run_id, account_id, provider, region,
+                                resource_uid, resource_type,
+                                has_privileged_container, image_has_critical_cve,
+                                k8s_rbac_overpermissive, container_network_policy_missing,
+                                container_security_score,
+                                ecr_scan_on_push_enabled, eks_node_ami_outdated)
+                               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                               ON CONFLICT (resource_uid, scan_run_id, tenant_id) DO UPDATE SET
+                                   has_privileged_container         = EXCLUDED.has_privileged_container,
+                                   image_has_critical_cve           = EXCLUDED.image_has_critical_cve,
+                                   k8s_rbac_overpermissive          = EXCLUDED.k8s_rbac_overpermissive,
+                                   container_network_policy_missing = EXCLUDED.container_network_policy_missing,
+                                   container_security_score         = EXCLUDED.container_security_score,
+                                   ecr_scan_on_push_enabled         = EXCLUDED.ecr_scan_on_push_enabled,
+                                   eks_node_ami_outdated            = EXCLUDED.eks_node_ami_outdated,
+                                   updated_at                       = NOW()""",
+                            _prsp_rows,
+                        )
+                        _inv_conn2.commit()
+                    logger.info("Posture: wrote %d container cluster rows to resource_security_posture", len(_prsp_rows))
+                finally:
+                    _inv_conn2.close()
+        except Exception as _csec_posture_err:
+            logger.warning("Container posture write failed (non-fatal): %s", _csec_posture_err)
 
     except Exception as e:
         logger.error(f"Container security scan FAILED: {e}", exc_info=True)

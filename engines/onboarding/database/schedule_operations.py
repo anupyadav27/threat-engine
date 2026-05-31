@@ -70,15 +70,15 @@ def create_schedule(data: Dict[str, Any]) -> Dict[str, Any]:
                 data.get("cron_expression", "0 2 * * 0"),
                 data.get("timezone", "UTC"),
                 data.get("enabled", True),
-                json.dumps(data["include_regions"]) if data.get("include_regions") is not None else None,
-                json.dumps(data["exclude_regions"]) if data.get("exclude_regions") is not None else None,
-                json.dumps(data["include_services"]) if data.get("include_services") is not None else None,
-                json.dumps(data["exclude_services"]) if data.get("exclude_services") is not None else None,
-                json.dumps(data.get("engines_requested", default_engines)),
+                json.dumps(data["include_regions"]) if data.get("include_regions") else None,
+                json.dumps(data["exclude_regions"]) if data.get("exclude_regions") else None,
+                json.dumps(data["include_services"]) if data.get("include_services") else None,
+                json.dumps(data["exclude_services"]) if data.get("exclude_services") else None,
+                json.dumps(data.get("engines_requested") or default_engines),
                 data.get("next_run_at"),
                 data.get("notify_on_success", False),
                 data.get("notify_on_failure", True),
-                json.dumps(data["notification_emails"]) if data.get("notification_emails") is not None else None,
+                json.dumps(data["notification_emails"]) if data.get("notification_emails") else None,
                 now,
                 now,
             ),
@@ -162,13 +162,24 @@ def update_schedule(schedule_id: str, updates: Dict[str, Any]) -> Optional[Dict[
 
     fields.setdefault("updated_at", datetime.now(timezone.utc))
 
+    # All list columns in schedules are JSONB — must serialize with json.dumps.
+    _JSONB_LIST_COLS = {
+        "include_regions", "exclude_regions", "include_services", "exclude_services",
+        "engines_requested", "notification_emails",
+    }
+
     conn = get_db_connection()
     cur = conn.cursor(cursor_factory=RealDictCursor)
     try:
         set_clause = ", ".join(f"{k} = %s" for k in fields)
         values = []
-        for v in fields.values():
-            values.append(json.dumps(v) if isinstance(v, (dict, list)) else v)
+        for k, v in fields.items():
+            if k in _JSONB_LIST_COLS and isinstance(v, list):
+                values.append(json.dumps(v))
+            elif isinstance(v, dict):
+                values.append(json.dumps(v))
+            else:
+                values.append(v)
         values.append(schedule_id)
 
         cur.execute(

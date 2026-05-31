@@ -1,0 +1,72 @@
+---
+# AliCloud (Alibaba Cloud) infrastructure attachment relationships
+# Loaded by: catalog/relationships/upload_relationship_catalog.py
+# Destination: resource_relationship_catalog in threat_engine_di
+# category: infrastructure
+
+csp: alicloud
+category: infrastructure
+rules:
+
+  # ── ECS Instance → Security Group ────────────────────────────────────────────
+  - source_resource_type: ecs.instance
+    target_resource_type: ecs.security_group
+    relation_type: GOVERNED_BY
+    field_path: "SecurityGroupIds.SecurityGroupId[*]"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: AliCloud ECS instance governed by security groups
+
+  # ── ECS Instance → VSwitch ────────────────────────────────────────────────────
+  - source_resource_type: ecs.instance
+    target_resource_type: vpc.v_switch
+    relation_type: PLACED_IN
+    field_path: "VSwitchId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: AliCloud ECS instance placed in VSwitch
+
+  # ── ECS Instance → Disk ───────────────────────────────────────────────────────
+  - source_resource_type: ecs.instance
+    target_resource_type: ecs.disk
+    relation_type: ATTACHED_TO
+    field_path: "Disks.Disk[*].DiskId"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: AliCloud ECS instance attached to disks
+
+  # ── RDS Instance → Security Group ─────────────────────────────────────────────
+  - source_resource_type: rds.db_instance
+    target_resource_type: ecs.security_group
+    relation_type: GOVERNED_BY
+    field_path: "SecurityIPList"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: AliCloud RDS instance security groups
+
+  # ── Function → Service ─────────────────────────────────────────────────────────
+  - source_resource_type: fc.function
+    target_resource_type: fc.service
+    relation_type: BELONGS_TO
+    field_path: "serviceName"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    description: AliCloud Function Compute function belongs to service
+
+  # ── Container Service Cluster → Node Pool ──────────────────────────────────────
+  - source_resource_type: cs.cluster
+    target_resource_type: cs.node_pool
+    relation_type: CONTAINS
+    field_path: "node_pools[*].node_pool_id"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    description: AliCloud Container Service cluster contains node pools
+
+  # ── SLB → Backend Server ───────────────────────────────────────────────────────
+  - source_resource_type: slb.load_balancer
+    target_resource_type: ecs.instance
+    relation_type: ROUTES_TO
+    field_path: "BackendServers.BackendServer[*].ServerId"
+    field_path_type: array_field_ref
+    attack_path_category: internet_exposure
+    description: AliCloud SLB routes to backend ECS instances

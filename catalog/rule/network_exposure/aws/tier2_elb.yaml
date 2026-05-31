@@ -1,0 +1,58 @@
+# =============================================================================
+# IEDS Tier 2 — AWS Load Balancers (ALB / NLB / CLB)
+# Tier 2 = emitted-field condition check.
+# =============================================================================
+
+rules:
+
+  - rule_id: IEDS-T2-AWS-001
+    tier: 2
+    csp: aws
+    resource_type: elasticloadbalancingv2.loadbalancer
+    origin_type: internet
+    title: "AWS ALB/NLB is internet-facing"
+    description: >
+      Application and Network Load Balancers with scheme=internet-facing are directly
+      reachable from the internet. Any instance attached behind the LB inherits internet
+      exposure.
+    severity: high
+    required_emitted_fields:
+      - scheme
+    exposure_conditions:
+      - field: scheme
+        operator: eq
+        value: internet-facing
+
+  - rule_id: IEDS-T2-AWS-002
+    tier: 2
+    csp: aws
+    resource_type: elasticloadbalancing.loadbalancer
+    origin_type: internet
+    title: "AWS Classic Load Balancer is internet-facing"
+    description: >
+      Classic ELBs with scheme=internet-facing are directly reachable from the internet.
+      NOTE: discovery YAML only emits LoadBalancerAttributes; Scheme is not yet emitted.
+      Gap tracked: add Scheme to step6_elasticloadbalancing.discovery.yaml emit block.
+    severity: high
+    required_emitted_fields:
+      - load_balancer_attributes
+    exposure_conditions:
+      - field: load_balancer_attributes
+        operator: not_null
+
+  - rule_id: IEDS-T2-AWS-003
+    tier: 2
+    csp: aws
+    resource_type: elasticloadbalancingv2.loadbalancer
+    origin_type: internet
+    title: "AWS ALB/NLB is internet-facing (via Scheme tag)"
+    description: >
+      Some LBs store the scheme in the Tags or in a nested field. This rule catches
+      any LB with an internet-accessible DNS name matching the regional ELB pattern.
+    severity: high
+    required_emitted_fields:
+      - dns_name
+    exposure_conditions:
+      - field: dns_name
+        operator: contains
+        value: ".elb.amazonaws.com"

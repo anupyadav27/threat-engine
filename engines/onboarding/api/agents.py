@@ -83,8 +83,9 @@ def _verify_agent_jwt(token: str) -> dict:
 
 def _get_registration(registration_id: str) -> Optional[dict]:
     try:
-        from engine_onboarding.database.connection import get_onboarding_connection
-        with get_onboarding_connection() as conn:
+        from engine_onboarding.database.connection import get_db_connection
+        conn = get_db_connection()
+        try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -96,6 +97,8 @@ def _get_registration(registration_id: str) -> Optional[dict]:
                     (registration_id,),
                 )
                 row = cur.fetchone()
+        finally:
+            conn.close()
         if not row:
             return None
         cols = ["registration_id", "account_id", "tenant_id", "customer_id",
@@ -115,7 +118,7 @@ async def bootstrap(body: AgentBootstrapRequest):
     This endpoint is excluded from AuthMiddleware — no X-Auth-Context required.
     """
     reg = _get_registration(body.registration_id)
-    if not reg or reg["status"] != "issued":
+    if not reg or reg["status"] not in ("pending", "issued"):
         raise HTTPException(status_code=404, detail="Registration not found or already activated")
 
     if reg["expires_at"] and reg["expires_at"] < datetime.now(timezone.utc):
@@ -130,9 +133,10 @@ async def bootstrap(body: AgentBootstrapRequest):
     new_expires = now + timedelta(days=_AGENT_SESSION_DAYS)
 
     try:
-        from engine_onboarding.database.connection import get_onboarding_connection
+        from engine_onboarding.database.connection import get_db_connection
         from engine_onboarding.database.cloud_accounts_operations import update_cloud_account
-        with get_onboarding_connection() as conn:
+        conn = get_db_connection()
+        try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -150,6 +154,8 @@ async def bootstrap(body: AgentBootstrapRequest):
                      body.registration_id),
                 )
             conn.commit()
+        finally:
+            conn.close()
 
         update_cloud_account(reg["account_id"], {
             "account_status":               "active",
@@ -189,8 +195,9 @@ async def heartbeat(
         raise HTTPException(status_code=403, detail="Not an agent token")
 
     try:
-        from engine_onboarding.database.connection import get_onboarding_connection
-        with get_onboarding_connection() as conn:
+        from engine_onboarding.database.connection import get_db_connection
+        conn = get_db_connection()
+        try:
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -203,6 +210,8 @@ async def heartbeat(
                 )
                 updated = cur.fetchone()
             conn.commit()
+        finally:
+            conn.close()
         if not updated:
             raise HTTPException(status_code=404, detail="Active registration not found")
     except HTTPException:

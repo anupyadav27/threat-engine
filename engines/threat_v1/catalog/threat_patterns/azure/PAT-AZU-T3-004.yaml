@@ -1,0 +1,48 @@
+id: PAT-AZU-T3-004
+version: 1
+description: "ACR credential harvest CDR event deploys backdoored container to AKS; pod uses node identity to reach Key Vault crown jewel."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Execution, Collection]
+mitre_techniques: [T1552, T1610, T1555]
+tactic_chain_order: [Credential Access, Execution, Collection]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_container_registry, azure_acr]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - azure.containerregistry.repository.supply_chain_registry_immutable_tags_or_signing_enforced
+hops:
+  - edge_type: EXECUTES_IN
+    target:
+      node_type: Resource
+      resource_types: [azure_kubernetes_service, azure_aks]
+      conditions:
+        check_rules_failing:
+          - azure.security.defender.container_vulnerabilities_resolved
+target:
+  node_type: Resource
+  resource_types: [azure_key_vault, azure_keyvault]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1552, T1610]
+  window_minutes: 120
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "ACR cred-list CDR → AKS workload → Key Vault crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "ACR no CDR events, AKS patched, Key Vault private"
+    expected_tier: 3
+    expected_severity: low

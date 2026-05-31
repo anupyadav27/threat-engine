@@ -81,8 +81,8 @@ def get_network_conn() -> psycopg2.extensions.connection:
     return _make_conn("NETWORK", "threat_engine_network")
 
 
-def get_ciem_conn() -> psycopg2.extensions.connection:
-    return _make_conn("CIEM", "threat_engine_ciem")
+def get_cdr_conn() -> psycopg2.extensions.connection:
+    return _make_conn("CDR", "threat_engine_cdr")
 
 
 def get_risk_conn() -> psycopg2.extensions.connection:
@@ -103,3 +103,20 @@ def get_dbsec_conn() -> psycopg2.extensions.connection:
 
 def get_ai_security_conn() -> psycopg2.extensions.connection:
     return _make_conn("AI_SECURITY", "threat_engine_ai_security")
+
+
+def get_attack_path_conn() -> psycopg2.extensions.connection:
+    return _make_conn("ATTACK_PATH", "threat_engine_attack_path")
+
+
+def get_api_security_conn() -> psycopg2.extensions.connection:
+    return _make_conn("API_SECURITY", "threat_engine_api_security")
+
+
+def get_di_conn() -> psycopg2.extensions.connection:
+    return _make_conn("DI", "threat_engine_di")
+
+
+# Alias used by all engines writing/reading security_findings and
+# resource_security_posture — both tables live in the DI DB.
+get_posture_conn = get_di_conn

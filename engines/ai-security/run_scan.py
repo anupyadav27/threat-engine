@@ -31,6 +31,80 @@ from engine_common.orchestration import get_orchestration_metadata
 logger = setup_logger(__name__, engine_name="ai-security-scanner")
 
 
+def _emit_ai_security_findings(scan_run_id: str, tenant_id: str) -> None:
+    """Read ai_security_findings and upsert rows into security_findings (inventory DB).
+
+    Args:
+        scan_run_id: Pipeline run identifier for the completed scan.
+        tenant_id: Tenant scope — ensures multi-tenant isolation.
+    """
+    from engine_common.security_findings_writer import upsert_findings
+    from engine_common.db_connections import get_ai_security_conn, get_di_conn
+
+    with get_ai_security_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    finding_id::text AS source_finding_id,
+                    tenant_id,
+                    account_id,
+                    provider,
+                    region,
+                    resource_uid,
+                    resource_type,
+                    rule_id,
+                    severity,
+                    status,
+                    title,
+                    detail,
+                    remediation,
+                    first_seen_at,
+                    last_seen_at
+                FROM ai_security_findings
+                WHERE scan_run_id = %s AND tenant_id = %s
+                  AND LOWER(severity) IN ('critical', 'high', 'medium', 'low')
+                """,
+                (scan_run_id, tenant_id),
+            )
+            cols = [d[0] for d in cur.description]
+            rows = cur.fetchall()
+
+    if not rows:
+        return
+
+    findings = []
+    for row in rows:
+        d = dict(zip(cols, row))
+        # detail is JSONB — already a dict via psycopg2; never call json.loads()
+        detail_val = d.get("detail") or {}
+        findings.append({
+            "source_finding_id": d["source_finding_id"],
+            "resource_uid":      d.get("resource_uid") or "",
+            "finding_type":      "ai_security",
+            "severity":          (d.get("severity") or "medium").lower(),
+            "title":             d.get("title", ""),
+            "account_id":        d.get("account_id", ""),
+            "provider":          d.get("provider", ""),
+            "resource_type":     d.get("resource_type", ""),
+            "rule_id":           d.get("rule_id", ""),
+            "description":       detail_val.get("description") if isinstance(detail_val, dict) else None,
+            "detail":            {"posture_category": "ai_security", "remediation": d.get("remediation"), **(detail_val if isinstance(detail_val, dict) else {})},
+            "status":            (d.get("status") or "open").lower(),
+            "first_seen_at":     d.get("first_seen_at"),
+        })
+
+    with get_di_conn() as iconn:
+        written = upsert_findings(
+            conn=iconn,
+            findings=findings,
+            source_engine="ai_security",
+            tenant_id=tenant_id,
+            scan_run_id=scan_run_id,
+        )
+    logger.info("security_findings: wrote %d AI security rows", written)
+
+
 def main():
     parser = argparse.ArgumentParser(description="AI Security Engine Scanner")
     parser.add_argument("--scan-run-id", required=True, help="Pipeline scan run ID")
@@ -80,7 +154,11 @@ def main():
         # ── Phase 1: Load input data from 6 engines ─────────────────────
         logger.info("[Phase 1] Loading input data from engine databases...")
 
-        from ai_security_engine.input.discovery_reader import AIDiscoveryReader
+        import os as _os
+        if _os.getenv("DI_ENGINE_ENABLED", "false").lower() == "true":
+            from ai_security_engine.input.di_reader import AIDIReader as AIDiscoveryReader
+        else:
+            from ai_security_engine.input.discovery_reader import AIDiscoveryReader
         from ai_security_engine.input.check_reader import AICheckReader
 
         disc_reader = AIDiscoveryReader()
@@ -523,6 +601,24 @@ def main():
             f"score={scores.get('risk_score', 0)}, {len(findings)} findings, "
             f"{len(inventory)} resources in {duration:.1f}s"
         )
+
+        # Write AI security posture signals to resource_security_posture (non-fatal, PC-P2-04)
+        try:
+            from ai_security_engine.posture_signals import write_ai_posture_signals
+            write_ai_posture_signals(
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id or "",
+                provider=provider,
+            )
+        except Exception as _ai_ps_err:
+            logger.warning("AI security posture signal write skipped: %s", _ai_ps_err)
+
+        # Write AI security findings to shared security_findings table (non-fatal)
+        try:
+            _emit_ai_security_findings(scan_run_id, tenant_id)
+        except Exception as _sf_err:
+            logger.warning("AI security security_findings write skipped: %s", _sf_err)
 
         # Retention: archive old scans to S3, keep last 5 in DB
         try:

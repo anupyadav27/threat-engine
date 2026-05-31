@@ -1,0 +1,49 @@
+id: PAT-AZU-T3-006
+version: 1
+description: "MFA disable + PIM deactivation CDR chain on break-glass account leads to unrestricted Key Vault crown jewel access."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Credential Access, Privilege Escalation, Collection]
+mitre_techniques: [T1556, T1548, T1555]
+tactic_chain_order: [Credential Access, Privilege Escalation, Collection]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_ad_user, azure_aad_user]
+  conditions:
+    cdr_actor_seen: true
+    check_rules_failing:
+      - azure.aad.directory_tenant.access_tenant_break_glass_accounts_mfa_enforced
+hops:
+  - edge_type: CAN_ESCALATE_TO
+    target:
+      node_type: Resource
+      resource_types: [azure_role_definition]
+      conditions:
+        is_admin_role: true
+target:
+  node_type: Resource
+  resource_types: [azure_key_vault, azure_keyvault]
+  conditions:
+    is_crown_jewel: true
+    check_rules_failing:
+      - azure.keyvault.key.rotation_enabled
+cdr_watch:
+  techniques: [T1556, T1548]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "Break-glass MFA disable CDR → admin role → Key Vault crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "Break-glass MFA enforced, no CDR events, Key Vault not crown jewel"
+    expected_tier: 3
+    expected_severity: low

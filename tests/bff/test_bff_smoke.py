@@ -27,14 +27,20 @@ import pytest
 
 # Make the gateway package importable so we can resolve response models.
 _REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(_REPO_ROOT, "shared", "api_gateway"))
+_GW_ROOT = os.path.join(_REPO_ROOT, "shared", "api_gateway")
+# Insert at position 1 (after tests/bff) so the gateway bff package wins over
+# the local tests/bff package when resolving `shared.api_gateway.bff`.
+if _REPO_ROOT not in sys.path:
+    sys.path.insert(0, _REPO_ROOT)
+if _GW_ROOT not in sys.path:
+    sys.path.insert(1, _GW_ROOT)
 
 try:
     import httpx
 except ImportError:  # pragma: no cover
     httpx = None  # type: ignore
 
-from bff import _common_schemas as schemas  # noqa: E402
+from shared.api_gateway.bff import _common_schemas as schemas  # noqa: E402
 
 GATEWAY = os.environ.get("BFF_GATEWAY_URL", "http://127.0.0.1:8000")
 

@@ -2,6 +2,12 @@
 Engine Orchestrator — CSPM Scan Pipeline
 =========================================
 
+.. deprecated::
+    This module is DEAD CODE — it is not imported by main.py or any live API path.
+    Pipeline orchestration is handled exclusively by Argo Workflows
+    (deployment/aws/eks/argo/) via ArgoClient in scheduler/argo_client.py.
+    Do not wire this module back in; remove it in a future cleanup sprint.
+
 Orchestrates all downstream engines after account onboarding / discovery.
 
 Pipeline stages (sequential + parallel):

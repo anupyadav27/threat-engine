@@ -2,12 +2,17 @@
 SQLAlchemy ORM models for threat_engine_onboarding database.
 
 Tables:
-    tenants          — customer workspaces
-    cloud_accounts   — one row per cloud account (AWS/Azure/GCP etc.)
-    schedules        — scan schedules (separate table, multiple per account)
-    scan_runs        — every scan execution (was scan_orchestration)
-    account_hierarchy — AWS Org / multi-account tree (unmanaged here, read-only)
+    tenants               — customer workspaces
+    cloud_accounts        — one row per cloud account (AWS/Azure/GCP etc.)
+    schedules             — scan schedules (separate table, multiple per account)
+    scan_runs             — every scan execution (was scan_orchestration)
+    account_hierarchy     — AWS Org / multi-account tree (unmanaged here, read-only)
+    agent_registrations   — agent tokens for on-prem/k8s agent PKCE flows
 """
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.ext.declarative import declarative_base
@@ -17,6 +22,44 @@ from sqlalchemy.types import TIMESTAMP
 import uuid
 
 Base = declarative_base()
+
+
+# ---------------------------------------------------------------------------
+# AgentRegistration — dataclass for psycopg2 row hydration
+# ---------------------------------------------------------------------------
+
+@dataclass
+class AgentRegistration:
+    """Represents a row from the agent_registrations table.
+
+    token_hash stores the SHA-256 hex digest of the raw agent token.
+    The raw token is NEVER stored in the database.
+
+    Attributes:
+        registration_id: UUID primary key.
+        agent_id: Human-readable agent identifier (e.g. 'agnt-a1b2c3d4').
+        account_id: FK to cloud_accounts.account_id.
+        tenant_id: Tenant identifier for multi-tenant isolation.
+        token_hash: SHA-256 hex digest of the raw registration token.
+        status: One of 'pending', 'connected', 'disconnected'.
+        last_heartbeat_at: Timestamp of most recent heartbeat from agent.
+        issued_at: When the registration record was created.
+        activated_at: When the agent first authenticated successfully.
+        agent_version: Semver string reported by the agent binary.
+        agent_hostname: Hostname reported by the agent.
+    """
+
+    registration_id: str
+    agent_id: Optional[str]
+    account_id: str
+    tenant_id: str
+    token_hash: str
+    status: str
+    last_heartbeat_at: Optional[datetime]
+    issued_at: datetime
+    activated_at: Optional[datetime]
+    agent_version: Optional[str]
+    agent_hostname: Optional[str]
 
 
 # ---------------------------------------------------------------------------
@@ -279,9 +322,9 @@ class ScanRun(Base):
         }
     overall_status auto-set to "completed" when all engines_requested are done.
     """
-    # NOTE (2026-05-03): Was incorrectly declared as 'scan_runs'.
-    # Confirmed: RDS table is 'scan_orchestration' — used by all Argo templates and engines.
-    __tablename__ = 'scan_orchestration'
+    # scan_runs IS the correct RDS table name — used by all live code and Argo templates.
+    # (An earlier comment here incorrectly claimed the table was 'scan_orchestration' — that is stale.)
+    __tablename__ = 'scan_runs'
 
     scan_run_id     = Column(UUID(as_uuid=True), primary_key=True,
                              default=uuid.uuid4)
@@ -392,3 +435,56 @@ class AccountHierarchy(Base):
     node_metadata   = Column('metadata', JSONB)   # 'metadata' is reserved by SQLAlchemy declarative
     discovered_at   = Column(TIMESTAMP(timezone=True))
     updated_at      = Column(TIMESTAMP(timezone=True))
+
+
+# ---------------------------------------------------------------------------
+# AgentRegistrationORM — SQLAlchemy ORM for agent_registrations table
+# (added by migration onboarding-001-account-type)
+# ---------------------------------------------------------------------------
+
+class AgentRegistrationORM(Base):
+    """
+    Agent registration record. Created when a cloud agent (on-prem/k8s)
+    initiates the PKCE registration flow.
+
+    agent_token_hash stores SHA-256 of the raw token — raw token is NEVER stored.
+    status values: 'pending' | 'connected' | 'disconnected'
+    """
+    __tablename__ = 'agent_registrations'
+
+    id               = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id       = Column(
+                           UUID(as_uuid=True),
+                           ForeignKey('cloud_accounts.account_id', ondelete='CASCADE'),
+                           nullable=False,
+                           index=True,
+                       )
+    tenant_id        = Column(String(255), nullable=False, index=True)
+    agent_token_hash = Column(String(64), nullable=False, unique=True)
+    status           = Column(String(20), nullable=False, default='pending')
+    last_heartbeat   = Column(TIMESTAMP(timezone=True))
+    registered_at    = Column(TIMESTAMP(timezone=True), nullable=False,
+                              server_default=func.now())
+    connected_at     = Column(TIMESTAMP(timezone=True))
+    agent_version    = Column(String(50))
+    agent_host       = Column(String(255))
+    created_at       = Column(TIMESTAMP(timezone=True), nullable=False,
+                              server_default=func.now())
+    updated_at       = Column(TIMESTAMP(timezone=True), nullable=False,
+                              server_default=func.now(), onupdate=func.now())
+
+    def to_dict(self) -> dict:
+        return {
+            'id':               str(self.id),
+            'account_id':       str(self.account_id),
+            'tenant_id':        self.tenant_id,
+            'agent_token_hash': self.agent_token_hash,
+            'status':           self.status,
+            'last_heartbeat':   self.last_heartbeat.isoformat() if self.last_heartbeat else None,
+            'registered_at':    self.registered_at.isoformat() if self.registered_at else None,
+            'connected_at':     self.connected_at.isoformat() if self.connected_at else None,
+            'agent_version':    self.agent_version,
+            'agent_host':       self.agent_host,
+            'created_at':       self.created_at.isoformat() if self.created_at else None,
+            'updated_at':       self.updated_at.isoformat() if self.updated_at else None,
+        }

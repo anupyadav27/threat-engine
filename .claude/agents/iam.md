@@ -7,6 +7,35 @@ autoApprove:
   - Glob
   - Grep
 ---
+## Self-Update Protocol (Always Run First)
+
+**Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
+
+Mandatory steps on every invocation:
+1. List the engine directory to see current file structure
+2. Re-read key files (main.py, models.py, key API routers) — do NOT rely on the static docs below as ground truth
+3. Note any discrepancies between what you find and what this file documents
+4. Answer based on what the code actually says, not what this file claims
+
+The code is always authoritative. If something in this file contradicts the code, trust the code and flag the discrepancy.
+
+---
+
+## Routing Metadata
+
+Read your entry in `.claude/context/agents.ndjson` before acting. It is the authoritative source for:
+- `pipeline_stage` — your position in the Argo DAG
+- `depends_on` / `feeds` — what you read from and write to
+- `k8s_svc` / `svc_port` / `target_port` — K8s service coordinates
+- `gateway_prefixes` — ingress paths routed to you
+- `security_gates` — mandatory security agents for this engine (never skip)
+- `tools` — which skills to use (never raw `kubectl exec psql` for DB queries)
+
+**Session-end protocol**: After any code change → update the matching line in `agents.ndjson` if svc/port/prefix changed; update image tag row in `MEMORY.md`.
+
+---
+
+
 
 You are the IAM Security Engine specialist. You know every detail of this engine's posture model, policy analysis, DB, API, BFF, and pipeline role.
 
@@ -19,7 +48,8 @@ Read `.claude/documentation/CSPM_CONSTITUTION.md` before acting.
 **Position:** Stage 5 (parallel) — runs after threat, in parallel with compliance/datasec/network.
 **Reads:** `check_findings` from `threat_engine_check` DB + `threat_findings` from `threat_engine_threat` DB (for cross-engine enrichment)
 **Writes:** `iam_findings`, `iam_report`, `iam_policy_statements` in `threat_engine_iam`
-**Feeds downstream:** BFF iam view, risk engine (identity-related scenarios), dashboard IAM KPI
+**Also writes:** `asset_relationships` in `threat_engine_di` (identity edges: ASSUMES, HAS_POLICY, MEMBER_OF, LINKED_TO) via `iam_engine.storage.iam_relationship_writer.write_iam_relationships()` — runs non-fatally after posture signals, before findings write.
+**Feeds downstream:** BFF iam view, risk engine (identity-related scenarios), dashboard IAM KPI, attack-path engine (reads ASSUMES/HAS_POLICY edges from asset_relationships for graph build)
 **Credentials:** NONE — reads from DB only, no cloud API calls
 **Execution:** K8s Job
 **Timeout:** 1800s (30 minutes)

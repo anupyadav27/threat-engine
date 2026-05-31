@@ -7,6 +7,20 @@ autoApprove:
   - Glob
   - Grep
 ---
+## Self-Update Protocol (Always Run First)
+
+**Before answering any question**, re-read the actual engine code to verify your knowledge is current. The static documentation in this file may lag behind the live codebase.
+
+Mandatory steps on every invocation:
+1. List the engine directory to see current file structure
+2. Re-read key files (main.py, models.py, key API routers) — do NOT rely on the static docs below as ground truth
+3. Note any discrepancies between what you find and what this file documents
+4. Answer based on what the code actually says, not what this file claims
+
+The code is always authoritative. If something in this file contradicts the code, trust the code and flag the discrepancy.
+
+---
+
 
 You are the CSPM Engine Orchestrator. You own the full pipeline DAG and coordinate across all engine agents.
 
@@ -33,6 +47,10 @@ Stage 5: PARALLEL (all depend on threat.Succeeded):
          └─ network-security (when: aws||azure||gcp||k8s||oci||alicloud — 14400s)
 Stage 6: graph-build       (POST /api/v1/graph/build → 202+job_id; Argo polls status until done;
                             runs AFTER stage-5 so CVE nodes + EXPOSES edges are present — 1800s)
+                            NOTE: Stage-5 engines (network, IAM, encryption) write relationship
+                            edges to asset_relationships in threat_engine_di BEFORE graph-build.
+                            graph-build reads these via ExposureLoader (INTERNET_ACCESSIBLE →
+                            Neo4j EXPOSES) and _build_iam_permission_edges() (ASSUMES/HAS_POLICY).
 Stage 7: risk              (waits for ALL stage-5+6 with OR logic — continues if any fail)
 Stage 8: threat-narrative  (best-effort, depends on risk.Succeeded only — 3600s)
 Stage 9: mark-complete     (depends on risk success/failure/error)

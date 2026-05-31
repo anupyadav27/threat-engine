@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Query, Request
 
 from ._auth import resolve_tenant_id
-from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health
+from ._shared import fetch_many, fetch_all_check_findings, safe_get, is_empty_or_health, read_findings
 from ._cache import cache_key, cached_view, TTL_IAM, auth_level_from_header
 from ._transforms import (
     group_iam_findings_to_identities, normalize_iam_role,
@@ -30,6 +30,8 @@ async def view_iam(
     request: Request,
     provider: Optional[str] = Query(None),
     account: Optional[str] = Query(None),
+    tenant_ids: Optional[str] = Query(None),
+    account_ids: Optional[str] = Query(None),
     region: Optional[str] = Query(None),
     csp: str = Query("aws"),
     scan_id: str = Query("latest"),
@@ -206,5 +208,12 @@ async def view_iam(
         "serviceAccounts":     svc_accounts,
         "scanTrend":           safe_get(data, "scan_trend",            []),
     }
+
+    # ARCH-02: supplement from security_findings table (fallback when IAM engine empty)
+    sf = read_findings(tenant_id=tenant_id, source_engines=["iam"], limit=500)
+    if sf["total"] > 0 and not raw_findings:
+        result["findings"] = sf["findings"]
+    result["securityFindings"] = sf["findings"]
+
     cached_view(ck, result, ttl=TTL_IAM)
     return result

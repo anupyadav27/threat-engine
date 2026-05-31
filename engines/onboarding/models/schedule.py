@@ -20,13 +20,16 @@ class ScheduleCreate(BaseModel):
     regions: Optional[List[str]] = None
     services: Optional[List[str]] = None
     exclude_services: Optional[List[str]] = None
+    include_regions: Optional[List[str]] = None
+    exclude_regions: Optional[List[str]] = None
+    include_services: Optional[List[str]] = None
     notify_on_success: bool = False
     notify_on_failure: bool = True
     notification_channels: Optional[List[str]] = None
 
 
 class ScheduleUpdate(BaseModel):
-    """Update schedule request"""
+    """Update schedule request — allow-list only; unknown fields are silently dropped."""
     name: Optional[str] = None
     description: Optional[str] = None
     schedule_type: Optional[str] = None
@@ -36,6 +39,13 @@ class ScheduleUpdate(BaseModel):
     status: Optional[str] = None
     regions: Optional[List[str]] = None
     services: Optional[List[str]] = None
+    include_regions: Optional[List[str]] = None
+    exclude_regions: Optional[List[str]] = None
+    include_services: Optional[List[str]] = None
+    exclude_services: Optional[List[str]] = None
+
+    class Config:
+        extra = 'ignore'
 
 
 class ScheduleResponse(BaseModel):
@@ -52,6 +62,9 @@ class ScheduleResponse(BaseModel):
     regions: Optional[List[str]]
     services: Optional[List[str]]
     exclude_services: Optional[List[str]]
+    include_regions: Optional[List[str]] = None
+    exclude_regions: Optional[List[str]] = None
+    include_services: Optional[List[str]] = None
     status: str
     enabled: bool
     last_run_at: Optional[datetime]
@@ -61,7 +74,7 @@ class ScheduleResponse(BaseModel):
     failure_count: int
     created_at: datetime
     updated_at: datetime
-    
+
     class Config:
         from_attributes = True
 

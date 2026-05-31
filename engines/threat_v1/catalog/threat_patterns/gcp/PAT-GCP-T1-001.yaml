@@ -1,0 +1,30 @@
+id: PAT-GCP-T1-001
+version: 1
+description: "GCE instance uses default service account with editor/owner role — any code execution grants project-wide write access."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation]
+mitre_techniques: [T1078.004]
+tactic_chain_order: [Privilege Escalation]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_compute_instance, gcp_gce_instance]
+  conditions:
+    check_rules_failing:
+      - gcp.iam.service_account.instance_profile_no_instance_profile_with_admin_star
+      - gcp.iam.service_account.instance_profile_role_policies_least_privilege
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "GCE instance with default SA bound to roles/editor"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "GCE instance with custom SA scoped to specific service"
+    expected_tier: 1
+    expected_severity: low

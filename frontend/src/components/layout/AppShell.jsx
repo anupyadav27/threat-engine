@@ -64,8 +64,11 @@ export default function AppShell({ children }) {
         const res = await fetchView('onboarding/cloud_accounts', { limit: 1 });
         // Mark as checked regardless of outcome so we only run once per session
         sessionStorage.setItem('cspm_wizard_checked', 'done');
+        // Any error (including 401 which already fires handleUnauthorized) — skip silently.
+        // Never redirect to setup on an error response; only redirect when we can
+        // positively confirm there are zero accounts.
+        if (res?.error) return;
         const hasAccounts =
-          !res?.error &&
           res?.accounts?.length > 0 &&
           (res?.count === undefined || res.count > 0);
         if (!hasAccounts) {

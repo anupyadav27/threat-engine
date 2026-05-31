@@ -13,12 +13,10 @@ import { useGlobalFilter } from '@/lib/global-filter-context';
 import { useAuth } from '@/lib/auth-context';
 import { useTenant } from '@/lib/tenant-context';
 import { useViewFetch } from '@/lib/use-view-fetch';
-import {
-  MOCK_DASHBOARD, MOCK_THREATS, MOCK_FRAMEWORKS, MOCK_POSTURE,
-} from '@/lib/mock-data';
 import DataTable from '@/components/shared/DataTable';
 import AlertBanner from '@/components/shared/AlertBanner';
 import MetricStrip from '@/components/shared/MetricStrip';
+import { GuidedTourProvider, TourButton } from '@/components/onboarding/GuidedTour';
 import InsightRow from '@/components/shared/InsightRow';
 import CloudProviderBadge from '@/components/shared/CloudProviderBadge';
 import TrendLine from '@/components/charts/TrendLine';
@@ -134,7 +132,7 @@ const riskColumns = [
   { accessorKey: 'risk_rating', header: 'Rating', cell: (i) => { const r = (i.getValue() || i.row.original.rating || '').toLowerCase(); const c = r === 'critical' ? '#ef4444' : r === 'high' ? '#f97316' : r === 'medium' ? '#eab308' : '#3b82f6'; return <SeverityBadge severity={r} />; } },
 ];
 
-const ciemColumns = [
+const cdrColumns = [
   { accessorKey: 'severity', header: 'Severity', cell: (i) => <SeverityBadge severity={i.getValue()} /> },
   { accessorKey: 'title', header: 'Detection', cell: (i) => <span className="text-sm" style={{ color: 'var(--text-primary)' }}>{i.getValue() || i.row.original.detection || '—'}</span> },
   { accessorKey: 'rule_id', header: 'Rule ID', cell: (i) => <span className="text-xs font-mono" style={{ color: 'var(--text-secondary)' }}>{i.getValue() || '—'}</span> },
@@ -188,35 +186,20 @@ const DOMAIN_VIEWS = {
         if (svcMap[svc][s] !== undefined) svcMap[svc][s]++;
         svcMap[svc].total++;
       });
-      // Fallback mock service data if no real findings
       const svcEntries = Object.entries(svcMap).sort((a,b)=>b[1].total-a[1].total).slice(0,6);
-      const mockSvcEntries = [
-        ['IAM',   {critical:12,high:28,medium:18,low:4,total:62}],
-        ['S3',    {critical:6,high:14,medium:22,low:8,total:50}],
-        ['EC2',   {critical:4,high:11,medium:19,low:6,total:40}],
-        ['RDS',   {critical:3,high:8,medium:14,low:3,total:28}],
-        ['VPC',   {critical:1,high:6,medium:12,low:5,total:24}],
-        ['LAMBDA',{critical:2,high:5,medium:9,low:2,total:18}],
-      ];
-      const finalSvc = svcEntries.length >= 3 ? svcEntries : mockSvcEntries;
+      const finalSvc = svcEntries;
       const maxSvcTotal = Math.max(...finalSvc.map(([,v])=>v.total), 1);
 
-      const mockRules = [
-        {name:'S3 bucket public access not blocked',value:18,color:'#ef4444',severity:'critical',svc:'S3'},
-        {name:'IAM root account MFA disabled',value:14,color:'#ef4444',severity:'critical',svc:'IAM'},
-        {name:'Security group allows 0.0.0.0/0 ingress',value:12,color:'#f97316',severity:'high',svc:'EC2'},
-        {name:'CloudTrail logging disabled in region',value:9,color:'#f97316',severity:'high',svc:'CloudTrail'},
-        {name:'RDS snapshot publicly accessible',value:7,color:'#f59e0b',severity:'medium',svc:'RDS'},
-        {name:'Lambda function no resource-based policy',value:6,color:'#f59e0b',severity:'medium',svc:'Lambda'},
-        {name:'EBS volume not encrypted at rest',value:5,color:'#10b981',severity:'low',svc:'EBS'},
-      ];
-      const displayRules = topRules.length ? topRules : mockRules;
+      const displayRules = topRules;
 
       return {
         left: (
           <>
             <h3 className="text-sm font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>Top Failing Rules</h3>
             <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>{displayRules.length} rules with active failures · sorted by impact</p>
+            {displayRules.length === 0 && (
+              <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No data yet — run a scan to populate</p>
+            )}
             <div className="space-y-1.5">
               {displayRules.map((r,i) => (
                 <div key={i} className="flex items-center gap-0 rounded-lg overflow-hidden"
@@ -265,6 +248,9 @@ const DOMAIN_VIEWS = {
                 ))}
               </div>
             </div>
+            {finalSvc.length === 0 && (
+              <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No data yet — run a scan to populate</p>
+            )}
             <div className="space-y-2">
               {finalSvc.map(([svc, counts]) => {
                 const critHighPct = Math.round(((counts.critical + counts.high) / (counts.total || 1)) * 100);
@@ -303,7 +289,7 @@ const DOMAIN_VIEWS = {
     tableTitle: 'Top Misconfigurations',
   },
   threats: {
-    label: 'Threats', Icon: AlertTriangle, href: '/threats', color: '#ef4444', bffView: 'threats',
+    label: 'Threats', Icon: AlertTriangle, href: '/attack-paths', color: '#ef4444', bffView: 'threats',
     getKpis: (d) => d.kpiGroups || [],
     getCharts: (d) => {
       /* ── MITRE data ── */
@@ -313,41 +299,20 @@ const DOMAIN_VIEWS = {
       const mitreFromApi = mitreFlat.sort((a,b)=>(b.count||0)-(a.count||0)).slice(0,6)
         .map(t => ({ id: t.id||'', name: t.name||'', tactic: t.tactic||'', value: t.count||0 }));
 
-      const mockMitre = [
-        { id:'T1530', name:'Data from Cloud Storage',   tactic:'Collection',        value:28, severity:'critical' },
-        { id:'T1078', name:'Valid Accounts',             tactic:'Defense Evasion',   value:21, severity:'critical' },
-        { id:'T1190', name:'Exploit Public-Facing App', tactic:'Initial Access',    value:17, severity:'high'     },
-        { id:'T1136', name:'Create Account',             tactic:'Persistence',       value:12, severity:'high'     },
-        { id:'T1552', name:'Unsecured Credentials',      tactic:'Credential Access', value: 9, severity:'medium'   },
-        { id:'T1071', name:'Application Layer Protocol', tactic:'Command & Control', value: 6, severity:'medium'   },
-      ];
       const SEV_C = { critical:'#ef4444', high:'#f97316', medium:'#f59e0b', low:'#10b981' };
-      const displayMitre = mitreFromApi.length
-        ? mitreFromApi.map((t,i)=>({ ...t, severity: ['critical','critical','high','high','medium','medium'][i]||'medium' }))
-        : mockMitre;
+      const displayMitre = mitreFromApi.map((t,i)=>({ ...t, severity: ['critical','critical','high','high','medium','medium'][i]||'medium' }));
 
-      /* ── Threat trend data — fallback mock if API empty ── */
-      const mockTrend = (() => {
-        const now = new Date('2026-03-29');
-        return Array.from({ length: 30 }, (_,i) => {
-          const t = i / 29;
-          const wave = (ph,amp) => Math.sin(i*0.35+ph)*amp;
-          return {
-            date: (() => { const d2 = new Date(now); d2.setDate(d2.getDate()-(29-i)); return `${d2.getMonth()+1}/${d2.getDate()}`; })(),
-            critical: Math.max(1, Math.round(3 + t*2  + wave(0,   1.5))),
-            high:     Math.max(2, Math.round(7 + t*3  + wave(1,   2  ))),
-            medium:   Math.max(3, Math.round(12+ t*1  + wave(2,   3  ))),
-            low:      Math.max(1, Math.round(5 + t*0.5+ wave(0.5, 2  ))),
-          };
-        });
-      })();
-      const trendData = d.trendData?.length ? d.trendData : mockTrend;
+      /* ── Threat trend data — from BFF scan history ── */
+      const trendData = d.trendData || [];
       const totalToday = trendData.length ? (() => { const last = trendData[trendData.length-1]; return (last.critical||0)+(last.high||0)+(last.medium||0)+(last.low||0); })() : 0;
 
       return {
         /* ═══ LEFT — Stacked Area: threat volume by severity ═══ */
         left: (
           <>
+            {trendData.length === 0 && (
+              <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No trend data yet — run a scan to populate</p>
+            )}
             <div className="flex items-start justify-between mb-3">
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Threat Activity — 30 Days</h3>
@@ -388,6 +353,9 @@ const DOMAIN_VIEWS = {
         /* ═══ RIGHT — Horizontal Bar: MITRE ATT&CK techniques ═══ */
         right: (
           <>
+            {displayMitre.length === 0 && (
+              <p className="text-sm text-center py-8" style={{ color: 'var(--text-muted)' }}>No MITRE data yet — run a threat scan to populate</p>
+            )}
             <div className="flex items-start justify-between mb-1">
               <div>
                 <h3 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Top MITRE ATT&CK Techniques</h3>
@@ -658,9 +626,9 @@ const DOMAIN_VIEWS = {
                     Accounts ranked by active threat severity — prioritise for investigation
                   </p>
                 </div>
-                <Link href="/threats" className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                <Link href="/attack-paths" className="flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg"
                   style={{ color:'#ef4444', backgroundColor:'#ef444410' }}>
-                  All Threats <ArrowRight className="w-3 h-3" />
+                  Attack Paths <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
 
@@ -773,16 +741,7 @@ const DOMAIN_VIEWS = {
     getKpis: (d) => d.kpiGroups || [],
     getCharts: (d) => {
       /* ── Shared data ── */
-      const mockFrameworks = [
-        { name:'CIS AWS v1.4', short:'CIS AWS',  score:78, passed:156, total:200, trend:+2, critical:4  },
-        { name:'NIST 800-53',  short:'NIST',     score:71, passed:284, total:400, trend:-1, critical:8  },
-        { name:'ISO 27001',    short:'ISO 27001',score:74, passed:111, total:150, trend:+1, critical:5  },
-        { name:'PCI-DSS 4.0',  short:'PCI-DSS',  score:68, passed: 82, total:120, trend:-3, critical:11 },
-        { name:'HIPAA',        short:'HIPAA',    score:82, passed: 82, total:100, trend:+3, critical:2  },
-        { name:'SOC 2 Type II',short:'SOC 2',    score:76, passed:114, total:150, trend:0,  critical:6  },
-      ];
-      const apiFrameworks = (d.frameworks || []).filter(fw => (fw.score || 0) > 0);
-      const frameworks = apiFrameworks.length >= 2 ? apiFrameworks : mockFrameworks;
+      const frameworks = (d.frameworks || []).filter(fw => (fw.score || 0) > 0);
       const fwC     = (s) => s >= 80 ? '#22c55e' : s >= 70 ? '#f59e0b' : '#ef4444';
       const fwLabel = (s) => s >= 80 ? 'Compliant' : s >= 70 ? 'At Risk' : 'Non-Compliant';
 
@@ -1093,20 +1052,8 @@ const DOMAIN_VIEWS = {
       };
     },
     getTable: (d) => {
-      const mockControls = [
-        { control_id:'PCI-DSS-8.2.1', title:'Unique user IDs for all users',              framework:'PCI-DSS 4.0', severity:'critical', days_open:34 },
-        { control_id:'NIST-AC-2',     title:'Account Management — stale accounts',        framework:'NIST 800-53', severity:'high',     days_open:21 },
-        { control_id:'CIS-1.4',       title:'Ensure root account MFA is enabled',         framework:'CIS AWS',     severity:'critical', days_open:47 },
-        { control_id:'ISO-A.9.4.1',   title:'Information access restriction — public S3', framework:'ISO 27001',   severity:'high',     days_open:12 },
-        { control_id:'HIPAA-164.312', title:'Audit controls — CloudTrail disabled',       framework:'HIPAA',       severity:'high',     days_open: 8 },
-        { control_id:'PCI-DSS-6.3.3', title:'Software patching — EC2 instances',         framework:'PCI-DSS 4.0', severity:'medium',   days_open:19 },
-        { control_id:'SOC2-CC6.1',    title:'Logical access controls — SG 0.0.0.0/0',    framework:'SOC 2',       severity:'high',     days_open:28 },
-        { control_id:'CIS-2.1.2',     title:'S3 bucket public access — account level',   framework:'CIS AWS',     severity:'critical', days_open:55 },
-        { control_id:'NIST-SI-2',     title:'Flaw remediation — unpatched RDS',           framework:'NIST 800-53', severity:'medium',   days_open:14 },
-        { control_id:'PCI-DSS-10.2', title:'Implement audit logs — Lambda missing',      framework:'PCI-DSS 4.0', severity:'medium',   days_open: 6 },
-      ];
-      const data = (d.failingControls || []).filter(c => c.title).length >= 2 ? d.failingControls : mockControls;
-      return { data: data.slice(0, 10), columns: complianceColumns };
+      const data = (d.failingControls || []).filter(c => c.title).slice(0, 10);
+      return { data, columns: complianceColumns };
     },
     tableTitle: 'Top Failing Controls',
   },
@@ -1640,20 +1587,7 @@ const DOMAIN_VIEWS = {
       };
     },
     getTable: (d) => {
-      const mockAssets = [
-        { resource_name:'prod-api-ec2-01',    resource_type:'ec2.instance',         provider:'aws',   region:'us-east-1',   findings:3, risk_score:82 },
-        { resource_name:'s3-customer-data',   resource_type:'s3.bucket',            provider:'aws',   region:'us-east-1',   findings:2, risk_score:76 },
-        { resource_name:'eks-node-role',      resource_type:'iam.role',             provider:'aws',   region:'global',      findings:2, risk_score:74 },
-        { resource_name:'rds-main-db',        resource_type:'rds.instance',         provider:'aws',   region:'us-east-1',   findings:2, risk_score:68 },
-        { resource_name:'prod-api-sg-01',     resource_type:'ec2.security-group',   provider:'aws',   region:'us-east-1',   findings:1, risk_score:65 },
-        { resource_name:'az-storage-corp',    resource_type:'storage.account',      provider:'azure', region:'eastus',      findings:1, risk_score:58 },
-        { resource_name:'lambda-data-proc',   resource_type:'lambda.function',      provider:'aws',   region:'us-west-2',   findings:1, risk_score:55 },
-        { resource_name:'gcp-gke-cluster',    resource_type:'container.cluster',    provider:'gcp',   region:'us-central1', findings:1, risk_score:52 },
-        { resource_name:'vpc-flow-logs',      resource_type:'ec2.vpc',              provider:'aws',   region:'us-east-1',   findings:1, risk_score:48 },
-        { resource_name:'cloudwatch-alarms',  resource_type:'cloudwatch.alarm',     provider:'aws',   region:'us-east-1',   findings:0, risk_score:30 },
-      ];
-      const apiAssets = (d.assets || []).filter(a => a.resource_name || a.name);
-      const data = apiAssets.length >= 3 ? apiAssets.slice(0,10) : mockAssets;
+      const data = (d.assets || []).filter(a => a.resource_name || a.name).slice(0, 10);
       return { data, columns: inventoryColumns };
     },
     tableTitle: 'Top Resources by Risk',
@@ -1873,20 +1807,7 @@ const DOMAIN_VIEWS = {
       };
     },
     getTable: (d) => {
-      const mockStores = [
-        { name:'s3-customer-pii',     type:'S3 Bucket',    classification:'PII',        provider:'aws',   region:'us-east-1',   risk_score:97, encrypted:false },
-        { name:'rds-financial-db',    type:'RDS Instance',  classification:'Financial',   provider:'aws',   region:'us-east-1',   risk_score:94, encrypted:false },
-        { name:'az-health-records',   type:'Azure Blob',    classification:'PHI',         provider:'azure', region:'eastus',      risk_score:88, encrypted:false },
-        { name:'s3-api-keys-backup',  type:'S3 Bucket',    classification:'Credentials', provider:'aws',   region:'us-west-2',   risk_score:85, encrypted:true  },
-        { name:'dynamo-user-profile', type:'DynamoDB',      classification:'PII',         provider:'aws',   region:'us-east-1',   risk_score:79, encrypted:false },
-        { name:'gcs-analytics-pii',   type:'GCS Bucket',    classification:'PII',         provider:'gcp',   region:'us-central1', risk_score:74, encrypted:true  },
-        { name:'cosmos-orders',       type:'Cosmos DB',     classification:'Financial',   provider:'azure', region:'westus',      risk_score:68, encrypted:true  },
-        { name:'s3-logs-archive',     type:'S3 Bucket',    classification:'Confidential',provider:'aws',   region:'us-east-1',   risk_score:45, encrypted:true  },
-        { name:'rds-analytics',       type:'RDS Instance',  classification:'Confidential',provider:'aws',   region:'eu-west-1',   risk_score:38, encrypted:true  },
-        { name:'gcs-public-assets',   type:'GCS Bucket',    classification:'Public',      provider:'gcp',   region:'us-central1', risk_score:12, encrypted:true  },
-      ];
-      const apiData = (d.catalog || []).filter(s => s.name);
-      const data = apiData.length >= 3 ? apiData.slice(0,10) : mockStores;
+      const data = (d.catalog || []).filter(s => s.name).slice(0, 10);
       return { data, columns: datasecColumns };
     },
     tableTitle: 'Top Data Stores',
@@ -2078,20 +1999,7 @@ const DOMAIN_VIEWS = {
       };
     },
     getTable: (d) => {
-      const mockFindings = [
-        { severity:'CRITICAL', title:'Security group allows SSH from internet (0.0.0.0/0)', module:'Security Groups', resource_type:'aws.ec2.security-group', account_id:'AWS Production' },
-        { severity:'CRITICAL', title:'RDP port 3389 exposed to public internet',             module:'Security Groups', resource_type:'aws.ec2.security-group', account_id:'AWS Production' },
-        { severity:'CRITICAL', title:'MySQL database port open to 0.0.0.0/0',               module:'Security Groups', resource_type:'aws.rds.instance',        account_id:'AWS Staging' },
-        { severity:'HIGH',     title:'Unrestricted outbound traffic (all ports)',            module:'Security Groups', resource_type:'aws.ec2.security-group', account_id:'AWS Production' },
-        { severity:'HIGH',     title:'Load balancer missing WAF protection',                 module:'WAF',             resource_type:'aws.elasticloadbalancing', account_id:'AWS Production' },
-        { severity:'HIGH',     title:'VPC Flow Logs disabled — traffic not audited',         module:'VPC',             resource_type:'aws.ec2.vpc',              account_id:'AWS Production' },
-        { severity:'HIGH',     title:'Internet gateway attached to sensitive VPC',           module:'VPC',             resource_type:'aws.ec2.internet-gateway', account_id:'Azure Corp' },
-        { severity:'MEDIUM',   title:'Network ACL allows all inbound traffic',               module:'Network ACLs',    resource_type:'aws.ec2.network-acl',      account_id:'Azure Corp' },
-        { severity:'MEDIUM',   title:'Unused elastic IP addresses — potential hijack risk',  module:'Elastic IPs',     resource_type:'aws.ec2.elastic-ip',       account_id:'AWS Staging' },
-        { severity:'LOW',      title:'Security group with no associated resources',          module:'Security Groups', resource_type:'aws.ec2.security-group', account_id:'AWS Compliance' },
-      ];
-      const apiFindings = (d.data?.findings || d.findings || []).filter(f => f.title);
-      const data = apiFindings.length >= 3 ? apiFindings.slice(0,10) : mockFindings;
+      const data = (d.data?.findings || d.findings || []).filter(f => f.title).slice(0, 10);
       return { data, columns: networkColumns };
     },
     tableTitle: 'Top Network Findings',
@@ -2248,24 +2156,13 @@ const DOMAIN_VIEWS = {
       };
     },
     getTable: (d) => {
-      const mockScenarios = [
-        { scenario_name:'Customer PII breach via public S3',           threat_category:'data_exposure',      probability:0.35, expected_loss:2400000, rating:'CRITICAL' },
-        { scenario_name:'Credential theft via exposed IAM keys',       threat_category:'credential_theft',   probability:0.28, expected_loss:1800000, rating:'CRITICAL' },
-        { scenario_name:'Privilege escalation to admin',               threat_category:'privilege_escalation',probability:0.22, expected_loss:950000,  rating:'HIGH'     },
-        { scenario_name:'Lateral movement via SG misconfiguration',    threat_category:'lateral_movement',   probability:0.18, expected_loss:720000,  rating:'HIGH'     },
-        { scenario_name:'Ransomware on unpatched EC2 instances',       threat_category:'resource_hijacking', probability:0.15, expected_loss:1200000, rating:'HIGH'     },
-        { scenario_name:'Compliance violation — PHI data residency',   threat_category:'data_exposure',      probability:0.12, expected_loss:500000,  rating:'MEDIUM'   },
-        { scenario_name:'DDoS on public-facing services',              threat_category:'resource_hijacking', probability:0.25, expected_loss:180000,  rating:'MEDIUM'   },
-        { scenario_name:'Shadow IT resource provisioning',             threat_category:'defense_evasion',    probability:0.30, expected_loss:120000,  rating:'MEDIUM'   },
-      ];
-      const apiScenarios = (d.scenarios || []).filter(s => s.scenario_name || s.scenario);
-      const data = apiScenarios.length >= 3 ? apiScenarios.slice(0,10) : mockScenarios;
+      const data = (d.scenarios || []).filter(s => s.scenario_name || s.scenario).slice(0, 10);
       return { data, columns: riskColumns };
     },
     tableTitle: 'Top Risk Scenarios',
   },
-  ciem: {
-    label: 'CIEM', Icon: Eye, href: '/ciem', color: '#a855f7', bffView: 'ciem',
+  cdr: {
+    label: 'CDR — Cloud Detection & Response', Icon: Eye, href: '/cdr', color: '#a855f7', bffView: 'cdr',
     getKpis: (d) => d.kpiGroups || [],
     getCharts: (d) => {
       return {
@@ -2466,23 +2363,10 @@ const DOMAIN_VIEWS = {
       };
     },
     getTable: (d) => {
-      const mockDetections = [
-        { severity:'CRITICAL', title:'Privilege escalation via iam:PassRole',              rule_id:'CIEM-001', detection:'eks-node-iam-role → AdministratorAccess',    account_id:'AWS Production' },
-        { severity:'CRITICAL', title:'Cross-account assume role without MFA',              rule_id:'CIEM-002', detection:'analytics-role → prod-admin-role',            account_id:'AWS Production' },
-        { severity:'CRITICAL', title:'Service account with unused AdministratorAccess',    rule_id:'CIEM-003', detection:'dev-service-account: 847 perms, 12 used',     account_id:'AWS Production' },
-        { severity:'HIGH',     title:'Contractor account active after 90d with no review', rule_id:'CIEM-004', detection:'contractor-user-03: last used 89d ago',       account_id:'Azure Corp'     },
-        { severity:'HIGH',     title:'Lambda role can create IAM policy versions',         rule_id:'CIEM-005', detection:'lambda-execution-role → policy escalation',   account_id:'AWS Production' },
-        { severity:'HIGH',     title:'External trust relationship unreviewed 30d+',        rule_id:'CIEM-006', detection:'Azure Corp → AWS Production (OIDC)',          account_id:'AWS Production' },
-        { severity:'HIGH',     title:'CI/CD pipeline has production admin access',         rule_id:'CIEM-007', detection:'ci-cd-deployer → iam:AttachUserPolicy',       account_id:'AWS Staging'    },
-        { severity:'MEDIUM',   title:'Role with full S3 access never used on prod data',   rule_id:'CIEM-008', detection:'backup-svc-account: 312 perms, 6 used',      account_id:'AWS Production' },
-        { severity:'MEDIUM',   title:'Monitoring role can access instance metadata',       rule_id:'CIEM-009', detection:'monitoring-role → IMDS credential exposure',  account_id:'GCP Primary'    },
-        { severity:'LOW',      title:'Unused IAM role candidates for removal',             rule_id:'CIEM-010', detection:'234 permissions flagged for cleanup',         account_id:'All Accounts'   },
-      ];
-      const apiData = (d.topCritical || []).filter(c => c.title);
-      const data = apiData.length >= 3 ? apiData.slice(0,10) : mockDetections;
-      return { data, columns: ciemColumns };
+      const data = (d.topCritical || []).filter(c => c.title).slice(0, 10);
+      return { data, columns: cdrColumns };
     },
-    tableTitle: 'Top CIEM Detections',
+    tableTitle: 'Top CDR Detections',
   },
 };
 
@@ -2538,8 +2422,8 @@ const DOMAIN_KPIS = {
     { label: 'Est. Exposure', value: '$2.4M', delta: '+$0.3M', bad: true, color: '#ef4444', context: 'potential loss value' },
     { label: 'Attack Surface', value: 34, delta: '-2', bad: false, color: '#10b981', context: 'exposed entry points' },
   ],
-  ciem: [
-    { label: 'CIEM Violations', value: 47, delta: '+4', bad: true, color: '#a855f7', context: 'active detections' },
+  cdr: [
+    { label: 'CDR Detections', value: 47, delta: '+4', bad: true, color: '#a855f7', context: 'active detections' },
     { label: 'Unused Permissions', value: 234, delta: '-18', bad: false, color: '#f59e0b', context: 'candidates for removal' },
     { label: 'Cross-account Access', value: 12, delta: '+2', bad: true, color: '#ef4444', context: 'unreviewed trust' },
     { label: 'Priv Esc Paths', value: 8, delta: '+1', bad: true, color: '#ef4444', context: 'escalation chains' },
@@ -2628,7 +2512,7 @@ function DomainDashboard({ view, data }) {
           datasec:    { label: 'Exposure',      text: '12 data stores are publicly accessible; 8 contain classified PII. Encrypt and restrict access before next compliance review.' },
           network:    { label: 'Exposure',      text: '12 security groups allow unrestricted inbound (0.0.0.0/0). These represent the highest-priority network fixes with lowest remediation effort.' },
           risk:       { label: 'Exposure Est.', text: 'Estimated financial exposure is $2.4M across 7 risk scenarios. Top 5 scenarios account for 78% of total exposure value.' },
-          ciem:       { label: 'Privilege Risk', text: '8 privilege escalation paths detected. Cross-account trust relationships require immediate access review to prevent lateral movement.' },
+          cdr:        { label: 'CDR Detections', text: '8 privilege escalation paths detected. Cross-account trust relationships require immediate access review to prevent lateral movement.' },
         };
         const ins = insights[view] || { label: 'Summary', text: 'Review the findings below and prioritise by severity.' };
         return (
@@ -2911,7 +2795,7 @@ export default function DashboardPage() {
     { id: 'datasec', label: 'Data', Icon: Lock, color: '#ec4899', score: 85 },
     { id: 'network', label: 'Network', Icon: Network, color: '#3b82f6', score: 80 },
     { id: 'risk', label: 'Risk', Icon: Activity, color: '#f97316', score: 67 },
-    { id: 'ciem', label: 'CIEM', Icon: Eye, color: '#a855f7', score: 74 },
+    { id: 'cdr', label: 'CDR — Cloud Detection & Response', Icon: Eye, color: '#a855f7', score: 74 },
   ];
 
   // ── Inline sub-components ─────────────────────────────────────────────
@@ -3205,6 +3089,7 @@ export default function DashboardPage() {
 
   // ═══════════════════════════════════════════════════════════════════════════
   return (
+    <GuidedTourProvider>
     <div className="space-y-5">
 
       {/* ── Error state ───────────────────────────────────────────────────── */}
@@ -3225,23 +3110,28 @@ export default function DashboardPage() {
           severity="critical"
           title={`${criticalAlerts.length} critical alert${criticalAlerts.length > 1 ? 's' : ''} require immediate attention`}
           description={criticalAlerts[0]?.message}
-          items={criticalAlerts.slice(0, 4).map((a) => ({ label: a.resource || a.message, count: a.count, link: '/threats' }))}
-          action={{ label: 'View Threats', onClick: () => (window.location.href = '/threats') }}
+          items={criticalAlerts.slice(0, 4).map((a) => ({ label: a.resource || a.message, count: a.count, link: '/attack-paths' }))}
+          action={{ label: 'View Attack Paths', onClick: () => (window.location.href = '/attack-paths') }}
         />
       )}
 
       {/* [2a] POSTURE SCORE BANNER ────────────────────────────────────────── */}
+      <div data-tour="tour-posture" className="flex items-start gap-3">
+        <div className="flex-1">
       <PostureScoreBanner
-        score={kpiData.complianceScore || MOCK_POSTURE.score}
-        delta={kpiData.complianceScoreChange || MOCK_POSTURE.delta}
+        score={kpiData.complianceScore || 0}
+        delta={kpiData.complianceScoreChange || 0}
         status={kpiData.complianceScore >= 75 ? 'Good' : kpiData.complianceScore >= 50 ? 'Fair' : 'Critical'}
-        criticalActions={kpiData.criticalHighFindings || MOCK_POSTURE.criticalActions}
+        criticalActions={kpiData.criticalHighFindings || 0}
       />
+        </div>
+        <TourButton className="flex-shrink-0 mt-1" />
+      </div>
 
       {/* [2b] KPI STRIP — 5 action-oriented metrics ─────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div data-tour="tour-kpi" className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <KpiCard label="Total Assets" Icon={Server} href="/inventory" color="#3b82f6"
-          value={kpiData.totalAssets || MOCK_DASHBOARD.total_assets}
+          value={kpiData.totalAssets || 0}
           delta="+47 this week" deltaGood
           segments={[
             { label: 'AWS · 2 accts',   value: '9.4K', color: '#f97316' },
@@ -3249,15 +3139,15 @@ export default function DashboardPage() {
             { label: 'GCP · 1 acct',    value: '345',  color: '#10b981' },
           ]} />
         <KpiCard label="Critical + High Findings" Icon={AlertCircle} href="/misconfig?severity=critical" color="#ef4444"
-          value={kpiData.criticalHighFindings || (MOCK_DASHBOARD.critical_threats + MOCK_DASHBOARD.high_threats)}
-          delta={`+${kpiData.criticalHighFindingsChange ?? 3} new today`} deltaGood={false}
+          value={kpiData.criticalHighFindings || 0}
+          delta={`+${kpiData.criticalHighFindingsChange ?? 0} new today`} deltaGood={false}
           segments={[
-            { label: 'Critical',  value: MOCK_DASHBOARD.critical_threats,  color: '#ef4444' },
-            { label: 'High',      value: MOCK_DASHBOARD.high_threats,       color: '#f97316' },
-            { label: 'Medium',    value: 89,                                color: '#f59e0b' },
+            { label: 'Critical',  value: kpiData.criticalFindings ?? 0,  color: '#ef4444' },
+            { label: 'High',      value: kpiData.highFindings ?? 0,       color: '#f97316' },
+            { label: 'Medium',    value: kpiData.mediumFindings ?? 0,     color: '#f59e0b' },
           ]} />
-        <KpiCard label="Active Threats" Icon={AlertTriangle} href="/threats" color="#f97316"
-          value={kpiData.activeThreats || MOCK_DASHBOARD.total_threats}
+        <KpiCard label="Active Threats" Icon={AlertTriangle} href="/attack-paths" color="#f97316"
+          value={kpiData.activeThreats || 0}
           delta="+5 new today" deltaGood={false}
           segments={[
             { label: 'Critical',     value: 4,  color: '#ef4444' },
@@ -3273,7 +3163,7 @@ export default function DashboardPage() {
             { label: 'Public IPs',  value: 89, color: '#f59e0b' },
           ]} />
         <KpiCard label="Compliance Score" Icon={ClipboardCheck} href="/compliance" color="#10b981"
-          value={`${kpiData.complianceScore || Math.round(MOCK_DASHBOARD.compliance_score)}%`}
+          value={`${kpiData.complianceScore || 0}%`}
           delta={`+${kpiData.complianceScoreChange ?? 2}% vs last week`} deltaGood
           segments={[
             { label: 'CIS AWS',   value: '78%', color: '#10b981' },
@@ -3411,12 +3301,14 @@ export default function DashboardPage() {
       )}
 
       {/* [4] DOMAIN TAB SWITCHER ─────────────────────────────────────────── */}
-      <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <div data-tour="tour-tab-switcher" className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
         <div className="flex items-stretch overflow-x-auto">
           {tabs.map((tab) => {
             const isActive = activeView === tab.id;
             return (
-              <button key={tab.id} onClick={() => setActiveView(tab.id)}
+              <button key={tab.id}
+                data-tour={`tour-tab-${tab.id}`}
+                onClick={() => setActiveView(tab.id)}
                 className="flex flex-col items-center gap-1 px-4 py-3 border-r last:border-r-0 whitespace-nowrap transition-all hover:opacity-90 relative"
                 style={{
                   borderColor: 'var(--border-primary)',
@@ -3456,12 +3348,12 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 divide-x divide-y sm:divide-y-0"
               style={{ borderColor: 'var(--border-primary)' }}>
               {[
-                { label: 'Threats',     Icon: AlertTriangle,  color: '#ef4444', score: kpiData.threatScore    ?? 58, href: '/threats'    },
-                { label: 'IAM',         Icon: KeyRound,       color: '#f59e0b', score: kpiData.iamScore       ?? MOCK_POSTURE.domainScores.iam, href: '/iam' },
-                { label: 'Compliance',  Icon: ClipboardCheck, color: '#22c55e', score: kpiData.complianceScore ?? MOCK_POSTURE.domainScores.compliance, href: '/compliance' },
+                { label: 'Threats',     Icon: AlertTriangle,  color: '#ef4444', score: kpiData.threatScore    ?? 58, href: '/attack-paths'    },
+                { label: 'IAM',         Icon: KeyRound,       color: '#f59e0b', score: kpiData.iamScore       ?? 0, href: '/iam' },
+                { label: 'Compliance',  Icon: ClipboardCheck, color: '#22c55e', score: kpiData.complianceScore ?? 0, href: '/compliance' },
                 { label: 'Assets',      Icon: Server,         color: '#06b6d4', score: 85,                     href: '/inventory'  },
-                { label: 'Risk',        Icon: TrendingUp,     color: '#8b5cf6', score: kpiData.riskScore       ?? MOCK_POSTURE.domainScores.misconfigs, href: '/risk' },
-                { label: 'Data Sec',    Icon: Database,       color: '#10b981', score: kpiData.dataSecScore    ?? MOCK_POSTURE.domainScores.dataSec, href: '/datasec' },
+                { label: 'Risk',        Icon: TrendingUp,     color: '#8b5cf6', score: kpiData.riskScore       ?? 0, href: '/risk' },
+                { label: 'Data Sec',    Icon: Database,       color: '#10b981', score: kpiData.dataSecScore    ?? 0, href: '/datasec' },
                 { label: 'Network',     Icon: Network,        color: '#0ea5e9', score: kpiData.networkScore    ?? 80, href: '/network'   },
                 { label: 'Code Sec',    Icon: Code,           color: '#a78bfa', score: kpiData.codeSecScore    ?? 84, href: '/codesec'   },
               ].map((dom) => {
@@ -3940,5 +3832,6 @@ export default function DashboardPage() {
       })()}
 
     </div>
+    </GuidedTourProvider>
   );
 }

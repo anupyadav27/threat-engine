@@ -103,11 +103,12 @@ def _collect_postgres(credential: Dict[str, Any], since: datetime) -> Dict[str, 
     Keys: sessions, db_stats, superusers, role_grants, pgaudit_events
     """
     data: Dict[str, Any] = {
-        "sessions":      [],
-        "db_stats":      [],
-        "superusers":    [],
-        "role_grants":   [],
-        "pgaudit_events": [],
+        "sessions":             [],
+        "db_stats":             [],
+        "superusers":           [],
+        "role_grants":          [],
+        "pgaudit_events":       [],
+        "_expected_superusers": {"postgres"},
     }
     try:
         import psycopg2
@@ -210,7 +211,12 @@ def _collect_mysql(credential: Dict[str, Any], since: datetime) -> Dict[str, Any
     Returns structured log data from MySQL performance_schema and information_schema.
     Keys: sessions, stmt_history, account_stats
     """
-    data: Dict[str, Any] = {"sessions": [], "stmt_history": [], "account_stats": []}
+    data: Dict[str, Any] = {
+        "sessions":             [],
+        "stmt_history":         [],
+        "account_stats":        [],
+        "_expected_superusers": {"root"},
+    }
     try:
         import pymysql
         conn = pymysql.connect(
@@ -270,14 +276,392 @@ def _collect_mysql(credential: Dict[str, Any], since: datetime) -> Dict[str, Any
     return data
 
 
-def _collect_events(tech_type: str, credential: Dict[str, Any], since: datetime) -> Dict[str, Any]:
-    """Dispatch to the right collector. Returns empty dict for unsupported tech types."""
+def _collect_oracle(credential: Dict[str, Any], since: datetime) -> Dict[str, Any]:
+    """
+    Returns structured audit data from Oracle via V$SESSION, DBA_AUDIT_TRAIL,
+    DBA_ROLE_PRIVS, and V$SQLAREA.
+    Keys: sessions, db_stats, superusers, role_grants, stmt_history
+    """
+    data: Dict[str, Any] = {
+        "sessions":             [],
+        "db_stats":             [],
+        "superusers":           [],
+        "role_grants":          [],
+        "stmt_history":         [],
+        "_expected_superusers": {"SYS", "SYSTEM"},
+    }
+    try:
+        try:
+            import oracledb as ora
+        except ImportError:
+            import cx_Oracle as ora  # type: ignore[import]
+
+        dsn = f"{credential['host']}:{int(credential.get('port', 1521))}/{credential.get('dbname', credential.get('service_name', 'ORCL'))}"
+        conn = ora.connect(user=credential["username"], password=credential["password"], dsn=dsn)
+
+        def _rows(cur: Any) -> List[Dict[str, Any]]:
+            cols = [d[0].lower() for d in cur.description]
+            return [dict(zip(cols, row)) for row in cur.fetchall()]
+
+        with conn.cursor() as cur:
+            # 1 — active sessions
+            cur.execute("""
+                SELECT s.sid              AS pid,
+                       s.username         AS usename,
+                       s.machine          AS source_ip,
+                       s.logon_time       AS backend_start,
+                       s.status           AS state,
+                       s.program          AS application_name,
+                       SUBSTR(NVL(q.sql_text, s.sql_id), 1, 500) AS current_query
+                FROM   v$session s
+                LEFT   JOIN v$sqlarea q ON s.sql_id = q.sql_id
+                WHERE  s.username IS NOT NULL
+            """)
+            data["sessions"] = _rows(cur)
+
+            # 2 — failed logins as brute-force proxy (xact_rollback equivalent)
+            try:
+                cur.execute("""
+                    SELECT NVL(username, 'unknown') AS datname,
+                           COUNT(*) AS xact_rollback
+                    FROM   dba_audit_trail
+                    WHERE  returncode != 0
+                    GROUP  BY username
+                """)
+                data["db_stats"] = _rows(cur)
+            except Exception:
+                pass  # requires AUDIT_ADMIN or AUDIT_VIEWER privilege
+
+            # 3 — DBA / SYSDBA / SYSOPER holders (superusers)
+            cur.execute("""
+                SELECT DISTINCT grantee AS rolname, 1 AS rolsuper
+                FROM   dba_role_privs
+                WHERE  granted_role IN ('DBA', 'SYSDBA', 'SYSOPER')
+            """)
+            data["superusers"] = _rows(cur)
+
+            # 4 — role grants for privileged roles
+            cur.execute("""
+                SELECT granted_role AS rolname,
+                       grantee      AS member,
+                       CASE admin_option WHEN 'YES' THEN 1 ELSE 0 END AS admin_option
+                FROM   dba_role_privs
+                WHERE  granted_role IN ('DBA', 'SYSDBA', 'SYSOPER')
+            """)
+            data["role_grants"] = _rows(cur)
+
+            # 5 — recent SQL (statement history)
+            try:
+                cur.execute("""
+                    SELECT sql_text,
+                           executions,
+                           rows_processed    AS rows_sent,
+                           parsing_user_id   AS thread_id
+                    FROM   (
+                        SELECT sql_text, executions, rows_processed,
+                               parsing_user_id
+                        FROM   v$sqlarea
+                        ORDER  BY last_active_time DESC
+                    )
+                    WHERE  ROWNUM <= 500
+                """)
+                data["stmt_history"] = _rows(cur)
+            except Exception:
+                pass
+
+        conn.close()
+        logger.info(
+            "Oracle log snapshot: sessions=%d superusers=%d",
+            len(data["sessions"]), len(data["superusers"]),
+        )
+    except Exception as exc:
+        logger.warning("Oracle log collection failed: %s", exc)
+
+    return data
+
+
+def _collect_mssql(credential: Dict[str, Any], since: datetime) -> Dict[str, Any]:
+    """
+    Returns structured audit data from SQL Server via sys.dm_exec_sessions,
+    sys.server_principals, sys.server_role_members, and sys.dm_exec_query_stats.
+    Keys: sessions, db_stats, superusers, role_grants, stmt_history
+    """
+    data: Dict[str, Any] = {
+        "sessions":             [],
+        "db_stats":             [],
+        "superusers":           [],
+        "role_grants":          [],
+        "stmt_history":         [],
+        "_expected_superusers": {"sa"},
+    }
+    try:
+        import pymssql  # type: ignore[import]
+
+        conn = pymssql.connect(
+            server          = credential["host"],
+            port            = int(credential.get("port", 1433)),
+            user            = credential["username"],
+            password        = credential["password"],
+            database        = credential.get("dbname", "master"),
+            login_timeout   = 10,
+            as_dict         = True,
+        )
+        with conn.cursor(as_dict=True) as cur:
+
+            # 1 — active sessions with current query text
+            cur.execute("""
+                SELECT s.session_id   AS pid,
+                       s.login_name   AS usename,
+                       s.host_name    AS source_ip,
+                       s.login_time   AS backend_start,
+                       s.status       AS state,
+                       s.program_name AS application_name,
+                       LEFT(CAST(t.text AS NVARCHAR(MAX)), 500) AS current_query
+                FROM   sys.dm_exec_sessions s
+                OUTER  APPLY sys.dm_exec_sql_text(s.most_recent_sql_handle) t
+                WHERE  s.is_user_process = 1
+                  AND  s.login_time > %s
+            """, (since,))
+            data["sessions"] = list(cur.fetchall())
+
+            # 2 — failed logins from security ring buffer (SQL Server 2008+)
+            try:
+                cur.execute("""
+                    SELECT
+                        CONVERT(xml, record).value(
+                            '(./Record/LoginTracker/LoginName)[1]', 'nvarchar(256)'
+                        ) AS datname,
+                        COUNT(*) AS xact_rollback
+                    FROM   sys.dm_os_ring_buffers
+                    WHERE  ring_buffer_type = N'RING_BUFFER_SECURITY_ERROR'
+                    GROUP  BY CONVERT(xml, record).value(
+                        '(./Record/LoginTracker/LoginName)[1]', 'nvarchar(256)'
+                    )
+                """)
+                data["db_stats"] = list(cur.fetchall())
+            except Exception:
+                pass
+
+            # 3 — sysadmin members (superusers)
+            cur.execute("""
+                SELECT p.name AS rolname, 1 AS rolsuper
+                FROM   sys.server_principals p
+                WHERE  p.type IN ('S', 'U', 'G')
+                  AND  IS_SRVROLEMEMBER('sysadmin', p.name) = 1
+            """)
+            data["superusers"] = list(cur.fetchall())
+
+            # 4 — privileged role memberships
+            cur.execute("""
+                SELECT r.name AS rolname,
+                       m.name AS member,
+                       0      AS admin_option
+                FROM   sys.server_role_members rm
+                JOIN   sys.server_principals r ON r.principal_id = rm.role_principal_id
+                JOIN   sys.server_principals m ON m.principal_id = rm.member_principal_id
+                WHERE  r.name IN ('sysadmin', 'securityadmin', 'dbcreator', 'processadmin')
+            """)
+            data["role_grants"] = list(cur.fetchall())
+
+            # 5 — recent query stats
+            try:
+                cur.execute("""
+                    SELECT TOP 500
+                           LEFT(t.text, 500) AS sql_text,
+                           CAST(qs.total_rows / NULLIF(qs.execution_count, 0) AS BIGINT) AS rows_sent,
+                           CAST(qs.plan_handle AS NVARCHAR(128)) AS thread_id
+                    FROM   sys.dm_exec_query_stats qs
+                    CROSS  APPLY sys.dm_exec_sql_text(qs.sql_handle) t
+                    WHERE  qs.last_execution_time > %s
+                    ORDER  BY qs.last_execution_time DESC
+                """, (since,))
+                data["stmt_history"] = list(cur.fetchall())
+            except Exception:
+                pass
+
+        conn.close()
+        logger.info(
+            "MSSQL log snapshot: sessions=%d superusers=%d",
+            len(data["sessions"]), len(data["superusers"]),
+        )
+    except Exception as exc:
+        logger.warning("MSSQL log collection failed: %s", exc)
+
+    return data
+
+
+def _collect_mongodb(credential: Dict[str, Any], since: datetime) -> Dict[str, Any]:
+    """
+    Returns structured audit data from MongoDB via currentOp, usersInfo,
+    and system.profile (when profiling is enabled).
+    Keys: sessions, db_stats, superusers, role_grants, stmt_history
+    """
+    data: Dict[str, Any] = {
+        "sessions":             [],
+        "db_stats":             [],
+        "superusers":           [],
+        "role_grants":          [],
+        "stmt_history":         [],
+        "_expected_superusers": {"admin"},
+    }
+    try:
+        import pymongo  # type: ignore[import]
+
+        client = pymongo.MongoClient(
+            host                        = credential["host"],
+            port                        = int(credential.get("port", 27017)),
+            username                    = credential["username"],
+            password                    = credential["password"],
+            authSource                  = credential.get("dbname", "admin"),
+            serverSelectionTimeoutMS    = 10_000,
+        )
+        admin_db = client["admin"]
+
+        # 1 — current operations (sessions equivalent)
+        try:
+            current_op = admin_db.command("currentOp", {"$all": True})
+            for op in current_op.get("inprog", []):
+                client_str  = op.get("client", "") or ""
+                source_ip   = client_str.split(":")[0] if client_str else ""
+                users       = op.get("effectiveUsers") or []
+                usename     = users[0].get("user", "unknown") if users else op.get("user", "unknown")
+                app_name    = (op.get("client_metadata") or {}).get("application", {}).get("name", "")
+                data["sessions"].append({
+                    "pid":              op.get("opid"),
+                    "usename":          usename,
+                    "source_ip":        source_ip,
+                    "backend_start":    op.get("currentOpTime"),
+                    "state":            op.get("type", ""),
+                    "application_name": app_name,
+                    "current_query":    str(op.get("command", op.get("op", "")))[:500],
+                })
+        except Exception as exc:
+            logger.debug("MongoDB currentOp failed: %s", exc)
+
+        # 2 — users with admin roles (superusers + role_grants)
+        _ADMIN_ROLES = {"root", "dbAdminAnyDatabase", "userAdminAnyDatabase", "clusterAdmin"}
+        try:
+            users_info = admin_db.command("usersInfo")
+            for user in users_info.get("users", []):
+                uname = user.get("user", "unknown")
+                roles = [r.get("role", "") for r in user.get("roles", [])]
+                if any(r in _ADMIN_ROLES for r in roles):
+                    data["superusers"].append({"rolname": uname, "rolsuper": 1})
+                    for role in roles:
+                        if role in _ADMIN_ROLES:
+                            data["role_grants"].append({
+                                "rolname":      role,
+                                "member":       uname,
+                                "admin_option": 0,
+                            })
+        except Exception as exc:
+            logger.debug("MongoDB usersInfo failed: %s", exc)
+
+        # 3 — system.profile (only when profiling level > 0)
+        try:
+            if admin_db.profiling_level() > 0:
+                for rec in client["admin"]["system.profile"].find(
+                    {"ts": {"$gt": since}},
+                    limit=500,
+                    sort=[("ts", pymongo.DESCENDING)],
+                ):
+                    data["stmt_history"].append({
+                        "sql_text":  str(rec.get("command", rec.get("ns", "")))[:500],
+                        "rows_sent": rec.get("nreturned", 0),
+                        "thread_id": str(rec.get("client", "")),
+                    })
+        except Exception:
+            pass
+
+        client.close()
+        logger.info(
+            "MongoDB log snapshot: sessions=%d superusers=%d",
+            len(data["sessions"]), len(data["superusers"]),
+        )
+    except Exception as exc:
+        logger.warning("MongoDB log collection failed: %s", exc)
+
+    return data
+
+
+def _collect_cassandra(credential: Dict[str, Any], since: datetime) -> Dict[str, Any]:
+    """
+    Returns role and privilege data from Cassandra via system_auth keyspace.
+    Sessions and statement history are not exposed in OSS Cassandra.
+    Keys: sessions (empty), db_stats (empty), superusers, role_grants, stmt_history (empty)
+    """
+    data: Dict[str, Any] = {
+        "sessions":             [],
+        "db_stats":             [],
+        "superusers":           [],
+        "role_grants":          [],
+        "stmt_history":         [],
+        "_expected_superusers": {"cassandra"},
+    }
+    try:
+        from cassandra.cluster import Cluster  # type: ignore[import]
+        from cassandra.auth import PlainTextAuthProvider  # type: ignore[import]
+
+        auth    = PlainTextAuthProvider(
+            username=credential["username"],
+            password=credential["password"],
+        )
+        cluster = Cluster(
+            contact_points  = [credential["host"]],
+            port            = int(credential.get("port", 9042)),
+            auth_provider   = auth,
+            connect_timeout = 10,
+        )
+        session = cluster.connect()
+
+        # 1 — superuser roles and collect names for membership filter
+        superuser_roles: set = set()
+        rows = session.execute("SELECT role, is_superuser, can_login FROM system_auth.roles")
+        for row in rows:
+            if row.is_superuser:
+                superuser_roles.add(row.role)
+                data["superusers"].append({"rolname": row.role, "rolsuper": 1})
+
+        # 2 — role memberships scoped to superuser roles
+        try:
+            rows = session.execute("SELECT role, member_of FROM system_auth.role_members")
+            for row in rows:
+                if row.member_of in superuser_roles:
+                    data["role_grants"].append({
+                        "rolname":      row.member_of,
+                        "member":       row.role,
+                        "admin_option": 0,
+                    })
+        except Exception:
+            pass
+
+        cluster.shutdown()
+        logger.info(
+            "Cassandra log snapshot: superusers=%d role_grants=%d",
+            len(data["superusers"]), len(data["role_grants"]),
+        )
+    except Exception as exc:
+        logger.warning("Cassandra log collection failed: %s", exc)
+
+    return data
+
+
+def _collect_events(tech_type: str, credential: Dict[str, Any], since: datetime) -> Optional[Dict[str, Any]]:
+    """Dispatch to the right collector. Returns None for unknown tech types."""
     if tech_type == "postgres":
         return _collect_postgres(credential, since)
     if tech_type in ("mysql", "mariadb"):
         return _collect_mysql(credential, since)
-    logger.info("No CIEM log collector for tech_type=%s — skipping", tech_type)
-    return {}
+    if tech_type == "oracle_db":
+        return _collect_oracle(credential, since)
+    if tech_type == "sql_server":
+        return _collect_mssql(credential, since)
+    if tech_type == "mongodb":
+        return _collect_mongodb(credential, since)
+    if tech_type == "cassandra":
+        return _collect_cassandra(credential, since)
+    logger.warning("tech-ciem: no collector implemented for tech_type=%s", tech_type)
+    return None
 
 
 # ── detectors ────────────────────────────────────────────────────────────────
@@ -346,9 +730,9 @@ def detect_new_superuser(
     data: Dict[str, Any], account: Dict[str, Any],
     scan_run_id: str, since: datetime,
 ) -> List[Dict[str, Any]]:
-    """TCIEM-003: More than 1 superuser account detected."""
+    """TCIEM-003: Superuser account other than the expected default detected."""
     superusers = data.get("superusers", [])
-    expected_superuser = "postgres"
+    expected   = data.get("_expected_superusers", {"postgres"})
     return [
         _make_finding(
             "TCIEM-003", "T1068", "Privilege Escalation", "critical",
@@ -356,10 +740,10 @@ def detect_new_superuser(
             actor      = su.get("rolname", "unknown"),
             source_ip  = None,
             event_time = None,
-            evidence   = {"rolname": su.get("rolname"), "rolsuper": True, "expected_only": expected_superuser},
+            evidence   = {"rolname": su.get("rolname"), "rolsuper": True, "expected_accounts": sorted(expected)},
         )
         for su in superusers
-        if su.get("rolname") != expected_superuser
+        if su.get("rolname") not in expected
     ]
 
 
@@ -431,11 +815,12 @@ def detect_admin_grant(
     scan_run_id: str, since: datetime,
 ) -> List[Dict[str, Any]]:
     """TCIEM-007: Unexpected role grants to admin roles."""
+    expected = data.get("_expected_superusers", {"postgres"})
     findings: List[Dict[str, Any]] = []
     for grant in data.get("role_grants", []):
         member   = grant.get("member", "unknown")
         rolename = grant.get("rolname", "")
-        if member not in ("postgres",):
+        if member not in expected:
             findings.append(_make_finding(
                 "TCIEM-007", "T1098", "Persistence", "high",
                 account, scan_run_id,
@@ -535,8 +920,11 @@ def run(scan_run_id: str, account_id: str) -> None:
     logger.info("CIEM scan: tech_type=%s lookback=%dh scan_run_id=%s", tech_type, LOOKBACK_HOURS, scan_run_id)
 
     data = _collect_events(tech_type, credential, since)
-    if not data:
-        logger.info("No log data collected for tech_type=%s — 0 findings", tech_type)
+    if data is None:
+        logger.warning(
+            "tech-ciem: no collector for tech_type=%s — engine cannot run for this account",
+            tech_type,
+        )
         db.mark_engine_completed(scan_run_id=scan_run_id, engine="tech-ciem", count=0)
         return
 

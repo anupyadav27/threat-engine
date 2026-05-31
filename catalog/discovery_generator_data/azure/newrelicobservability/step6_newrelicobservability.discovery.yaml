@@ -1,7 +1,3 @@
-# Discovery YAML — newrelicobservability (Azure)
-# Generated: 2026-04-15T10:39:31Z
-# Source: step1b_operation_registry.json (qualified ops + dependency chains)
-# Actions use {category}.{method} format for SDK method resolution
 version: '1.0'
 provider: azure
 service: newrelicobservability
@@ -9,305 +5,291 @@ services:
   client: newrelicobservability
   module: azure.mgmt.newrelicobservability
 discovery:
-  # ── monitors.list_by_resource_group [root] ──
-  - discovery_id: azure.newrelicobservability.monitors.list_by_resource_group
-    calls:
-      - action: monitors.list_by_resource_group
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        account_creation_source: '{{ item.account_creation_source }}'
-        liftr_resource_category: '{{ item.liftr_resource_category }}'
-        liftr_resource_preference: '{{ item.liftr_resource_preference }}'
-        marketplace_subscription_id: '{{ item.marketplace_subscription_id }}'
-        marketplace_subscription_status: '{{ item.marketplace_subscription_status }}'
-        monitoring_status: '{{ item.monitoring_status }}'
-        new_relic_account_properties: '{{ item.new_relic_account_properties }}'
-        org_creation_source: '{{ item.org_creation_source }}'
-        plan_data: '{{ item.plan_data }}'
-        saa_s_azure_subscription_status: '{{ item.saa_s_azure_subscription_status }}'
-        subscription_state: '{{ item.subscription_state }}'
-        system_data: '{{ item.system_data }}'
-        user_info: '{{ item.user_info }}'
-  # ── monitors.list_by_subscription [root] ──
-  - discovery_id: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.list_by_subscription
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        identity: '{{ item.identity }}'
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        account_creation_source: '{{ item.account_creation_source }}'
-        liftr_resource_category: '{{ item.liftr_resource_category }}'
-        liftr_resource_preference: '{{ item.liftr_resource_preference }}'
-        marketplace_subscription_id: '{{ item.marketplace_subscription_id }}'
-        marketplace_subscription_status: '{{ item.marketplace_subscription_status }}'
-        monitoring_status: '{{ item.monitoring_status }}'
-        new_relic_account_properties: '{{ item.new_relic_account_properties }}'
-        org_creation_source: '{{ item.org_creation_source }}'
-        plan_data: '{{ item.plan_data }}'
-        saa_s_azure_subscription_status: '{{ item.saa_s_azure_subscription_status }}'
-        subscription_state: '{{ item.subscription_state }}'
-        system_data: '{{ item.system_data }}'
-        user_info: '{{ item.user_info }}'
-  # ── plans.list [root] ──
-  - discovery_id: azure.newrelicobservability.plans.list
-    calls:
-      - action: plans.list
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        billing_source: '{{ item.billing_source }}'
-        organization_id: '{{ item.organization_id }}'
-        organization_name: '{{ item.organization_name }}'
-        system_data: '{{ item.system_data }}'
-  # ════════════════════════════════════════
-  # Dependent operations (for_each + params)
-  # ════════════════════════════════════════
-  # ── accounts.list [dependent] ──
-  - discovery_id: azure.newrelicobservability.accounts.list
-    for_each: azure.newrelicobservability.monitors.get_metric_rules
-    calls:
-      - action: accounts.list
-        save_as: response
-        on_error: continue
-        params:
-          user_email: '{{ item.user_email }}'
-          location: '{{ item.location }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        billing_source: '{{ item.billing_source }}'
-        organization_id: '{{ item.organization_id }}'
-        organization_name: '{{ item.organization_name }}'
-        system_data: '{{ item.system_data }}'
-  # ── connectedpartnerresources.list [dependent] ──
-  - discovery_id: azure.newrelicobservability.connectedpartnerresources.list
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: connectedpartnerresources.list
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        billing_source: '{{ item.billing_source }}'
-        organization_id: '{{ item.organization_id }}'
-        organization_name: '{{ item.organization_name }}'
-        system_data: '{{ item.system_data }}'
-  # ── monitoredsubscriptions.list [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitoredsubscriptions.list
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitoredsubscriptions.list
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        billing_source: '{{ item.billing_source }}'
-        organization_id: '{{ item.organization_id }}'
-        organization_name: '{{ item.organization_name }}'
-        system_data: '{{ item.system_data }}'
-  # ── monitors.get_metric_rules [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitors.get_metric_rules
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.get_metric_rules
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      item:
-        identity: '{{ response.identity }}'
-        type: '{{ response.type }}'
-        properties: '{{ response.properties }}'
-        location: '{{ response.location }}'
-        sku: '{{ response.sku }}'
-        name: '{{ response.name }}'
-        provisioning_state: '{{ response.provisioning_state }}'
-        zones: '{{ response.zones }}'
-        kind: '{{ response.kind }}'
-        id: '{{ response.id }}'
-        tags: '{{ response.tags }}'
-  # ── monitors.get_metric_status [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitors.get_metric_status
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.get_metric_status
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      item:
-        identity: '{{ response.identity }}'
-        type: '{{ response.type }}'
-        properties: '{{ response.properties }}'
-        location: '{{ response.location }}'
-        sku: '{{ response.sku }}'
-        name: '{{ response.name }}'
-        provisioning_state: '{{ response.provisioning_state }}'
-        zones: '{{ response.zones }}'
-        kind: '{{ response.kind }}'
-        id: '{{ response.id }}'
-        tags: '{{ response.tags }}'
-  # ── monitors.list_app_services [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitors.list_app_services
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.list_app_services
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        agent_status: '{{ item.agent_status }}'
-        agent_version: '{{ item.agent_version }}'
-        azure_resource_id: '{{ item.azure_resource_id }}'
-  # ── monitors.list_hosts [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitors.list_hosts
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.list_hosts
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        agent_status: '{{ item.agent_status }}'
-        agent_version: '{{ item.agent_version }}'
-        vm_id: '{{ item.vm_id }}'
-  # ── monitors.list_linked_resources [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitors.list_linked_resources
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.list_linked_resources
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-  # ── monitors.list_monitored_resources [dependent] ──
-  - discovery_id: azure.newrelicobservability.monitors.list_monitored_resources
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: monitors.list_monitored_resources
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        reason_for_logs_status: '{{ item.reason_for_logs_status }}'
-        reason_for_metrics_status: '{{ item.reason_for_metrics_status }}'
-        sending_logs: '{{ item.sending_logs }}'
-        sending_metrics: '{{ item.sending_metrics }}'
-  # ── organizations.list [dependent] ──
-  - discovery_id: azure.newrelicobservability.organizations.list
-    for_each: azure.newrelicobservability.monitors.get_metric_rules
-    calls:
-      - action: organizations.list
-        save_as: response
-        on_error: continue
-        params:
-          user_email: '{{ item.user_email }}'
-          location: '{{ item.location }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        billing_source: '{{ item.billing_source }}'
-        organization_id: '{{ item.organization_id }}'
-        organization_name: '{{ item.organization_name }}'
-        system_data: '{{ item.system_data }}'
-  # ── tagrules.list_by_new_relic_monitor_resource [dependent] ──
-  - discovery_id: azure.newrelicobservability.tagrules.list_by_new_relic_monitor_resource
-    for_each: azure.newrelicobservability.monitors.list_by_subscription
-    calls:
-      - action: tagrules.list_by_new_relic_monitor_resource
-        save_as: response
-        on_error: continue
-        params:
-          monitor_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        log_rules: '{{ item.log_rules }}'
-        metric_rules: '{{ item.metric_rules }}'
-        system_data: '{{ item.system_data }}'
+- discovery_id: azure.newrelicobservability.monitors.list_by_resource_group
+  calls:
+  - action: monitors.list_by_resource_group
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      account_creation_source: '{{ item.account_creation_source }}'
+      liftr_resource_category: '{{ item.liftr_resource_category }}'
+      liftr_resource_preference: '{{ item.liftr_resource_preference }}'
+      marketplace_subscription_id: '{{ item.marketplace_subscription_id }}'
+      marketplace_subscription_status: '{{ item.marketplace_subscription_status }}'
+      monitoring_status: '{{ item.monitoring_status }}'
+      new_relic_account_properties: '{{ item.new_relic_account_properties }}'
+      org_creation_source: '{{ item.org_creation_source }}'
+      plan_data: '{{ item.plan_data }}'
+      saa_s_azure_subscription_status: '{{ item.saa_s_azure_subscription_status }}'
+      subscription_state: '{{ item.subscription_state }}'
+      system_data: '{{ item.system_data }}'
+      user_info: '{{ item.user_info }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      identity: '{{ item.identity }}'
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      account_creation_source: '{{ item.account_creation_source }}'
+      liftr_resource_category: '{{ item.liftr_resource_category }}'
+      liftr_resource_preference: '{{ item.liftr_resource_preference }}'
+      marketplace_subscription_id: '{{ item.marketplace_subscription_id }}'
+      marketplace_subscription_status: '{{ item.marketplace_subscription_status }}'
+      monitoring_status: '{{ item.monitoring_status }}'
+      new_relic_account_properties: '{{ item.new_relic_account_properties }}'
+      org_creation_source: '{{ item.org_creation_source }}'
+      plan_data: '{{ item.plan_data }}'
+      saa_s_azure_subscription_status: '{{ item.saa_s_azure_subscription_status }}'
+      subscription_state: '{{ item.subscription_state }}'
+      system_data: '{{ item.system_data }}'
+      user_info: '{{ item.user_info }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.newrelicobservability.plans.list
+  calls:
+  - action: plans.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      billing_source: '{{ item.billing_source }}'
+      organization_id: '{{ item.organization_id }}'
+      organization_name: '{{ item.organization_name }}'
+      system_data: '{{ item.system_data }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.newrelicobservability.accounts.list
+  for_each: azure.newrelicobservability.monitors.get_metric_rules
+  calls:
+  - action: accounts.list
+    save_as: response
+    on_error: continue
+    params:
+      user_email: '{{ item.user_email }}'
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      billing_source: '{{ item.billing_source }}'
+      organization_id: '{{ item.organization_id }}'
+      organization_name: '{{ item.organization_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.newrelicobservability.connectedpartnerresources.list
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: connectedpartnerresources.list
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      billing_source: '{{ item.billing_source }}'
+      organization_id: '{{ item.organization_id }}'
+      organization_name: '{{ item.organization_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.newrelicobservability.monitoredsubscriptions.list
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitoredsubscriptions.list
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      billing_source: '{{ item.billing_source }}'
+      organization_id: '{{ item.organization_id }}'
+      organization_name: '{{ item.organization_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.newrelicobservability.monitors.get_metric_rules
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.get_metric_rules
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.newrelicobservability.monitors.get_metric_status
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.get_metric_status
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    item:
+      identity: '{{ response.identity }}'
+      type: '{{ response.type }}'
+      properties: '{{ response.properties }}'
+      location: '{{ response.location }}'
+      sku: '{{ response.sku }}'
+      name: '{{ response.name }}'
+      provisioning_state: '{{ response.provisioning_state }}'
+      zones: '{{ response.zones }}'
+      kind: '{{ response.kind }}'
+      id: '{{ response.id }}'
+      tags: '{{ response.tags }}'
+- discovery_id: azure.newrelicobservability.monitors.list_app_services
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.list_app_services
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      agent_status: '{{ item.agent_status }}'
+      agent_version: '{{ item.agent_version }}'
+      azure_resource_id: '{{ item.azure_resource_id }}'
+- discovery_id: azure.newrelicobservability.monitors.list_hosts
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.list_hosts
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      agent_status: '{{ item.agent_status }}'
+      agent_version: '{{ item.agent_version }}'
+      vm_id: '{{ item.vm_id }}'
+- discovery_id: azure.newrelicobservability.monitors.list_linked_resources
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.list_linked_resources
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+- discovery_id: azure.newrelicobservability.monitors.list_monitored_resources
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: monitors.list_monitored_resources
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      reason_for_logs_status: '{{ item.reason_for_logs_status }}'
+      reason_for_metrics_status: '{{ item.reason_for_metrics_status }}'
+      sending_logs: '{{ item.sending_logs }}'
+      sending_metrics: '{{ item.sending_metrics }}'
+- discovery_id: azure.newrelicobservability.organizations.list
+  for_each: azure.newrelicobservability.monitors.get_metric_rules
+  calls:
+  - action: organizations.list
+    save_as: response
+    on_error: continue
+    params:
+      user_email: '{{ item.user_email }}'
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      billing_source: '{{ item.billing_source }}'
+      organization_id: '{{ item.organization_id }}'
+      organization_name: '{{ item.organization_name }}'
+      system_data: '{{ item.system_data }}'
+- discovery_id: azure.newrelicobservability.tagrules.list_by_new_relic_monitor_resource
+  for_each: azure.newrelicobservability.monitors.list_by_subscription
+  calls:
+  - action: tagrules.list_by_new_relic_monitor_resource
+    save_as: response
+    on_error: continue
+    params:
+      monitor_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      log_rules: '{{ item.log_rules }}'
+      metric_rules: '{{ item.metric_rules }}'
+      system_data: '{{ item.system_data }}'

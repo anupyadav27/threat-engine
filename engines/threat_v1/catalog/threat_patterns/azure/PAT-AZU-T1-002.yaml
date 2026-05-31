@@ -1,0 +1,30 @@
+id: PAT-AZU-T1-002
+version: 1
+description: "Azure AD user with global admin role and no MFA requirement — one phished credential = full tenant compromise."
+tier: 1
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Persistence]
+mitre_techniques: [T1078.004, T1556]
+tactic_chain_order: [Privilege Escalation, Persistence]
+csps: [azure]
+entry:
+  node_type: Resource
+  resource_types: [azure_ad_user, azure_aad_user]
+  conditions:
+    check_rules_failing:
+      - azure.aad.user.access_user_mfa_required
+      - azure.aad.directory_tenant.access_tenant_console_mfa_required_org_wide
+    is_admin_role: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+tests:
+  positive:
+    description: "Global admin user without MFA enforced"
+    expected_tier: 1
+    expected_severity: critical
+  negative:
+    description: "Admin user with MFA and conditional access policy"
+    expected_tier: 1
+    expected_severity: low

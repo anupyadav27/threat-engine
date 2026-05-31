@@ -1,6 +1,54 @@
 # Threat Engine Development Guide
 
+## CONTEXT LOADING — Load This Before Everything Else
+
+**FIRST ACTION on every task:** Read `.claude/context/agents.ndjson` — match the user's words against `triggers` arrays to identify the engine. Load the `agent_file` from the matched entry. This is non-optional.
+
+**Tier 0 — always load (routing manifest, ~80 lines total):**
+- `.claude/context/agents.ndjson` — engine → triggers → agent file → tools → security gates
+- `.claude/context/tools.md` — task → correct tool (20-row table)
+
+**Tier 1 — load only for UI / BFF / data shape work:**
+- `.claude/context/api_patterns.xml` — fetchView vs getFromEngine rules + auth flow + tenant resolution
+- `.claude/context/bff_contract.ndjson` — per-view contracts (engines called, input params, output shape)
+- `.claude/context/data_flow.ndjson` — full UI→BFF→Engine path per page (auto-generated)
+
+**Tier 2 — load only when specific engine is targeted:**
+- `.claude/agents/{engine}.md` — full engine context (DB schema, API, K8s, gotchas)
+
+**Tier 3 — load only when security gate is triggered:**
+- `.claude/documentation/RBAC.md`, `.claude/documentation/CSPM_CONSTITUTION.md`
+
+**Quick pipeline reference (no file read needed):**
+`Onboarding(0) → Discovery(1) → Inventory(2) → Check(3) → Threat(4) → [Compliance/IAM/DataSec/Network/Encryption/Container/AI/DBSec/CDR/Vuln](5) → Graph-Build(6) → Risk(7) → Narrative(8)`
+
+**Routing shortcut:** If engine target is unclear or task spans process stages → spawn `cspm-orchestrator` agent first. It reads agents.ndjson and routes deterministically.
+
+**New process agents** (available after session restart if created this session):
+`cspm-po` · `cspm-qa` · `cspm-orchestrator` — invoke via `python3 .claude/scripts/invoke_cspm_agent.py --agent cspm-po --task "..."` if subagent_type not yet registered.
+
+---
+
+## SESSION-END PROTOCOL — Run After Every Session With Code Changes
+
+```bash
+git diff --name-only HEAD
+```
+Then for each changed file category:
+- `engines/{engine}/*` changed → update matching line in `.claude/context/agents.ndjson` (svc/port/prefixes)
+- `shared/api_gateway/bff/*.py` changed → update matching line in `.claude/context/bff_contract.ndjson`
+- `frontend/src/lib/constants.js` changed → re-run `python3 scripts/generate_data_flow.py`
+- New UI page added → append line to `.claude/context/data_flow.ndjson` OR re-run generator
+- Engine deployed → update image tag row in MEMORY.md production table
+- Any context file updated → set `refreshed_at` to today's date in that file's `_meta` line
+
+**Stale check:** If any `_meta.refreshed_at` is older than 7 days AND `git log --since` shows changes to its `tied_to` files → flag before using that context file.
+
+---
+
 ## AGENT AUTO-ROUTING — Read Before Every Task
+
+**Prefer agents.ndjson over this table — it is the authoritative routing manifest. This table is a quick-reference shortcut only.**
 
 **Claude must self-select the right specialist agent before doing any work. Never work on engine code without loading its agent.**
 
@@ -14,7 +62,7 @@
 | compliance, CIS, NIST, framework score | `compliance` |
 | network, SG, VPC, topology, 7-layer | `network-security` |
 | IAM, identity, MFA, policy, root account | `iam` |
-| CIEM, entitlement, CloudTrail behavior | `ciem` |
+| CDR, cloud detection, log analysis, VPC Flow, behavioral detection | `cdr` |
 | risk, FAIR, exposure, blast radius score | `risk` |
 | datasec, data security, DSPM, S3 classification | `datasec` |
 | vulnerability, CVE, SBOM, agent-based | `vulnerability` |
@@ -36,6 +84,12 @@
 
 ### Step 2 — Spawn the agent (required)
 Use `subagent_type: "<agent-name>"` when invoking via the Agent tool. The agent file lives at `.claude/agents/<agent-name>.md`. Load it as context before touching any code for that engine.
+
+**Process agents (use these instead of generic bmad equivalents):**
+- Story generation → `cspm-po` (CSPM-native ACs: engine routing, DB columns, BFF contract, RBAC matrix)
+- QA / acceptance testing → `cspm-qa` (10-level stack: BFF contract, RBAC matrix, post-deploy smoke)
+- Task routing / unclear engine → `cspm-orchestrator` (reads agents.ndjson, routes deterministically)
+- Pipeline / Argo DAG / multi-engine → `cspm-engine-orchestrator`
 
 ### Step 3 — Apply security gates automatically
 - Any PR touching endpoint / auth / DB / HTTP → also invoke `bmad-security-reviewer`
@@ -87,7 +141,7 @@ Comprehensive Cloud Security Posture Management (CSPM) platform for multi-cloud 
 - **Compliance evaluation**: Map findings to 13+ frameworks (CIS, NIST, ISO 27001, PCI-DSS, HIPAA, GDPR, SOC 2)
 - **Threat detection**: MITRE ATT&CK technique mapping, risk scoring (0-100)
 - **Network security**: 7-layer topology analysis (isolation → reachability → ACL → SG → LB → WAF → monitoring)
-- **Security analysis**: IAM posture, Data security, CIEM, Vulnerability scanning
+- **Security analysis**: IAM posture, Data security, CDR, Vulnerability scanning
 
 ## Repository Structure
 
@@ -113,7 +167,7 @@ threat-engine/
 - `engines/datasec/`: Data security and classification (Port 8003)
 - `engines/secops/`: IaC scanning (14 languages) (Port 8005)
 - `engines/network-security/`: 7-layer network topology analysis (Port 8004)
-- `engines/ciem/`: Cloud Identity and Entitlement Management
+- `engines/cdr/`: CDR — Cloud Detection & Response
 - `engines/risk/`: Risk scoring and blast radius computation
 - `engines/rule/`: YAML rule management (Port 8011)
 - `engines/vulnerability/`: Vulnerability scanning (SBOM, DAST, CVE)
@@ -219,7 +273,7 @@ git commit -m "feat(engine-name): description"
 Onboarding → Discovery → Inventory → Check → Threat → Compliance/IAM/DataSec/Network
   (8008)      (8001)      (8022)     (8002)  (8020)       (8000/−/8003/8004)
                                                  ↓
-                                          CIEM + Risk
+                                          CDR + Risk
 ```
 
 ### Network Engine — 7-Layer Architecture
@@ -255,7 +309,7 @@ The network engine runs two phases:
 
 ## Rule Routing
 - **Config/posture rules** → `check` engine (`catalog/rule/{csp}_rule_check/`)
-- **CIEM/log-dependent rules** → `rule_ciem` (log event analysis, not discovery-based)
+- **CDR/log-dependent rules** → `rule_cdr` (log event analysis, not discovery-based)
 - **Network rules** tagged with `network_security.applicable=true` in `rule_metadata` → surfaced by network engine Layer 1
 
 ## Security & Access Control
@@ -346,7 +400,7 @@ kubectl logs -f -l app=engine-threat -n threat-engine-engines --tail=100
 - **EKS**: `vulnerability-eks-cluster` in `ap-south-1`
 - **Namespace**: `threat-engine-engines`
 - **Argo**: installed in `argo` namespace
-- **ELB**: `a6fff2656f8c845e5a2d8effc1b3e56f-1461670384.ap-south-1.elb.amazonaws.com`
+- **ELB**: `a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com`
 - **CSPM Portal**: admin@cspm.local / Admin@12345
 
 ## External Documentation (`.claude/documentation/`)

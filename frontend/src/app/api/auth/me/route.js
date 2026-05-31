@@ -1,53 +1,98 @@
-// Local-dev stub for /api/auth/me/.
-// When NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH=1, returns a fake platform_admin
-// session so the AuthGuard / auth-context don't redirect to /auth/login.
-// Otherwise falls through to the next.config.js rewrite (which proxies to
-// the deployed Django backend).
+// /api/auth/me — proxies to the Django backend server-side.
+// The browser calls /ui/api/auth/me with credentials:'include', this route
+// forwards the access_token cookie to Django and returns the response as-is.
+// For local-dev with NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH=1, returns a fake session.
 
 import { NextResponse } from 'next/server';
 
-export async function GET() {
-  if (process.env.NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH !== '1') {
-    return NextResponse.json({ detail: 'not configured' }, { status: 404 });
-  }
+const DJANGO_BACKEND_URL =
+  process.env.CSPM_BACKEND_URL ||
+  'http://cspm-backend.threat-engine-engines.svc.cluster.local';
 
-  return NextResponse.json({
-    user: {
-      id: 'local-dev',
-      email: 'local-dev@example.com',
-      name: 'Local Dev',
-      roles: ['platform_admin'],
-      permissions: [
-        'platform:admin',
-        'threat:read', 'threat:write',
-        'inventory:read', 'inventory:write',
-        'check:read', 'compliance:read',
-        'iam:read', 'datasec:read',
-        'ciem:read', 'cwpp:read',
-        'container_security:read', 'database_security:read',
-        'ai_security:read', 'encryption:read',
-        'network:read', 'risk:read',
-        'discoveries:read', 'cloud_accounts:read', 'cloud_accounts:write',
-        'scans:create', 'scans:read', 'scans:write',
-        'secops:read', 'vulnerability:read',
-        'billing:read',
-      ],
-    },
-    tenants: [
-      { tenant_id: 'default-tenant', engine_tenant_id: 'default-tenant', name: 'Default Tenant' },
-    ],
-    // Leave customerId null so AppShell skips the first-time-setup wizard
-    // redirect (it short-circuits when !customerId).
-    customerId: null,
+const LOCAL_DEV_BYPASS =
+  process.env.LOCAL_DEV_BYPASS_AUTH === '1' ||
+  process.env.NEXT_PUBLIC_LOCAL_DEV_BYPASS_AUTH === '1';
+
+const FAKE_SESSION = {
+  user: {
+    id: 'local-dev',
+    email: 'local-dev@example.com',
+    name: 'Local Dev',
+    role: 'platform_admin',
+    roles: ['platform_admin'],
+    level: 1,
     permissions: [
       'platform:admin',
-      'threat:read', 'inventory:read', 'check:read',
-      'iam:read', 'datasec:read', 'ciem:read', 'cwpp:read',
-      'container_security:read', 'database_security:read',
-      'ai_security:read', 'encryption:read', 'network:read',
-      'risk:read', 'discoveries:read', 'compliance:read',
-      'scans:read', 'secops:read', 'vulnerability:read',
+      'ai_security:read',        'ai_security:write',
+      'api_security:read',       'api_security:write',
+      'attack_path:read',        'attack_path:write',
+      'billing:read',            'billing:write',
+      'cdr:read',                'cdr:sensitive',
+      'check:read',              'check:write',
+      'cloud_accounts:read',     'cloud_accounts:write',
+      'compliance:read',         'compliance:write',
+      'container_security:read', 'container_security:write',
+      'cwpp:read',               'cwpp:write',
+      'database_security:read',  'database_security:write',
+      'datasec:read',            'datasec:write',
+      'discoveries:read',        'discoveries:write',
+      'encryption:read',         'encryption:write',
+      'iam:read',                'iam:write',
+      'inventory:read',          'inventory:write',
+      'network:read',            'network:write',
+      'risk:read',               'risk:write',
+      'scans:create',            'scans:read',   'scans:write',
+      'secops:read',             'secops:write',
+      'tenants:read',            'tenants:write',
+      'threat:read',             'threat:write',
+      'vulnerability:read',      'vulnerability:write',
     ],
-    expiresIn: 86400,
-  });
+  },
+  tenants: [
+    { tenant_id: 'default-tenant', engine_tenant_id: 'default-tenant', name: 'Default Tenant' },
+  ],
+  customerId: null,
+  permissions: [
+    'platform:admin',
+    'ai_security:read',    'api_security:read',  'attack_path:read',
+    'billing:read',        'cdr:read',           'check:read',
+    'cloud_accounts:read', 'compliance:read',    'container_security:read',
+    'cwpp:read',           'database_security:read', 'datasec:read',
+    'discoveries:read',    'encryption:read',    'iam:read',
+    'inventory:read',      'network:read',       'risk:read',
+    'scans:read',          'secops:read',        'tenants:read',
+    'threat:read',         'vulnerability:read',
+  ],
+  expiresIn: 86400,
+};
+
+export async function GET(request) {
+  if (LOCAL_DEV_BYPASS) {
+    return NextResponse.json(FAKE_SESSION);
+  }
+
+  // Server-side proxy to Django — forwards access_token cookie so Django can
+  // validate the session. Returns Django's response (200 with user data, or
+  // 401 if the session is expired/missing).
+  try {
+    const cookieHeader = request.headers.get('cookie') || '';
+    const res = await fetch(`${DJANGO_BACKEND_URL}/api/auth/me/`, {
+      headers: { cookie: cookieHeader },
+      signal: AbortSignal.timeout(5000), // fail fast — don't hang for 30s
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = { detail: 'invalid response from auth service' };
+    }
+
+    return NextResponse.json(data, { status: res.status });
+  } catch (err) {
+    return NextResponse.json(
+      { detail: 'auth service unreachable' },
+      { status: 503 },
+    );
+  }
 }

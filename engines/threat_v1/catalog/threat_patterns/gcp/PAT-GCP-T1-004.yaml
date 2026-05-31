@@ -1,0 +1,29 @@
+id: PAT-GCP-T1-004
+version: 1
+description: "GCP org-level IAM policy does not deny admin star — any project can grant roles/admin without org-wide prevention."
+tier: 1
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Persistence]
+mitre_techniques: [T1078.004, T1098.001]
+tactic_chain_order: [Privilege Escalation, Persistence]
+csps: [gcp]
+entry:
+  node_type: Resource
+  resource_types: [gcp_organization, gcp_project]
+  conditions:
+    check_rules_failing:
+      - gcp.resourcemanager.policy.scp_mandatory_deny_iam_star_admin
+    is_admin_role: true
+scoring:
+  posture_severity: high
+  active_severity: critical
+tests:
+  positive:
+    description: "GCP org with no mandatory deny-admin-star org policy"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "GCP org with deny-admin-star constraint enforced"
+    expected_tier: 1
+    expected_severity: low

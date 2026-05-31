@@ -1,7 +1,3 @@
-# Discovery YAML — orbital (Azure)
-# Generated: 2026-04-15T10:39:31Z
-# Source: step1b_operation_registry.json (qualified ops + dependency chains)
-# Actions use {category}.{method} format for SDK method resolution
 version: '1.0'
 provider: azure
 service: orbital
@@ -9,169 +5,160 @@ services:
   client: orbital
   module: azure.mgmt.orbital
 discovery:
-  # ── contactprofiles.list [root] ──
-  - discovery_id: azure.orbital.contactprofiles.list
-    calls:
-      - action: contactprofiles.list
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        links: '{{ item.links }}'
-        norad_id: '{{ item.norad_id }}'
-        system_data: '{{ item.system_data }}'
-        title_line: '{{ item.title_line }}'
-        tle_line1: '{{ item.tle_line1 }}'
-        tle_line2: '{{ item.tle_line2 }}'
-  # ── contactprofiles.list_by_subscription [root] ──
-  - discovery_id: azure.orbital.contactprofiles.list_by_subscription
-    calls:
-      - action: contactprofiles.list_by_subscription
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        links: '{{ item.links }}'
-        norad_id: '{{ item.norad_id }}'
-        system_data: '{{ item.system_data }}'
-        title_line: '{{ item.title_line }}'
-        tle_line1: '{{ item.tle_line1 }}'
-        tle_line2: '{{ item.tle_line2 }}'
-  # ── spacecrafts.list [root] ──
-  - discovery_id: azure.orbital.spacecrafts.list
-    calls:
-      - action: spacecrafts.list
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        links: '{{ item.links }}'
-        norad_id: '{{ item.norad_id }}'
-        system_data: '{{ item.system_data }}'
-        title_line: '{{ item.title_line }}'
-        tle_line1: '{{ item.tle_line1 }}'
-        tle_line2: '{{ item.tle_line2 }}'
-  # ── spacecrafts.list_by_subscription [root] ──
-  - discovery_id: azure.orbital.spacecrafts.list_by_subscription
-    calls:
-      - action: spacecrafts.list_by_subscription
-        save_as: response
-        on_error: continue
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        links: '{{ item.links }}'
-        norad_id: '{{ item.norad_id }}'
-        system_data: '{{ item.system_data }}'
-        title_line: '{{ item.title_line }}'
-        tle_line1: '{{ item.tle_line1 }}'
-        tle_line2: '{{ item.tle_line2 }}'
-  # ════════════════════════════════════════
-  # Dependent operations (for_each + params)
-  # ════════════════════════════════════════
-  # ── contacts.list [dependent] ──
-  - discovery_id: azure.orbital.contacts.list
-    for_each: azure.orbital.spacecrafts.list_by_subscription
-    calls:
-      - action: contacts.list
-        save_as: response
-        on_error: continue
-        params:
-          spacecraft_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        location: '{{ item.location }}'
-        name: '{{ item.name }}'
-        provisioning_state: '{{ item.provisioning_state }}'
-        id: '{{ item.id }}'
-        tags: '{{ item.tags }}'
-        links: '{{ item.links }}'
-        norad_id: '{{ item.norad_id }}'
-        system_data: '{{ item.system_data }}'
-        title_line: '{{ item.title_line }}'
-        tle_line1: '{{ item.tle_line1 }}'
-        tle_line2: '{{ item.tle_line2 }}'
-  # ── results.begin_get [dependent] ──
-  - discovery_id: azure.orbital.results.begin_get
-    for_each: azure.orbital.contactprofiles.list_by_subscription
-    calls:
-      - action: results.begin_get
-        save_as: response
-        on_error: continue
-        params:
-          location: '{{ item.location }}'
-    emit:
-      as: item
-      item:
-        properties: '{{ response.properties }}'
-        name: '{{ response.name }}'
-        status: '{{ response.status }}'
-        id: '{{ response.id }}'
-        end_time: '{{ response.end_time }}'
-        error: '{{ response.error }}'
-        percent_complete: '{{ response.percent_complete }}'
-        start_time: '{{ response.start_time }}'
-  # ── spacecrafts.begin_list_available_contacts [dependent] ──
-  - discovery_id: azure.orbital.spacecrafts.begin_list_available_contacts
-    for_each: azure.orbital.spacecrafts.list_by_subscription
-    calls:
-      - action: spacecrafts.begin_list_available_contacts
-        save_as: response
-        on_error: continue
-        params:
-          spacecraft_name: '{{ item.name }}'
-    emit:
-      as: item
-      items_for: '{{ response.value }}'
-      item:
-        type: '{{ item.type }}'
-        name: '{{ item.name }}'
-        id: '{{ item.id }}'
-        end_azimuth_degrees: '{{ item.end_azimuth_degrees }}'
-        end_elevation_degrees: '{{ item.end_elevation_degrees }}'
-        ground_station_name: '{{ item.ground_station_name }}'
-        maximum_elevation_degrees: '{{ item.maximum_elevation_degrees }}'
-        rx_end_time: '{{ item.rx_end_time }}'
-        rx_start_time: '{{ item.rx_start_time }}'
-        spacecraft: '{{ item.spacecraft }}'
-        start_azimuth_degrees: '{{ item.start_azimuth_degrees }}'
-        start_elevation_degrees: '{{ item.start_elevation_degrees }}'
-        tx_end_time: '{{ item.tx_end_time }}'
-        tx_start_time: '{{ item.tx_start_time }}'
-
-  # ── Unwired dependent ops (no root producer found) ──
-  # SKIP: azure.orbital.availablegroundstations.list_by_capability — required_params: ['capability']
+- discovery_id: azure.orbital.contactprofiles.list
+  calls:
+  - action: contactprofiles.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      links: '{{ item.links }}'
+      norad_id: '{{ item.norad_id }}'
+      system_data: '{{ item.system_data }}'
+      title_line: '{{ item.title_line }}'
+      tle_line1: '{{ item.tle_line1 }}'
+      tle_line2: '{{ item.tle_line2 }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.orbital.contactprofiles.list_by_subscription
+  calls:
+  - action: contactprofiles.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      links: '{{ item.links }}'
+      norad_id: '{{ item.norad_id }}'
+      system_data: '{{ item.system_data }}'
+      title_line: '{{ item.title_line }}'
+      tle_line1: '{{ item.tle_line1 }}'
+      tle_line2: '{{ item.tle_line2 }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.orbital.spacecrafts.list
+  calls:
+  - action: spacecrafts.list
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      links: '{{ item.links }}'
+      norad_id: '{{ item.norad_id }}'
+      system_data: '{{ item.system_data }}'
+      title_line: '{{ item.title_line }}'
+      tle_line1: '{{ item.tle_line1 }}'
+      tle_line2: '{{ item.tle_line2 }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.orbital.spacecrafts.list_by_subscription
+  calls:
+  - action: spacecrafts.list_by_subscription
+    save_as: response
+    on_error: continue
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      links: '{{ item.links }}'
+      norad_id: '{{ item.norad_id }}'
+      system_data: '{{ item.system_data }}'
+      title_line: '{{ item.title_line }}'
+      tle_line1: '{{ item.tle_line1 }}'
+      tle_line2: '{{ item.tle_line2 }}'
+  uid_template: '{item.id}'
+- discovery_id: azure.orbital.contacts.list
+  for_each: azure.orbital.spacecrafts.list_by_subscription
+  calls:
+  - action: contacts.list
+    save_as: response
+    on_error: continue
+    params:
+      spacecraft_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      location: '{{ item.location }}'
+      name: '{{ item.name }}'
+      provisioning_state: '{{ item.provisioning_state }}'
+      id: '{{ item.id }}'
+      tags: '{{ item.tags }}'
+      links: '{{ item.links }}'
+      norad_id: '{{ item.norad_id }}'
+      system_data: '{{ item.system_data }}'
+      title_line: '{{ item.title_line }}'
+      tle_line1: '{{ item.tle_line1 }}'
+      tle_line2: '{{ item.tle_line2 }}'
+- discovery_id: azure.orbital.results.begin_get
+  for_each: azure.orbital.contactprofiles.list_by_subscription
+  calls:
+  - action: results.begin_get
+    save_as: response
+    on_error: continue
+    params:
+      location: '{{ item.location }}'
+  emit:
+    as: item
+    item:
+      properties: '{{ response.properties }}'
+      name: '{{ response.name }}'
+      status: '{{ response.status }}'
+      id: '{{ response.id }}'
+      end_time: '{{ response.end_time }}'
+      error: '{{ response.error }}'
+      percent_complete: '{{ response.percent_complete }}'
+      start_time: '{{ response.start_time }}'
+- discovery_id: azure.orbital.spacecrafts.begin_list_available_contacts
+  for_each: azure.orbital.spacecrafts.list_by_subscription
+  calls:
+  - action: spacecrafts.begin_list_available_contacts
+    save_as: response
+    on_error: continue
+    params:
+      spacecraft_name: '{{ item.name }}'
+  emit:
+    as: item
+    items_for: '{{ response.value }}'
+    item:
+      type: '{{ item.type }}'
+      name: '{{ item.name }}'
+      id: '{{ item.id }}'
+      end_azimuth_degrees: '{{ item.end_azimuth_degrees }}'
+      end_elevation_degrees: '{{ item.end_elevation_degrees }}'
+      ground_station_name: '{{ item.ground_station_name }}'
+      maximum_elevation_degrees: '{{ item.maximum_elevation_degrees }}'
+      rx_end_time: '{{ item.rx_end_time }}'
+      rx_start_time: '{{ item.rx_start_time }}'
+      spacecraft: '{{ item.spacecraft }}'
+      start_azimuth_degrees: '{{ item.start_azimuth_degrees }}'
+      start_elevation_degrees: '{{ item.start_elevation_degrees }}'
+      tx_end_time: '{{ item.tx_end_time }}'
+      tx_start_time: '{{ item.tx_start_time }}'

@@ -40,11 +40,14 @@ export const ALLOWED_DIRECT_ENGINE_BYPASSES = [
   '/cspm/api/profile',
 
   // ─── DEFERRED: onboarding writes (STORY-ONBOARDING-WRITE-BFF-MIGRATION)
+  // NOTE: GET /onboarding/api/v1/schedules is MIGRATED to BFF (JNY-17.1).
+  // Only write operations remain here pending STORY-ONBOARDING-WRITE-BFF-MIGRATION.
   '/onboarding/api/v1/cloud-accounts',
   '/onboarding/api/v1/validate-credentials',
   '/onboarding/api/v1/agent-token',
   '/onboarding/api/v1/log-sources',
   '/onboarding/api/v1/aws/cloudformation-template',
+  '/onboarding/api/v1/tenants',
 
   // ─── DEFERRED: vulnerability + sbom (STORY-VULN-BFF-MIGRATION, STORY-SBOM-BFF-MIGRATION)
   // Blocked on JNY-15 engine Pydantic schemas; migrate as engines adopt response_model=.

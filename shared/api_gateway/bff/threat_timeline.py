@@ -65,10 +65,10 @@ async def threat_timeline_view(
     }
 
     threat_data, scan_data = await fetch_many([
-        ("threat", "/api/v1/threat/ui-data", threat_params),
+        ("attack_path", "/api/v1/threat/ui-data", threat_params),
         ("onboarding", "/api/v1/scan-runs", {"tenant_id": tenant_id, "limit": "20"}),
     ], auth_headers=fwd_headers)
-    meta.record_engine("threat", "/api/v1/threat/ui-data", threat_data)
+    meta.record_engine("attack_path", "/api/v1/threat/ui-data", threat_data)
     meta.record_engine("onboarding", "/api/v1/scan-runs", scan_data)
 
     if not isinstance(threat_data, dict):

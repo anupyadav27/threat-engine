@@ -88,10 +88,9 @@ def _resolve_latest_report(
     Returns:
         The report row as a dict, or None if no report exists.
     """
-    # Skip orphaned reports (no backing findings rows)
     cur.execute(
         """
-        SELECT r.scan_run_id, r.tenant_id, r.check_scan_id,
+        SELECT r.scan_run_id, r.tenant_id,
                r.total_controls, r.controls_passed, r.controls_failed,
                r.report_data, r.created_at, r.status, r.provider
         FROM compliance_report r
@@ -125,7 +124,7 @@ def _resolve_report_by_scan_id(
     """
     cur.execute(
         """
-        SELECT scan_run_id, tenant_id, check_scan_id,
+        SELECT scan_run_id, tenant_id,
                total_controls, controls_passed, controls_failed,
                report_data, created_at, status, provider
         FROM compliance_report
@@ -195,6 +194,7 @@ def _get_framework_summaries(
     report_id: str,
     tenant_id: str,
     report_data: Any,
+    controls_passed_from_db: int = 0,
 ) -> List[Dict[str, Any]]:
     """Build per-framework summary objects including last_assessed timestamp.
 
@@ -212,9 +212,9 @@ def _get_framework_summaries(
     Returns:
         A list of framework summary dicts.
     """
-    # Use finding_data->>'framework' as fallback when compliance_framework is empty.
-    # ALL findings stored here are failures (writer only inserts check_result='FAIL'),
-    # so COUNT(*) = failed_controls. Passed = report-level passed / framework count.
+    # ALL findings stored here are failures (writer only inserts check_result='FAIL').
+    # unique_failed = distinct failing controls; total_controls from compliance_controls
+    # lets us compute passed = total - unique_failed for a meaningful score.
     cur.execute(
         """
         WITH fw_keys AS (
@@ -225,10 +225,22 @@ def _get_framework_summaries(
                     'Unknown'
                 ) AS framework_key,
                 COUNT(*)          AS failed_controls,
+                COUNT(DISTINCT COALESCE(
+                    NULLIF(cf.control_id, ''),
+                    cf.finding_data->>'control_id',
+                    cf.rule_id
+                ))                AS unique_failed,
                 MAX(cf.last_seen_at) AS last_assessed
             FROM compliance_findings cf
             WHERE cf.scan_run_id = %s AND cf.tenant_id = %s
             GROUP BY framework_key
+        ),
+        fw_ctrl_counts AS (
+            SELECT cfr.framework_id, COUNT(cc.control_id) AS total_controls
+            FROM compliance_frameworks cfr
+            LEFT JOIN compliance_controls cc
+                ON cc.framework_id = cfr.framework_id AND cc.is_active = true
+            GROUP BY cfr.framework_id
         )
         SELECT
             fk.framework_key,
@@ -237,33 +249,41 @@ def _get_framework_summaries(
             fw.version          AS framework_version,
             fw.authority        AS framework_authority,
             fw.category         AS framework_category,
+            fw.base_url         AS framework_base_url,
+            fw.vendor_name      AS framework_vendor,
             fk.failed_controls,
+            fk.unique_failed,
+            COALESCE(fcc.total_controls, 0) AS total_controls,
             fk.last_assessed
         FROM fw_keys fk
-        LEFT JOIN compliance_frameworks fw ON fk.framework_key = fw.framework_id
+        LEFT JOIN compliance_frameworks fw
+            ON fk.framework_key = fw.framework_id OR fk.framework_key = fw.framework_name
+        LEFT JOIN fw_ctrl_counts fcc ON fw.framework_id = fcc.framework_id
         ORDER BY fk.framework_key
         """,
         (report_id, tenant_id),
     )
     rows = cur.fetchall()
 
-    # Get report-level totals so we can compute passed = total - failed
-    total_from_report   = int((report_data or {}).get("total_controls", 0)
-                              if isinstance(report_data, dict) else 0)
-    passed_from_report  = int((report_data or {}).get("controls_passed", 0)
-                              if isinstance(report_data, dict) else 0)
-
     if rows:
         frameworks = []
-        num_fw = len(rows)
         for row in rows:
-            failed       = int(row["failed_controls"] or 0)
-            # Distribute report-level passed evenly across frameworks when
-            # we cannot tell per-framework pass counts (all-fail writer pattern).
-            passed       = max(0, passed_from_report // num_fw) if num_fw else 0
-            total        = failed + passed
-            score        = round((passed / total) * 100, 1) if total > 0 else 0.0
-            last_assessed = row.get("last_assessed")
+            unique_failed  = int(row.get("unique_failed") or 0)
+            total_from_db  = int(row.get("total_controls") or 0)
+            last_assessed  = row.get("last_assessed")
+
+            if total_from_db > 0:
+                # Use distinct failing controls vs total controls for a real score.
+                failed = min(unique_failed, total_from_db)
+                passed = max(0, total_from_db - failed)
+                total  = total_from_db
+            else:
+                # No controls defined in DB — show all findings as failures, score 0.
+                failed = int(row["failed_controls"] or 0)
+                passed = 0
+                total  = failed
+
+            score = round((passed / total) * 100, 1) if total > 0 else 0.0
             frameworks.append(
                 {
                     "framework_id":        row.get("fw_table_id") or row["framework_key"],
@@ -271,6 +291,8 @@ def _get_framework_summaries(
                     "framework_version":   row.get("framework_version"),
                     "framework_authority": row.get("framework_authority"),
                     "framework_category":  row.get("framework_category"),
+                    "base_url":            row.get("framework_base_url"),
+                    "vendor_name":         row.get("framework_vendor"),
                     "score":               score,
                     "passed_controls":     passed,
                     "failed_controls":     failed,
@@ -332,60 +354,87 @@ def _get_failing_controls(
     cur: Any,
     report_id: str,
     tenant_id: str,
-    limit: int = 100,
+    limit: int = 10000,
 ) -> List[Dict[str, Any]]:
-    """Retrieve the top failing controls with account, region, and days_open.
+    """Retrieve failing controls with account, region, and days_open.
 
     IMPORTANT: The compliance_db_writer only stores FAIL findings and marks
     them status='open'. Do NOT filter on status='FAIL' — every row here is
     a failure. Use finding_data JSONB as fallback for empty columns.
+    When compliance_framework is empty, infer from rule_id prefix (e.g. k8s.* → cis_k8s).
 
     Args:
         cur: Database cursor (RealDictCursor).
         report_id: The compliance report identifier.
         tenant_id: The tenant identifier.
-        limit: Maximum number of failing controls to return.
+        limit: Maximum number of failing controls to return (default 10000).
 
     Returns:
         A list of failing control dicts.
     """
+    # Use a CTE to compute eff_framework once so the outer GROUP BY can use simple columns.
     cur.execute(
         """
+        WITH resolved AS (
+            SELECT
+                COALESCE(
+                    NULLIF(cf.control_id, ''),
+                    cf.finding_data->>'control_id',
+                    cf.rule_id
+                ) AS eff_control_id,
+                CASE
+                    WHEN NULLIF(cf.compliance_framework, '') IS NOT NULL
+                        THEN cf.compliance_framework
+                    WHEN cf.finding_data->>'framework' IS NOT NULL
+                         AND cf.finding_data->>'framework' <> ''
+                        THEN cf.finding_data->>'framework'
+                    WHEN cf.rule_id LIKE 'k8s.%%' OR cf.rule_id LIKE 'K8S-%%' THEN 'cis_k8s'
+                    WHEN cf.rule_id LIKE 'aws.%%' OR cf.rule_id LIKE 'AWS-%%' THEN 'cis_aws'
+                    WHEN cf.rule_id LIKE 'azure.%%' THEN 'cis_azure'
+                    WHEN cf.rule_id LIKE 'gcp.%%'   THEN 'cis_gcp'
+                    WHEN cf.rule_id LIKE 'oci.%%'   THEN 'cis_oci'
+                    ELSE 'Unknown'
+                END AS eff_framework,
+                cf.severity,
+                cf.account_id,
+                cf.region,
+                cf.first_seen_at,
+                COALESCE(
+                    cc.control_name,
+                    NULLIF(cf.control_name, ''),
+                    cf.finding_data->>'control_title',
+                    cf.finding_data->>'control_id',
+                    cf.rule_id
+                ) AS ctrl_name,
+                cc.control_description,
+                cc.control_family
+            FROM compliance_findings cf
+            LEFT JOIN compliance_controls cc
+                ON COALESCE(
+                    NULLIF(cf.control_id, ''),
+                    cf.finding_data->>'control_id'
+                ) = cc.control_id
+            WHERE cf.scan_run_id = %s
+              AND cf.tenant_id   = %s
+              AND UPPER(cf.status)
+                  NOT IN ('PASS', 'RESOLVED', 'CLOSED', 'FIXED', 'SUPPRESSED')
+        )
         SELECT
-            COALESCE(NULLIF(cf.control_id, ''), cf.finding_data->>'control_id', cf.rule_id)
-                                                                          AS eff_control_id,
-            COALESCE(
-                NULLIF(cf.compliance_framework, ''),
-                cf.finding_data->>'framework',
-                'Unknown'
-            )                                                             AS eff_framework,
-            cf.severity,
-            cf.account_id,
-            cf.region,
-            COUNT(*)                                                      AS failed_resources,
-            COALESCE(
-                cc.control_name,
-                NULLIF(cf.control_name, ''),
-                cf.finding_data->>'control_title',
-                cf.finding_data->>'control_id',
-                cf.rule_id
-            )                                                             AS control_name,
-            cc.control_description,
-            cc.control_family,
-            EXTRACT(DAY FROM (NOW() - MIN(cf.first_seen_at)))::INT        AS days_open
-        FROM compliance_findings cf
-        LEFT JOIN compliance_controls cc
-            ON COALESCE(NULLIF(cf.control_id, ''), cf.finding_data->>'control_id') = cc.control_id
-        WHERE cf.scan_run_id = %s
-          AND cf.tenant_id   = %s
-          AND UPPER(cf.status) NOT IN ('PASS', 'RESOLVED', 'CLOSED', 'FIXED', 'SUPPRESSED')
+            eff_control_id,
+            eff_framework,
+            severity,
+            account_id,
+            region,
+            COUNT(*)                                            AS failed_resources,
+            ctrl_name                                           AS control_name,
+            control_description,
+            control_family,
+            EXTRACT(DAY FROM (NOW() - MIN(first_seen_at)))::INT AS days_open
+        FROM resolved
         GROUP BY
-            COALESCE(NULLIF(cf.control_id, ''), cf.finding_data->>'control_id', cf.rule_id),
-            COALESCE(NULLIF(cf.compliance_framework, ''), cf.finding_data->>'framework', 'Unknown'),
-            cf.severity, cf.account_id, cf.region,
-            cc.control_name, cf.control_name, cf.finding_data->>'control_title',
-            cf.finding_data->>'control_id', cf.rule_id,
-            cc.control_description, cc.control_family
+            eff_control_id, eff_framework, severity,
+            account_id, region, ctrl_name,
+            control_description, control_family
         ORDER BY failed_resources DESC
         LIMIT %s
         """,
@@ -780,10 +829,13 @@ async def get_compliance_ui_data(
         overall_score = _compute_overall_score(posture)
 
         # 4. Per-framework breakdowns (includes last_assessed)
-        frameworks = _get_framework_summaries(cur, report_id, tenant_id, report_data)
+        frameworks = _get_framework_summaries(
+            cur, report_id, tenant_id, report_data,
+            controls_passed_from_db=int(report_row.get("controls_passed", 0) or 0),
+        )
 
-        # 5. Failing controls (includes account_id, region, days_open)
-        failing_controls = _get_failing_controls(cur, report_id, tenant_id)
+        # 5. Failing controls (includes account_id, region, days_open) — no artificial cap
+        failing_controls = _get_failing_controls(cur, report_id, tenant_id, limit=10000)
 
         # 6. Per-account compliance scores (replaces BFF synthetic generation)
         per_account_scores = _get_per_account_scores(cur, tenant_id, report_id)
@@ -870,21 +922,34 @@ async def get_all_frameworks_with_status(
             SELECT DISTINCT ON (framework_id)
                 framework_id, overall_score, total_controls,
                 controls_implemented, controls_deficient, controls_not_applicable,
-                assessment_data
+                assessment_data, completed_at
             FROM compliance_assessments
             WHERE tenant_id = %s
             ORDER BY framework_id, completed_at DESC NULLS LAST
         """, (tenant_id,))
         assessments = {r["framework_id"]: dict(r) for r in cur.fetchall()}
 
-        # Get finding counts per framework from compliance_findings
+        # Get finding counts and unique failed control IDs per framework.
+        # compliance_findings only stores FAILs; unique_failed counts distinct controls that failed.
         cur.execute("""
-            SELECT compliance_framework AS fw, COUNT(*) AS cnt
+            SELECT
+                COALESCE(NULLIF(compliance_framework, ''), finding_data->>'framework', 'Unknown') AS fw,
+                COUNT(*) AS cnt,
+                COUNT(DISTINCT COALESCE(
+                    NULLIF(control_id, ''),
+                    finding_data->>'control_id',
+                    rule_id
+                )) AS unique_failed
             FROM compliance_findings
             WHERE tenant_id = %s
-            GROUP BY compliance_framework
+            GROUP BY fw
         """, (tenant_id,))
-        finding_counts = {r["fw"]: r["cnt"] for r in cur.fetchall()}
+        finding_counts: Dict[str, int] = {}
+        unique_failed_by_fw: Dict[str, int] = {}
+        for r in cur.fetchall():
+            fw_key = r["fw"]
+            finding_counts[fw_key] = int(r["cnt"] or 0)
+            unique_failed_by_fw[fw_key] = int(r["unique_failed"] or 0)
 
         frameworks = []
         for fw in fw_rows:
@@ -902,10 +967,23 @@ async def get_all_frameworks_with_status(
 
             passed = summary.get("PASS", 0) + summary.get("PARTIAL", 0)
             failed = summary.get("FAIL", 0)
-            score = assessment.get("overall_score") or (round(100 * passed / total, 1) if total > 0 else 0)
+            not_applicable = summary.get("NOT_APPLICABLE", 0)
+            assessed_total = total - not_applicable
+            score = assessment.get("overall_score") or (round(100 * passed / assessed_total, 1) if assessed_total > 0 else 0)
 
-            # Match findings by framework_name (findings use name like "CIS", controls use id like "cis_aws")
-            findings = finding_counts.get(fname, 0)
+            # Match findings by framework_name or framework_id
+            findings = finding_counts.get(fname, 0) or finding_counts.get(fid, 0)
+            unique_failed = unique_failed_by_fw.get(fname, 0) or unique_failed_by_fw.get(fid, 0)
+
+            # When no assessment exists, derive pass/fail from compliance_findings.
+            # unique_failed = distinct failing controls; passed = total_controls - failed.
+            if passed == 0 and failed == 0 and findings > 0:
+                failed = min(unique_failed if unique_failed > 0 else findings, total)
+                passed = max(0, total - failed)
+
+            # Compute score when assessment overall_score is missing
+            if not score and total > 0:
+                score = round(passed / total * 100, 1)
 
             # Provider from framework_data
             fw_data = fw.get("framework_data") or {}
@@ -913,6 +991,7 @@ async def get_all_frameworks_with_status(
                 fw_data = json.loads(fw_data)
             provider = fw_data.get("provider", "multi")
 
+            completed_at = assessment.get("completed_at")
             frameworks.append({
                 "id": fid,
                 "name": fname,
@@ -925,7 +1004,12 @@ async def get_all_frameworks_with_status(
                 "passed": passed,
                 "failed": failed,
                 "findings": findings,
-                "has_assessment": bool(assessment),
+                "has_assessment": bool(assessment) or passed > 0 or failed > 0,
+                "last_assessed": (
+                    completed_at.isoformat()
+                    if isinstance(completed_at, datetime)
+                    else str(completed_at) if completed_at else None
+                ),
             })
 
         return {
@@ -956,10 +1040,11 @@ async def get_control_detail(
         conn = _get_compliance_db_connection()
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
-            SELECT control_id, framework_id, control_name, control_description,
-                   control_family, severity, assessment_type, profile_level,
-                   implementation_guidance, testing_procedures, rationale,
-                   remediation, default_value, impact
+            SELECT control_id, framework_id, control_number, control_name,
+                   control_description, control_family, severity,
+                   assessment_type, profile_level, implementation_guidance,
+                   testing_procedures, rationale, remediation,
+                   default_value, impact, reference_url
             FROM compliance_controls
             WHERE control_id = %s
         """, (control_id,))
@@ -1021,11 +1106,12 @@ async def get_framework_assessment(
         for k in ("created_at", "updated_at", "framework_data"):
             fw_meta.pop(k, None)
 
-        # Get controls — lightweight fields only (no large text blobs)
+        # Get controls — reference_url pre-computed and stored in the table
         cur.execute("""
-            SELECT control_id, control_name,
+            SELECT control_id, control_number, control_name,
                    LEFT(control_description, 200) AS control_description,
-                   control_family, severity, assessment_type, profile_level, provider
+                   control_family, severity, assessment_type,
+                   profile_level, provider, reference_url
             FROM compliance_controls
             WHERE framework_id = %s AND is_active = true
             ORDER BY control_family, control_id
@@ -1056,28 +1142,7 @@ async def get_framework_assessment(
                     "total_resources": (test_res or {}).get("total_resources", 0),
                 }
 
-        # If no assessment results, compute status from compliance_findings directly
-        if not assessment_map:
-            # Get fail counts per control from findings
-            cur.execute("""
-                SELECT COALESCE(NULLIF(control_id, ''), finding_data->>'control_id', rule_id) AS cid,
-                       COUNT(*) AS fail_count
-                FROM compliance_findings
-                WHERE scan_run_id = %s AND tenant_id = %s
-                  AND compliance_framework = %s
-                GROUP BY cid
-            """, (scan_run_id, tenant_id, fw_meta.get("framework_name", framework_id)))
-            for r in cur.fetchall():
-                if r["cid"]:
-                    assessment_map[r["cid"]] = {
-                        "status": "FAIL",
-                        "pass_count": 0,
-                        "fail_count": r["fail_count"],
-                        "total_resources": r["fail_count"],
-                    }
-
         # Build response grouped by family
-        import json as _json
         families = {}
         summary = {"PASS": 0, "FAIL": 0, "PARTIAL": 0, "MANUAL_REVIEW": 0, "NOT_APPLICABLE": 0, "NOT_ASSESSED": 0}
 
@@ -1101,16 +1166,69 @@ async def get_framework_assessment(
             }
 
             if family not in families:
-                families[family] = {"family": family, "controls": [], "pass": 0, "fail": 0, "total": 0}
+                families[family] = {"family": family, "controls": [], "pass": 0, "partial": 0, "fail": 0, "total": 0, "na": 0}
             families[family]["controls"].append(ctrl_entry)
             families[family]["total"] += 1
             if status == "PASS":
                 families[family]["pass"] += 1
-            elif status in ("FAIL", "PARTIAL"):
+            elif status == "PARTIAL":
+                families[family]["partial"] += 1
+            elif status == "FAIL":
                 families[family]["fail"] += 1
+            elif status == "NOT_APPLICABLE":
+                families[family]["na"] += 1
 
         total = len(controls)
         passed = summary.get("PASS", 0)
+
+        # Fallback: if no assessment data exists yet (tenant's first scan hasn't completed
+        # the assessor phase, or assessor was skipped), derive aggregate counts from
+        # compliance_findings directly. Filter by tenant_id only — scan_run_id is not
+        # used because compliance_findings may span multiple scans for the same tenant.
+        if passed == 0 and summary.get("FAIL", 0) == 0 and total > 0:
+            cur.execute("""
+                WITH fw_keys AS (
+                    SELECT
+                        COALESCE(NULLIF(cf.compliance_framework,''), cf.finding_data->>'framework', 'Unknown') AS framework_key,
+                        COUNT(DISTINCT COALESCE(NULLIF(cf.control_id,''), cf.finding_data->>'control_id', cf.rule_id)) AS unique_failed
+                    FROM compliance_findings cf
+                    WHERE cf.tenant_id = %s
+                    GROUP BY framework_key
+                )
+                SELECT fk.unique_failed
+                FROM fw_keys fk
+                JOIN compliance_frameworks fw ON (fk.framework_key = fw.framework_id OR fk.framework_key = fw.framework_name)
+                WHERE fw.framework_id = %s
+                LIMIT 1
+            """, (tenant_id, effective_fw_id))
+            agg_row = cur.fetchone()
+            unique_failed = int(agg_row["unique_failed"]) if agg_row and agg_row["unique_failed"] else 0
+            agg_fail = min(unique_failed, total)
+            agg_pass = max(0, total - agg_fail)
+            summary["FAIL"] = agg_fail
+            summary["PASS"] = agg_pass
+            summary["NOT_ASSESSED"] = 0
+            passed = agg_pass
+
+            # Proportionally distribute agg_fail across families so section scores are
+            # non-zero. compliance_findings.control_id stores rule_ids (aws.cloudtrail.enabled),
+            # not CIS control_ids (1.1.1), so per-control mapping is impossible — proportional
+            # approximation is the only option for family-level scores.
+            if total > 0 and (agg_fail > 0 or agg_pass > 0):
+                fail_rate = agg_fail / total
+                family_list = list(families.values())
+                accumulated_fail = 0
+                for i, fam in enumerate(family_list):
+                    fam_total = fam["total"]
+                    if i == len(family_list) - 1:
+                        fam["fail"] = max(0, agg_fail - accumulated_fail)
+                        fam["pass"] = max(0, fam_total - fam["fail"])
+                    else:
+                        fam_fail = round(fail_rate * fam_total)
+                        fam["fail"] = fam_fail
+                        fam["pass"] = max(0, fam_total - fam_fail)
+                        accumulated_fail += fam_fail
+
         score = round(100 * passed / total, 1) if total > 0 else 0
 
         return {
@@ -1211,14 +1329,14 @@ async def get_framework_report(
         fw_name = fw_row["framework_name"] if fw_row else framework_id
         fw_version = fw_row.get("version") if fw_row else None
 
-        # Get ALL control fields (full data for report)
+        # Get ALL control fields (reference_url pre-computed in table)
         cur.execute("""
-            SELECT control_id, control_name, control_description, control_family,
-                   severity, assessment_type, profile_level, provider,
+            SELECT control_id, control_number, control_name, control_description,
+                   control_family, severity, assessment_type, profile_level, provider,
                    section_id, section_name, subsection_id, sort_order,
                    testing_procedures, implementation_guidance, rationale,
                    audit_console, audit_cli, remediation_console, remediation_cli,
-                   default_value, impact
+                   default_value, impact, reference_url
             FROM compliance_controls
             WHERE framework_id = %s AND is_active = true
             ORDER BY sort_order NULLS LAST, control_id

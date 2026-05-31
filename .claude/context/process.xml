@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+<process version="1.0" refreshed_at="2026-05-15" tied_to=".claude/documentation/CSPM_CONSTITUTION.md .claude/documentation/TESTING_QUALITY.md">
+
+  <stage id="intake">
+    <owner>cspm-orchestrator</owner>
+    <action>Read .claude/context/agents.ndjson — match user intent to engine triggers</action>
+    <action>Classify task: bug-fix | new-feature | new-engine | security-gate | deployment | query</action>
+    <action>Load engine agent file from matched agents.ndjson entry agent_file field</action>
+    <output>routing decision: engine + process_stage + security_gates[]</output>
+    <skip_stage>never — intake always runs</skip_stage>
+  </stage>
+
+  <stage id="requirements">
+    <owner>bmad-analyst or bmad-pm</owner>
+    <trigger>new feature with unclear scope OR new compliance framework OR new CSP support</trigger>
+    <output>PRD or acceptance criteria doc in .claude/planning/</output>
+    <skip_when>bug fix | routine engine change | known platform pattern | adding a single rule</skip_when>
+  </stage>
+
+  <stage id="design">
+    <owner>bmad-architect</owner>
+    <trigger>new engine OR major schema change (new table) OR cross-engine dependency change</trigger>
+    <output>ADR in .claude/documentation/ARCHITECTURE-DECISIONS.md + schema SQL + API contract</output>
+    <skip_when>bug fix | adding BFF view | rule authoring | UI component</skip_when>
+    <gate id="security-design" mandatory="true">
+      <trigger>new engine OR new credential handling OR new IAM/network/auth endpoint</trigger>
+      <agent>bmad-security-architect</agent>
+      <frameworks>STRIDE, PASTA, MITRE ATT&CK for Cloud, OWASP SAMM Design, D3FEND</frameworks>
+      <blocks>development stage — cannot start dev without this gate passing</blocks>
+    </gate>
+  </stage>
+
+  <stage id="story">
+    <owner>cspm-po</owner>
+    <action>Generate story file at .claude/planning/stories/{ID}.md</action>
+    <required_acs>
+      <ac>engine routing: which agent_file, pipeline_stage, depends_on from agents.ndjson</ac>
+      <ac>standard DB columns: finding_id, scan_run_id, tenant_id, account_id, severity, status, first_seen_at, last_seen_at</ac>
+      <ac>BFF contract: if new view — fetchView(page) returns exact shape with all required fields</ac>
+      <ac>RBAC matrix: 5 roles (platform_admin/org_admin/tenant_admin/analyst/viewer) × all new endpoints tested</ac>
+      <ac>image tag: new tag in format v-{engine}-{feature}{n} included in story</ac>
+    </required_acs>
+    <output>complete story file — dev agent can implement cold with zero prior context</output>
+  </stage>
+
+  <stage id="development">
+    <owner>bmad-dev</owner>
+    <reads>story file + engine agent file + agents.ndjson + api_patterns.xml</reads>
+    <gate id="security-review" mandatory="true">
+      <trigger>any endpoint OR auth OR DB schema OR HTTP client code touched</trigger>
+      <agent>bmad-security-reviewer</agent>
+      <checklist>OWASP Top 10, tenant isolation, no hardcoded secrets, no latest image tag, require_permission() on all endpoints, no json.loads() on JSONB</checklist>
+      <blocks>merge — code cannot merge without this gate passing</blocks>
+    </gate>
+  </stage>
+
+  <stage id="qa">
+    <owner>cspm-qa</owner>
+    <runs>
+      <test>bff_contract_test — fetchView returns all required fields with correct types</test>
+      <test>rbac_matrix_test — 5 roles × all new endpoints (expect 403 for viewer on sensitive engines)</test>
+      <test>integration_test — engine accepts scan_run_id, writes findings, returns correct schema</test>
+      <test>rule_regression — baseline counts unchanged (tests/regression/baselines/rule_finding_counts.json)</test>
+    </runs>
+    <on_failure>return to development stage — do not deploy with failing tests</on_failure>
+  </stage>
+
+  <stage id="deploy">
+    <owner>cspm-deploy skill</owner>
+    <steps>
+      <step order="1">docker build -t yadavanup84/{engine}:{tag} -f engines/{engine}/Dockerfile . (from repo root)</step>
+      <step order="2">confirm image tag and registry with user before push</step>
+      <step order="3">docker push yadavanup84/{engine}:{tag}</step>
+      <step order="4">kubectl apply -f deployment/aws/eks/engines/{engine}.yaml</step>
+      <step order="5">kubectl rollout status deployment/{engine} -n threat-engine-engines</step>
+      <step order="6">verify running pod image matches intended tag (VSCode linter silently reverts YAML — always cross-check)</step>
+    </steps>
+    <post_deploy mandatory="true">
+      <check>GET /api/v1/health/live returns 200</check>
+      <check>kubectl logs — no ERROR lines in first 50 lines after startup</check>
+      <check>fetchView smoke test — BFF view for this engine returns non-empty response</check>
+      <on_failure>immediate rollback via kubectl set image deployment/{engine}</on_failure>
+    </post_deploy>
+    <session_end_update mandatory="true">
+      <action>update image tag row in MEMORY.md production image table</action>
+      <action>update _meta.refreshed_at in agents.ndjson if engine svc/port changed</action>
+      <action>update bff_contract.ndjson if BFF view shape changed</action>
+    </session_end_update>
+  </stage>
+
+  <conflict_resolution>
+    <rule priority="1">CSPM Constitution (.claude/documentation/CSPM_CONSTITUTION.md) overrides everything</rule>
+    <rule priority="2">Platform pattern (existing engine code) overrides SDLC methodology</rule>
+    <rule priority="3">Security framework requirements (STRIDE/PASTA/ATT&CK) override feature convenience</rule>
+    <rule priority="4">If ambiguous — cspm-orchestrator decides based on agents.ndjson; never escalate to user for routing</rule>
+  </conflict_resolution>
+
+  <constitution_non_negotiables>
+    <rule>Multi-tenant always — every DB query scoped by tenant_id from AuthContext</rule>
+    <rule>Database-first — schema defined before code; standard columns mandatory on every findings table</rule>
+    <rule>BFF for charts/aggregates — fetchView(page) only; never add fallback/mock data in BFF handlers</rule>
+    <rule>Engine gateway for tables — paginated raw findings go direct to engine via ingress</rule>
+    <rule>No latest image tag — ever, in any K8s manifest</rule>
+    <rule>JSONB is already a dict — never call json.loads() on psycopg2 JSONB results</rule>
+    <rule>RBAC at every layer — require_permission() on every engine endpoint</rule>
+  </constitution_non_negotiables>
+
+</process>

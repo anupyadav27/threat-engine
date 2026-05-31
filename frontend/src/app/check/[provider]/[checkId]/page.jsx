@@ -192,7 +192,16 @@ export default function CheckDetailPage() {
           <InfoBox label="Check ID" value={checkId} mono />
           <InfoBox label="Provider" value={providerMeta.name} />
         </div>
-        <button style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}>
+        <button
+          onClick={() => {
+            if (!check) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(check, null, 2)], { type: 'application/json' }));
+            a.download = `${checkId}_evidence.json`;
+            a.click();
+          }}
+          style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 6, padding: '7px 16px', borderRadius: 8, border: `1px solid ${C.border}`, backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12 }}
+        >
           <Download size={13} /> Download evidence JSON
         </button>
       </Card>

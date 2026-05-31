@@ -1,0 +1,50 @@
+id: PAT-T1-003
+version: 2
+deprecated_at: null
+description: >
+  IAM user with active access keys AND no MFA on console login. Static
+  long-lived credentials with no second factor — stolen key immediately
+  gives full account access matching the user's permissions.
+
+tier: 1
+severity_base: high
+confidence: confirmed
+
+mitre_tactics:      [TA0001, TA0003]
+mitre_techniques:   [T1078.004, T1098]
+tactic_chain_order: [initial_access, persistence]
+
+csps: [aws, azure, gcp, alicloud, oci]
+
+entry:
+  node_type: Resource
+  resource_types: []
+  conditions:
+    has_no_mfa: true
+
+target:
+  node_type: Resource
+  resource_types: []
+  conditions: {}
+
+min_hops_for_tier2: null
+
+cdr_watch:
+  techniques:     [T1078.004, T1110]
+  window_minutes: 60
+  min_coverage:   0.5
+  tactic_order_required: false
+
+scoring:
+  posture_severity:  high
+  active_severity:   critical
+  path_length_bonus: false
+
+tests:
+  positive:
+    description: "IAM user: MFA disabled"
+    expected_tier: 1
+    expected_severity: high
+  negative:
+    description: "IAM user: MFA enabled"
+    expected_tier: null

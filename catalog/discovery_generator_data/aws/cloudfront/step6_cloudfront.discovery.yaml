@@ -3,6 +3,26 @@ provider: aws
 service: cloudfront
 discovery:
 - calls:
+  - action: list_distributions
+    on_error: continue
+    save_as: response
+  discovery_id: aws.cloudfront.list_distributions
+  emit:
+    as: item
+    item:
+      resource_type: cloudfront_distribution
+      Id: '{{ item.Id }}'
+      ARN: '{{ item.ARN }}'
+      Status: '{{ item.Status }}'
+      DomainName: '{{ item.DomainName }}'
+      Origins: '{{ item.Origins }}'
+      WebACLId: '{{ item.WebACLId }}'
+      HttpVersion: '{{ item.HttpVersion }}'
+      IsIPV6Enabled: '{{ item.IsIPV6Enabled }}'
+      ViewerCertificate: '{{ item.ViewerCertificate }}'
+      Enabled: '{{ item.Enabled }}'
+    items_for: '{{ response.DistributionList.Items }}'
+- calls:
   - action: get_realtime_log_config
     on_error: continue
     save_as: response

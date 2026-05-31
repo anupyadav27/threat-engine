@@ -408,6 +408,8 @@ async def view_threat_scenario_detail(
 
     params = {"tenant_id": tenant_id}
 
+    # TODO: decommission after engine-threat teardown — these scenario endpoints
+    # have no attack-path equivalents; they will return None when engine-threat is gone.
     results = await fetch_many(
         [
             ("threat", f"/api/v1/threat/threats/{scenario_id}", params),

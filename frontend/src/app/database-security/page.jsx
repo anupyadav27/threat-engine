@@ -653,8 +653,8 @@ export default function DatabaseSecurityPage() {
     >
       {/* ── Tabs + table ── */}
       <PageLayout icon={Database} pageContext={pageContext} kpiGroups={[]} insightRow={insightStrip}
-        tabData={tabData} loading={loading} error={error} defaultTab="overview" hideHeader topNav
-        onRowClick={handleRowClick} />
+        tabData={tabData} persistenceKey="database_security" loading={loading} error={error}
+        defaultTab="overview" hideHeader topNav onRowClick={handleRowClick} />
 
       <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
     </EngineShell>

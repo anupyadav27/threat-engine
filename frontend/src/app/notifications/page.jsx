@@ -49,7 +49,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    getFromEngine('onboarding', '/api/v1/notifications')
+    getFromEngine('gateway', '/api/v1/notifications')
       .then(res => { if (res && Array.isArray(res)) setNotifications(res); })
       .catch(() => {});
   }, []);

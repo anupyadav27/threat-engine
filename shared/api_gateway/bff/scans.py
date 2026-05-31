@@ -148,69 +148,6 @@ async def view_scans(
             "engines_completed": engines_done if isinstance(engines_done, list) else [],
         })
 
-    # Fallback: build from cloud_accounts if no orchestration data
-    if not scans:
-      for i, a in enumerate(raw_accounts):
-        acct_id = a.get("account_id", "")
-        acct_name = a.get("account_name") or acct_id
-        prov = _safe_upper(a.get("provider") or a.get("csp"))
-
-        started = a.get("last_scan_at") or a.get("schedule_last_run_at") or a.get("updated_at")
-        completed = a.get("last_scan_completed_at")
-        started_dt = _parse_iso(started)
-        completed_dt = _parse_iso(completed)
-
-        dur_seconds = None
-        if started_dt and completed_dt:
-            dur_seconds = max(0, (completed_dt - started_dt).total_seconds())
-        elif started_dt:
-            resources = a.get("total_resources", 0) or 0
-            if resources > 0:
-                dur_seconds = max(60, resources * 0.5)
-
-        raw_status = (a.get("last_scan_status") or a.get("account_status") or "completed").lower()
-        if raw_status in ("active", "validated"):
-            status = "completed"
-        elif raw_status in ("pending", "deployed"):
-            status = "pending"
-        elif raw_status in ("failed", "error"):
-            status = "failed"
-        elif raw_status in ("running", "in_progress"):
-            status = "running"
-        else:
-            status = raw_status
-
-        run_count = a.get("schedule_run_count", 0) or 0
-        success_count = a.get("schedule_success_count", 0) or 0
-        if run_count > 0 and success_count > 0 and status == "pending":
-            status = "completed"
-
-        total_resources = a.get("total_resources", 0) or 0
-        total_findings = a.get("total_findings", 0) or 0
-        scan_name = f"{prov} - {acct_name}" if prov else acct_name
-
-        trigger = "scheduled" if a.get("schedule_enabled") else "manual"
-        scans.append({
-            "id": i + 1,
-            "scan_id": acct_id,
-            "scan_name": scan_name,
-            "scan_type": "Full",
-            "provider": prov,
-            "account_id": acct_id,
-            "account_name": acct_name,
-            "status": status,
-            "started_at": started,
-            "completed_at": completed,
-            "duration": _duration_str(dur_seconds),
-            "duration_seconds": dur_seconds,
-            "resources_scanned": total_resources,
-            "total_findings": total_findings,
-            "critical_findings": 0,
-            "high_findings": 0,
-            "trigger_type": trigger,
-            "triggered_by": trigger,  # UI uses triggered_by
-        })
-
     # Distribute findings severity across scans using account-level total_findings
     # Prefer actual severity counts from results_summary; fall back to estimates
     total_findings_all = sum(s["total_findings"] for s in scans) or 0

@@ -1,0 +1,48 @@
+id: PAT-ALI-T3-003
+version: 1
+description: "CloudFW exposed path enables ACK workload access to RDS ApsaraDB crown jewel — network bypass leads to database takeover."
+tier: 3
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Initial Access, Lateral Movement, Exfiltration]
+mitre_techniques: [T1190, T1021.007, T1048.002]
+tactic_chain_order: [Initial Access, Lateral Movement, Exfiltration]
+csps: [alicloud]
+entry:
+  node_type: Resource
+  resource_types: [alicloud_cloudfw_instance]
+  conditions:
+    check_rules_failing:
+      - alicloud.cloudfw.instance.public_access
+      - alicloud.cloudfw.logging.enabled
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [alicloud_ack_cluster]
+      conditions:
+        check_rules_failing:
+          - alicloud.ack.cluster.network_policy_enforced
+target:
+  node_type: Resource
+  resource_types: [alicloud_rds_instance, alicloud_apsaradb]
+  conditions:
+    is_crown_jewel: true
+cdr_watch:
+  techniques: [T1190, T1021.007]
+  window_minutes: 240
+  min_coverage: 0.5
+  tactic_order_required: true
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+tests:
+  positive:
+    description: "CloudFW exposed → ACK no network policy → RDS crown jewel"
+    expected_tier: 3
+    expected_severity: critical
+  negative:
+    description: "CloudFW private, ACK network policy enforced, RDS not crown jewel"
+    expected_tier: 3
+    expected_severity: low

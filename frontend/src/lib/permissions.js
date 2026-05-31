@@ -35,7 +35,7 @@ export const ROUTE_CAPABILITIES = {
   '/vulnerability/cves':       'vulnerability:read',
   '/vulnerability/agents':     'vulnerability:read',
   '/network-security':         'network:read',
-  '/ciem':                     'ciem:read',
+  '/cdr':                     'cdr:read',
   '/rules':                    'rules:write',
   '/policies':                 'settings:write',
 };

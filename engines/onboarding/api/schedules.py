@@ -93,6 +93,7 @@ class ScheduleCreate(BaseModel):
 
 
 class ScheduleUpdate(BaseModel):
+    """PATCH body — allow-list only; unknown fields silently dropped (no mass-assignment)."""
     schedule_name:       Optional[str]          = None
     cron_expression:     Optional[str]           = None
     preset:              Optional[str]           = None
@@ -107,11 +108,17 @@ class ScheduleUpdate(BaseModel):
     notify_on_failure:   Optional[bool]          = None
     notification_emails: Optional[List[str]]     = None
 
+    class Config:
+        extra = 'ignore'
+
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/presets")
-async def get_presets():
+# RBAC: requires scans:read
+async def get_presets(
+    _: Any = Depends(require_permission("scans:read")),
+):
     """Return available cron presets with human labels."""
     return {
         "presets": [
@@ -126,8 +133,10 @@ async def get_presets():
 
 
 @router.post("", status_code=201)
+# RBAC: requires scans:create
 async def create_schedule_endpoint(
     body: ScheduleCreate,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:create")),
 ):
     """Create a new schedule for a cloud account."""
@@ -135,12 +144,21 @@ async def create_schedule_endpoint(
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {body.account_id} not found")
 
+    # Tenant isolation: verify the account belongs to the authenticated tenant
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if account.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
     # Preset overrides cron_expression
     cron = CRON_PRESETS.get(body.preset, body.cron_expression) if body.preset else body.cron_expression
 
     data = body.model_dump(exclude={"preset"})
     data["cron_expression"] = cron
     data["next_run_at"] = _next_run_from_cron(cron, body.timezone)
+
+    # tenant_id must come from auth context — never trust request body
+    if auth and getattr(auth, "engine_tenant_id", None):
+        data["tenant_id"] = auth.engine_tenant_id
 
     try:
         schedule = create_schedule(data)
@@ -152,6 +170,7 @@ async def create_schedule_endpoint(
 
 
 @router.get("")
+# RBAC: requires scans:read
 async def list_schedules_endpoint(
     account_id:   Optional[str] = Query(None),
     tenant_id:    Optional[str] = Query(None),
@@ -163,7 +182,7 @@ async def list_schedules_endpoint(
     _: Any = Depends(require_permission("scans:read")),
 ):
     """List schedules with optional filters."""
-    # Enforce tenant scope from auth context — prevent cross-tenant reads
+    # Enforce tenant scope from auth context — prevent cross-tenant reads (AC4)
     if auth and getattr(auth, "engine_tenant_id", None):
         tenant_id = auth.engine_tenant_id
     try:
@@ -182,24 +201,40 @@ async def list_schedules_endpoint(
 
 
 @router.get("/{schedule_id}")
+# RBAC: requires scans:read
 async def get_schedule_endpoint(
     schedule_id: str,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:read")),
 ):
     """Get a schedule by ID."""
     schedule = get_schedule(schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    # Tenant isolation: cross-tenant reads return 403 (AC4, AC10)
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if schedule.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
     return schedule
 
 
 @router.patch("/{schedule_id}")
+# RBAC: requires scans:create
 async def update_schedule_endpoint(
     schedule_id: str,
     body: ScheduleUpdate,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:create")),
 ):
     """Update a schedule."""
+    # Tenant isolation: verify ownership before update (AC4, AC10)
+    existing = get_schedule(schedule_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if existing.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
     updates = {k: v for k, v in body.model_dump().items() if v is not None}
 
     # Preset overrides cron
@@ -226,11 +261,20 @@ async def update_schedule_endpoint(
 
 
 @router.delete("/{schedule_id}", status_code=200)
+# RBAC: requires scans:create
 async def delete_schedule_endpoint(
     schedule_id: str,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:create")),
 ):
     """Delete a schedule."""
+    # Tenant isolation: verify ownership before delete (AC4, AC10)
+    schedule = get_schedule(schedule_id)
+    if not schedule:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if schedule.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
     deleted = delete_schedule(schedule_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
@@ -238,11 +282,20 @@ async def delete_schedule_endpoint(
 
 
 @router.post("/{schedule_id}/enable")
+# RBAC: requires scans:create
 async def enable_schedule(
     schedule_id: str,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:create")),
 ):
     """Enable a schedule."""
+    # Tenant isolation: verify ownership before mutation (AC4, AC10)
+    existing = get_schedule(schedule_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if existing.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
     schedule = update_schedule(schedule_id, {"enabled": True})
     if not schedule:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
@@ -250,11 +303,20 @@ async def enable_schedule(
 
 
 @router.post("/{schedule_id}/disable")
+# RBAC: requires scans:create
 async def disable_schedule(
     schedule_id: str,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:create")),
 ):
     """Disable a schedule without deleting it."""
+    # Tenant isolation: verify ownership before mutation (AC4, AC10)
+    existing = get_schedule(schedule_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if existing.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
     schedule = update_schedule(schedule_id, {"enabled": False})
     if not schedule:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
@@ -262,8 +324,10 @@ async def disable_schedule(
 
 
 @router.post("/{schedule_id}/run-now", status_code=202)
+# RBAC: requires scans:create
 async def run_now(
     schedule_id: str,
+    auth: Any = Depends(get_auth_context),
     _: Any = Depends(require_permission("scans:create")),
 ):
     """
@@ -274,6 +338,10 @@ async def run_now(
     schedule = get_schedule(schedule_id)
     if not schedule:
         raise HTTPException(status_code=404, detail=f"Schedule {schedule_id} not found")
+    # Tenant isolation: verify ownership before triggering scan (AC4, AC10)
+    if auth and getattr(auth, "engine_tenant_id", None):
+        if schedule.get("tenant_id") != auth.engine_tenant_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
 
     account = get_cloud_account(schedule["account_id"])
     if not account:
@@ -311,6 +379,13 @@ async def run_now(
             scan_run_id=scan_run_id,
             tenant_id=schedule["tenant_id"],
             account_id=schedule["account_id"],
+            provider=account.get("provider", "aws"),
+            credential_type=account.get("credential_type", ""),
+            credential_ref=account.get("credential_ref", ""),
+            include_regions=schedule.get("include_regions") if isinstance(schedule.get("include_regions"), list) else None,
+            exclude_regions=schedule.get("exclude_regions") if isinstance(schedule.get("exclude_regions"), list) else None,
+            include_services=schedule.get("include_services") if isinstance(schedule.get("include_services"), list) else None,
+            exclude_services=schedule.get("exclude_services") if isinstance(schedule.get("exclude_services"), list) else None,
         )
     except Exception as e:
         logger.warning(f"Argo trigger failed for run-now {scan_run_id}: {e}")
@@ -330,6 +405,7 @@ _HARD_MAX       = 20
 
 
 @router.post("/run-all", status_code=202)
+# RBAC: requires scans:create
 async def run_all_schedules(
     tenant_id: str = Query(..., description="Trigger all active schedules for this tenant"),
     limit:     int = Query(10, ge=1, le=_HARD_MAX, description="Max concurrent scans to fire"),

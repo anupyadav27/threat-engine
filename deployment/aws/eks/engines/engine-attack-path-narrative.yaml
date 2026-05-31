@@ -1,0 +1,168 @@
+# Attack Path Narrative Engine — LLM narrative generator for attack paths.
+# Reads from: attack_path DB (attack_paths table), check DB, discoveries DB.
+# Writes: attack_paths.attack_story (LLM-enhanced narrative).
+# Port: 8040 | Service: engine-attack-path-narrative
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: engine-attack-path-narrative
+  namespace: threat-engine-engines
+  labels:
+    app: engine-attack-path-narrative
+    tier: engine
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: engine-attack-path-narrative
+  template:
+    metadata:
+      labels:
+        app: engine-attack-path-narrative
+        tier: engine
+    spec:
+      serviceAccountName: engine-sa
+      containers:
+      - name: engine-attack-path-narrative
+        image: yadavanup84/engine-attack-path-narrative:v-ap-narrative-1
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8040
+          name: http
+        envFrom:
+        - configMapRef:
+            name: threat-engine-db-config
+        - secretRef:
+            name: threat-engine-db-passwords
+        env:
+        - name: PYTHONPATH
+          value: /app
+        - name: LOG_LEVEL
+          value: "INFO"
+        # ── Attack Path DB (primary — read paths + write narrative) ─────────
+        - name: ATTACK_PATH_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: ATTACK_PATH_DB_PORT
+          value: "5432"
+        - name: ATTACK_PATH_DB_USER
+          value: "postgres"
+        - name: ATTACK_PATH_DB_NAME
+          value: "threat_engine_attack_path"
+        - name: ATTACK_PATH_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DISCOVERIES_DB_PASSWORD
+        # ── Check DB (compliance framework enrichment) ─────────────────────
+        - name: CHECK_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: CHECK_DB_PORT
+          value: "5432"
+        - name: CHECK_DB_USER
+          value: "postgres"
+        - name: CHECK_DB_NAME
+          value: "threat_engine_check"
+        - name: CHECK_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: CHECK_DB_PASSWORD
+              optional: true
+        # ── Discoveries DB (resource names) ───────────────────────────────
+        - name: DISCOVERIES_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: threat-engine-db-config
+              key: DB_HOST
+        - name: DISCOVERIES_DB_PORT
+          value: "5432"
+        - name: DISCOVERIES_DB_USER
+          value: "postgres"
+        - name: DISCOVERIES_DB_NAME
+          value: "threat_engine_di"
+        - name: DISCOVERIES_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DISCOVERIES_DB_PASSWORD
+              optional: true
+        # ── LLM API Key (optional — best-effort; service starts without it) ─
+        - name: ANTHROPIC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-llm-keys
+              key: ANTHROPIC_API_KEY
+              optional: true
+        - name: MISTRAL_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-llm-keys
+              key: MISTRAL_API_KEY
+              optional: true
+        # ── DI engine feature flag ──────────────────────────────────────────
+        - name: DI_ENGINE_ENABLED
+          value: "true"
+        - name: DI_DB_HOST
+          value: "postgres-vulnerability-db.cbm92xowvx2t.ap-south-1.rds.amazonaws.com"
+        - name: DI_DB_PORT
+          value: "5432"
+        - name: DI_DB_NAME
+          value: "threat_engine_di"
+        - name: DI_DB_USER
+          value: "postgres"
+        - name: DI_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: threat-engine-db-passwords
+              key: DI_DB_PASSWORD
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health/live
+            port: 8040
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health/ready
+            port: 8040
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 5
+          failureThreshold: 6
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: engine-attack-path-narrative
+  namespace: threat-engine-engines
+  labels:
+    app: engine-attack-path-narrative
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: 8040
+    protocol: TCP
+    name: http
+  selector:
+    app: engine-attack-path-narrative

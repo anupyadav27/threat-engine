@@ -10,6 +10,12 @@ IDP_TYPE_CHOICES = [
     ('saml', 'SAML 2.0'),
 ]
 
+TENANT_TYPE_CHOICES = [
+    ('cloud', 'Cloud'),
+    ('vulnerability', 'Vulnerability'),
+    ('secops', 'SecOps'),
+]
+
 
 class Tenants(models.Model):
     id = models.TextField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -22,7 +28,11 @@ class Tenants(models.Model):
     engine_tenant_id = models.CharField(max_length=255, blank=True, default='')
 
     status = models.CharField(max_length=50, default="active")
-    tenant_type = models.CharField(max_length=50, default='cloud')
+    tenant_type = models.CharField(
+        max_length=50,
+        choices=TENANT_TYPE_CHOICES,
+        default='cloud',
+    )
     customer_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     plan = models.CharField(max_length=100, blank=True, null=True)
 

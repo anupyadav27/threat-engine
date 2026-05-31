@@ -1,0 +1,42 @@
+id: PAT-GCP-T2-004
+version: 1
+description: "IAM role binding update CDR event on Cloud KMS key ring — attacker expanding KMS permissions to enable decrypt operations."
+tier: 2
+severity_base: critical
+confidence: confirmed
+mitre_tactics: [Privilege Escalation, Collection]
+mitre_techniques: [T1098.001, T1552]
+tactic_chain_order: [Privilege Escalation, Collection]
+csps: [gcp]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [gcp_kms_key_ring, gcp_kms_key]
+  conditions:
+    cdr_actor_seen: true
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [gcp_storage_bucket, gcp_gcs_bucket]
+      conditions:
+        check_rules_failing:
+          - gcp.storage.policy.bucket_policy_deny_unencrypted_puts
+scoring:
+  posture_severity: critical
+  active_severity: critical
+  path_length_bonus: true
+cdr_watch:
+  techniques: [T1098.001]
+  window_minutes: 60
+  min_coverage: 0.5
+  tactic_order_required: false
+tests:
+  positive:
+    description: "KMS role binding CDR event → GCS bucket without policy controls"
+    expected_tier: 2
+    expected_severity: critical
+  negative:
+    description: "No CDR events on KMS, GCS with strict policies"
+    expected_tier: 2
+    expected_severity: low

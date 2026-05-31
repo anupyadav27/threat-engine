@@ -71,7 +71,7 @@ class ChartCategory(BaseModel):
 
 
 class CriticalAction(BaseModel):
-    """One item in the Critical Actions urgency-bucket list."""
+    """One item in a Critical Actions urgency bucket."""
 
     model_config = ConfigDict(extra="allow")
 
@@ -109,7 +109,7 @@ class DashboardResponse(BaseModel):
     kpi: DashboardKpi = Field(default_factory=DashboardKpi)
     riskMatrix: List[Dict[str, Any]] = Field(default_factory=list)
     chartCategories: List[ChartCategory] = Field(default_factory=list)
-    criticalActions: List[CriticalAction] = Field(default_factory=list)
+    criticalActions: Dict[str, List[CriticalAction]] = Field(default_factory=dict)
     toxicCombinations: List[ToxicCombination] = Field(default_factory=list)
     criticalAlerts: List[CriticalAlert] = Field(default_factory=list)
     recentThreats: List[RecentThreat] = Field(default_factory=list)

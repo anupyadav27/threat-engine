@@ -33,7 +33,7 @@ except ImportError as exc:  # pragma: no cover
 
 # ─── Utility imports ──────────────────────────────────────────────────────────
 
-_BASE = Path("/Users/apple/Desktop/threat-engine")
+_BASE = Path(__file__).resolve().parent.parent.parent.parent  # tech_templates -> rule -> catalog -> repo root
 if str(_BASE) not in sys.path:
     sys.path.insert(0, str(_BASE))
 
@@ -108,25 +108,34 @@ _TEMPLATE_FILE: dict[str, str] = {
 
 # ─── Command / query extraction helpers ───────────────────────────────────────
 
-# Shell keywords and common CLI tools that indicate a command line
+# Shell keywords and common CLI tools that indicate a command line.
+# Deliberately excludes the generic "word + word" pattern to avoid matching
+# prose text like "Confirm the..." or "To assess..." as commands.
 _SHELL_PATTERN = re.compile(
     r"^\s*"
     r"(?:\$\s+)?"                            # optional leading $
     r"("
     r"grep|awk|sed|cat|cut|find|ls|stat"
-    r"|sshd|sshd\b|ssh\b|sysctl|systemctl"
+    r"|sshd|ssh\b|sysctl|systemctl"
     r"|passwd|chage|id|groups|getent"
     r"|openssl|curl|wget|ps|netstat|ss"
     r"|iptables|firewall-cmd|auditctl"
     r"|mongosh|mongo|nodetool"
     r"|show\b|select\b|set\b"               # SQL/Mongo keywords
-    r"|[a-z][a-z0-9_\-]+\s+[a-z\-]"        # generic: tool + flag
     r"|\$\s*\S"                              # any $ command
     r")",
     re.IGNORECASE,
 )
 
 _DOLLAR_STRIP = re.compile(r"^\$\s+")
+
+# Matches an inline '$ command' sequence within prose text.
+# Used when audit procedures embed commands in a single-line CSV field.
+_INLINE_DOLLAR_CMD = re.compile(
+    r"\$\s+([a-z][a-z0-9_/.\-]*(?:\s+[^\$\n]{0,120}?)?)"
+    r"(?=\s*\$|\s+[A-Z][a-z]|\s*$)",
+    re.IGNORECASE,
+)
 
 
 def _extract_first_command(audit_procedure: str) -> str:
@@ -159,6 +168,12 @@ def _extract_first_command(audit_procedure: str) -> str:
         if _SHELL_PATTERN.match(stripped):
             return stripped.strip()
 
+    # No line-start command found — audit procedure may store everything on one
+    # line with embedded '$ cmd' sequences (common in database CIS benchmarks).
+    m = _INLINE_DOLLAR_CMD.search(audit_procedure)
+    if m:
+        return m.group(1).strip()
+
     return ""
 
 
@@ -184,7 +199,26 @@ _SHOW_STATUS_LIKE_PATTERN = re.compile(
 
 # SQL transports that use MySQL syntax (SHOW VARIABLES LIKE) rather than
 # PostgreSQL's current_setting().  MariaDB uses the same syntax as MySQL.
-_MYSQL_SYNTAX_TRANSPORTS: set[str] = {"mysql", "mariadb", "sql_server", "oracle_db", "ibm_db2"}
+_MYSQL_SYNTAX_TRANSPORTS: set[str] = {"mysql", "mariadb", "sql_server", "ibm_db2"}
+
+# Oracle uses SELECT VALUE FROM V$PARAMETER — distinct from both MySQL SHOW and PostgreSQL current_setting
+_ORACLE_TRANSPORTS: set[str] = {"oracle_db"}
+
+# Discovery IDs where auto-extraction from the CSV audit procedure produces the wrong SQL.
+# Checked in _augment_rows() before any pattern extraction runs — acts as a permanent
+# safety net so the correct query survives a future `generate_tech_rules.py --apply` run.
+_KNOWN_CORRECT_QUERIES: dict[str, str] = {
+    # allow_suspicious_udfs: CIS audit procedure uses the option name as the slug, not the
+    # actual variable name — generator would emit SHOW VARIABLES LIKE 'allow_suspicious_udfs_is_set_to_off'
+    "mysql.section_4.allow_suspicious_udfs_is_set_to_off": "SHOW VARIABLES LIKE 'allow_suspicious_udfs';",
+    # log_raw: same slug-vs-variable-name problem
+    "mysql.section_6.log_raw_is_set_to_off": "SHOW VARIABLES LIKE 'log_raw';",
+    # secure_mysql_keyring: keyring plugins expose via performance_schema, not SHOW VARIABLES
+    "mysql.section_3.secure_mysql_keyring": (
+        "SELECT VARIABLE_NAME, VARIABLE_VALUE FROM performance_schema.global_variables"
+        " WHERE VARIABLE_NAME LIKE 'keyring%';"
+    ),
+}
 
 
 def _extract_sql_param(audit_procedure: str) -> str:
@@ -244,6 +278,49 @@ _SELECT_STATEMENT_PATTERN = re.compile(
 )
 
 
+def _is_os_level_check(audit_procedure: str, tech: str) -> bool:
+    """Return True when no extractable SQL exists for *tech* in *audit_procedure*.
+
+    Detects OS-level checks (shell commands only) so the SQL template emits
+    ``run_command`` with ``applicable_to: [self_hosted]`` instead of a broken
+    placeholder SQL query.
+
+    Args:
+        audit_procedure: Raw audit procedure text from the CSV.
+        tech: Technology key (e.g. ``"postgresql"``, ``"mysql"``).
+
+    Returns:
+        True when the entry should be treated as OS-level (no valid SQL derivable).
+    """
+    if not audit_procedure or not audit_procedure.strip():
+        return True
+
+    # A real SELECT statement is always SQL — not OS-level regardless of tech
+    if _SELECT_STATEMENT_PATTERN.search(audit_procedure):
+        return False
+
+    if tech in _MYSQL_SYNTAX_TRANSPORTS:
+        # Valid SQL only when a specific SHOW VARIABLES / STATUS param is extractable
+        m = (_SHOW_VARIABLES_LIKE_PATTERN.search(audit_procedure) or
+             _SHOW_STATUS_LIKE_PATTERN.search(audit_procedure))
+        if m and m.group(1).lower() not in ("variables", "status", "global", "session"):
+            return False
+        return True
+
+    if tech in _ORACLE_TRANSPORTS:
+        # Valid SQL when any recognisable param can be mapped to V$PARAMETER
+        param = _extract_sql_param(audit_procedure)
+        if param and param.lower() not in ("variables", "status", "global", "session"):
+            return False
+        return True
+
+    # PostgreSQL and other SQL transports: valid when current_setting / SHOW param found
+    param = _extract_sql_param(audit_procedure)
+    if param and param.lower() not in ("variables", "status", "global", "session"):
+        return False
+    return True
+
+
 def _extract_select_query(
     audit_procedure: str,
     check_slug: str,
@@ -267,7 +344,8 @@ def _extract_select_query(
     Returns:
         A SQL query string appropriate for the target database.
     """
-    use_mysql_syntax = tech in _MYSQL_SYNTAX_TRANSPORTS
+    use_mysql_syntax  = tech in _MYSQL_SYNTAX_TRANSPORTS
+    use_oracle_syntax = tech in _ORACLE_TRANSPORTS
 
     if audit_procedure:
         m = _SELECT_STATEMENT_PATTERN.search(audit_procedure)
@@ -283,6 +361,13 @@ def _extract_select_query(
                 return f"SHOW VARIABLES LIKE '{param}';"
             # Fallback: emit a SHOW VARIABLES placeholder for the check slug
             return f"SHOW VARIABLES LIKE '{check_slug}';"
+        elif use_oracle_syntax:
+            # Oracle: map extracted param name to a V$PARAMETER query
+            param = _extract_sql_param(audit_procedure)
+            if param and param.lower() not in ("variables", "status", "global", "session"):
+                return f"SELECT VALUE FROM V$PARAMETER WHERE NAME = '{param.lower()}';"
+            # Fallback placeholder — _is_os_level_check will mark this entry self_hosted
+            return f"SELECT VALUE FROM V$PARAMETER WHERE NAME = '{check_slug.lower()}';"
         else:
             # PostgreSQL: convert SHOW <param>; to SELECT current_setting('<param>');
             param = _extract_sql_param(audit_procedure)
@@ -291,6 +376,8 @@ def _extract_select_query(
 
     if use_mysql_syntax:
         return f"SHOW VARIABLES LIKE '{check_slug}';"
+    if use_oracle_syntax:
+        return f"SELECT VALUE FROM V$PARAMETER WHERE NAME = '{check_slug.lower()}';"
     return f"SELECT current_setting('{check_slug}');"
 
 
@@ -349,11 +436,28 @@ def _augment_rows(
 
         row["_check_slug"] = check_slug
         row["_discovery_id"] = make_discovery_id(tech, section_slug, check_slug)
+
+        # Apply known-correct query override before any pattern extraction so the
+        # correct SQL survives future --apply runs regardless of audit procedure text.
+        override_query = _KNOWN_CORRECT_QUERIES.get(row["_discovery_id"])
+        if override_query is not None:
+            row["_ssh_command"] = ""
+            row["_param_name"] = ""
+            row["_expected_value"] = ""
+            row["_sql_query"] = override_query
+            row["_snowflake_query"] = ""
+            row["_is_os_level"] = False
+            row["_applicable_to"] = ["cloud_managed", "self_hosted"]
+            augmented.append(row)
+            continue
+
         row["_ssh_command"] = _extract_first_command(audit_proc)
         row["_param_name"] = _extract_sql_param(audit_proc)
         row["_expected_value"] = ""
         row["_sql_query"] = _extract_select_query(audit_proc, check_slug, tech=tech)
         row["_snowflake_query"] = _extract_snowflake_query(audit_proc, check_slug)
+        row["_is_os_level"]   = _is_os_level_check(audit_proc, tech)
+        row["_applicable_to"] = ["self_hosted"] if row["_is_os_level"] else ["cloud_managed", "self_hosted"]
 
         augmented.append(row)
 

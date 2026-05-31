@@ -1,0 +1,38 @@
+id: PAT-AWS-T2-005
+version: 1
+description: "Secrets Manager secret without rotation and no KMS encryption, connected to a service with admin role — stale credential chain."
+tier: 2
+severity_base: high
+confidence: confirmed
+mitre_tactics: [Credential Access, Persistence]
+mitre_techniques: [T1555, T1098.001]
+tactic_chain_order: [Credential Access, Persistence]
+csps: [aws]
+min_hops_for_tier2: 1
+entry:
+  node_type: Resource
+  resource_types: [aws_secretsmanager_secret]
+  conditions:
+    check_rules_failing:
+      - aws.secretsmanager.resource.secret_rotation_enabled
+      - aws.secretsmanager.secret.kms_encryption_enabled
+hops:
+  - edge_type: CAN_ACCESS
+    target:
+      node_type: Resource
+      resource_types: [aws_iam_role, aws_iam_user]
+      conditions:
+        is_admin_role: true
+scoring:
+  posture_severity: high
+  active_severity: critical
+  path_length_bonus: false
+tests:
+  positive:
+    description: "Unrotated unencrypted secret used by admin role"
+    expected_tier: 2
+    expected_severity: high
+  negative:
+    description: "Secret with 30-day rotation and CMK encryption"
+    expected_tier: 2
+    expected_severity: low

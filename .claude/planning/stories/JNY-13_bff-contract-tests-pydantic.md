@@ -7,7 +7,7 @@ Investigation Journey Unification — Phase H
 P1 — Closes the silent contract-drift hole between BFF and UI; required before JNY-14 can diff anything meaningful.
 
 ## Status
-draft
+done — BFF Pydantic schemas (_common_schemas.py + schemas/ dir), 29 contract tests pass, CI gate (contract.yml), smoke tests, sensitive-key scrubber
 
 ## Team Assignment (RACI)
 

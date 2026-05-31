@@ -33,6 +33,9 @@ export function TenantProvider({ children }) {
         tenant_id:    t.engine_tenant_id || t.tenant_id,
         tenant_name:  t.tenant_name,
         account_count: t.account_count ?? 0,
+        // Preserve tenant_type so OrgTenantSwitcher and Header can display
+        // the type badge without an extra network round-trip (AC7).
+        tenant_type:  t.tenant_type || null,
       })),
     [authTenants]
   );
@@ -42,23 +45,18 @@ export function TenantProvider({ children }) {
   // Restore persisted active workspace once tenants are loaded.
   // platform_admin (level 1) defaults to null = "All Tenants" unless they
   // previously saved a specific tenant in localStorage.
+  // Uses setActiveTenant (not setActiveTenantState) so localStorage is always
+  // synced to the resolved value — clears stale/mismatched UUIDs from old sessions.
   useEffect(() => {
     if (tenants.length === 0) return;
     const isPlatformAdmin = level === 1;
 
-    // If auth context explicitly carries null for platform_admin, honour it —
-    // this means the user switched to "All Tenants" this session.
-    if (isPlatformAdmin && selectedTenant === null) {
-      const persisted = typeof window !== 'undefined'
-        ? JSON.parse(localStorage.getItem(LS_TENANT_KEY) || 'null')
-        : null;
-      if (persisted) {
-        // They had a specific tenant saved — keep it
-        const still = tenants.find(t => t.tenant_id === persisted.tenant_id);
-        setActiveTenantState(still || null);
-      } else {
-        setActiveTenantState(null);
-      }
+    // platform_admin always defaults to "All Tenants" (activeTenant=null) on
+    // fresh load. Persisting a specific tenant across sessions causes stale
+    // X-Active-Tenant-Id headers that silently scope all engine queries to the
+    // wrong tenant. The switcher is always visible for admins to select a tenant.
+    if (isPlatformAdmin) {
+      setActiveTenant(null);
       return;
     }
 
@@ -67,9 +65,9 @@ export function TenantProvider({ children }) {
       : null;
     if (persisted) {
       const still = tenants.find(t => t.tenant_id === persisted.tenant_id);
-      setActiveTenantState(still || (isPlatformAdmin ? null : tenants[0]));
+      setActiveTenant(still || (isPlatformAdmin ? null : tenants[0]));
     } else {
-      setActiveTenantState(isPlatformAdmin ? null : tenants[0]);
+      setActiveTenant(isPlatformAdmin ? null : tenants[0]);
     }
   }, [tenants, level, selectedTenant]);
 
