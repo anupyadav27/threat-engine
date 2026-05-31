@@ -227,11 +227,11 @@ function ScanLaunchModal({ onClose, onLaunch, scanStatus }) {
   return (
     <>
       <div className="fixed inset-0 bg-black/60 z-40 backdrop-blur-sm" onClick={handleClose} />
-      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg border rounded-2xl shadow-2xl z-50"
+      <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg border rounded-2xl shadow-2xl z-50 flex flex-col max-h-[90vh]"
         style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-center justify-between p-6 border-b flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
           <div>
             <h2 className="text-xl font-bold" style={{ color: 'var(--text-primary)' }}>New Security Scan</h2>
             <p className="text-xs mt-0.5" style={{ color: 'var(--text-tertiary)' }}>
@@ -245,7 +245,8 @@ function ScanLaunchModal({ onClose, onLaunch, scanStatus }) {
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>
               Repository URL <span className="text-red-400">*</span>
@@ -319,8 +320,10 @@ function ScanLaunchModal({ onClose, onLaunch, scanStatus }) {
             </div>
           )}
 
+        </div>
+
           {/* Buttons */}
-          <div className="flex items-center gap-3 pt-2">
+          <div className="flex items-center gap-3 p-6 border-t flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
             <button type="button" onClick={handleClose} disabled={isRunning}
               className="flex-1 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors hover:bg-white/5 disabled:opacity-40"
               style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
@@ -2340,7 +2343,7 @@ export default function SecOpsPage() {
             onClick={() => setShowTrendModal(false)}
           />
           <div
-            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl border rounded-2xl shadow-2xl z-50"
+            className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl border rounded-2xl shadow-2xl z-50 flex flex-col max-h-[90vh]"
             style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}
           >
             {/* Header */}

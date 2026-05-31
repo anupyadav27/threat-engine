@@ -1540,9 +1540,9 @@ function InlineCreateWorkspace({ onClose, onCreate }) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
-      <div className="rounded-xl p-6 w-full max-w-md shadow-2xl"
+      <div className="rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]"
         style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
-        <div className="flex items-center gap-3 mb-5">
+        <div className="flex items-center gap-3 p-6 pb-5 flex-shrink-0">
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10"
             title="Back to add account">
             <ArrowLeft className="w-4 h-4" style={{ color: 'var(--text-muted)' }} />
@@ -1552,7 +1552,8 @@ function InlineCreateWorkspace({ onClose, onCreate }) {
           </h3>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto px-6 space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
               Workspace Name <span className="text-red-400">*</span>
@@ -1597,8 +1598,9 @@ function InlineCreateWorkspace({ onClose, onCreate }) {
           </div>
 
           {error && <p className="text-sm text-red-400 bg-red-500/10 px-3 py-2 rounded-lg">{error}</p>}
+        </div>
 
-          <div className="flex justify-between pt-1">
+        <div className="flex justify-between px-6 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
             <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm"
               style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>
               ← Back
@@ -1620,7 +1622,7 @@ function WorkspaceCreatedConfirmation({ workspace, onSelectAndContinue, onCreate
   const envOpt = ENV_OPTIONS_WZ.find(e => e.value === workspace.environment) || ENV_OPTIONS_WZ[0];
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70">
-      <div className="rounded-xl p-6 w-full max-w-sm shadow-2xl text-center"
+      <div className="rounded-xl p-6 w-full max-w-sm shadow-2xl text-center max-h-[90vh] overflow-y-auto"
         style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-primary)' }}>
         <div className="w-14 h-14 rounded-full bg-green-500/15 flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 className="w-7 h-7 text-green-400" />

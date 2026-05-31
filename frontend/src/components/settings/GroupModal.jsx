@@ -84,8 +84,8 @@ export default function GroupModal({ group, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}>
-      <div className="w-full max-w-md rounded-2xl border shadow-2xl" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+      <div className="w-full max-w-md rounded-2xl border shadow-2xl flex flex-col max-h-[90vh]" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
           <div className="flex items-center gap-2">
             <Users size={15} style={{ color: 'var(--accent-primary)' }} />
             <span className="font-semibold text-sm" style={{ color: 'var(--text-primary)' }}>
@@ -95,7 +95,7 @@ export default function GroupModal({ group, onClose, onSaved }) {
           <button onClick={onClose} className="hover:opacity-60" style={{ color: 'var(--text-muted)' }}><X size={15} /></button>
         </div>
 
-        <div className="p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {/* Name */}
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
@@ -165,7 +165,9 @@ export default function GroupModal({ group, onClose, onSaved }) {
             </div>
           )}
 
-          <div className="flex gap-2 pt-1">
+        </div>
+
+        <div className="flex gap-2 px-5 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
             <button onClick={onClose}
               className="flex-1 py-2 text-sm rounded-lg border hover:opacity-80"
               style={{ borderColor: 'var(--border-primary)', color: 'var(--text-secondary)' }}>
@@ -177,7 +179,6 @@ export default function GroupModal({ group, onClose, onSaved }) {
               {saving ? 'Saving…' : group ? 'Save Changes' : 'Create Group'}
             </button>
           </div>
-        </div>
       </div>
     </div>
   );

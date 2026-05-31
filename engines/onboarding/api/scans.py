@@ -117,16 +117,35 @@ _PIPELINE_ORDER = [
 @router.get("/scans/{scan_run_id}/pipeline")
 async def get_scan_pipeline_status(
     scan_run_id: str,
-    tenant_id: str = Query(..., description="Tenant identifier"),
+    tenant_id: Optional[str] = Query(None, description="Tenant identifier (platform admins only; scoped users use their session tenant)"),
+    auth: Any = Depends(get_auth_context),
+    _: Any = Depends(require_permission("scans:read")),
 ):
     """
     Return per-engine pipeline status for a scan run.
+
+    Tenant isolation: the tenant_id is resolved from the authenticated session
+    (engine_tenant_id) and is never trusted from the query string for scoped
+    users. Platform-level users (no engine_tenant_id) may pass tenant_id to
+    target a specific tenant.
 
     Derives stage status from scan_orchestration.engines_requested /
     engines_completed columns. The first non-completed engine is marked
     'running' when overall_status == 'running'; everything after is 'pending'.
     """
     import json as _json
+
+    # Resolve tenant from the authenticated session; query param only honoured
+    # for platform-level users with no engine_tenant_id of their own.
+    auth_tenant = None
+    if auth is not None:
+        auth_tenant = (
+            getattr(auth, "engine_tenant_id", None)
+            or getattr(auth, "tenant_id", None)
+        )
+    tenant_id = auth_tenant or tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="No tenant in session; tenant_id required")
 
     try:
         import psycopg2

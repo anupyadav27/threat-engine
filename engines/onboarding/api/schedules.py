@@ -57,6 +57,21 @@ CRON_PRESETS = {
 ALL_ENGINES = ["discovery", "check", "inventory", "threat", "compliance", "iam", "datasec"]
 
 
+def _mark_run_failed(scan_run_id: str, stage: str, message: str) -> None:
+    """Mark a scan_run as failed (best-effort) so it does not linger 'pending'.
+
+    Never raises — must not mask the error we are about to report to the caller.
+    """
+    try:
+        from engine_onboarding.database.scan_run_operations import mark_scan_run_completed
+        mark_scan_run_completed(
+            scan_run_id, success=False,
+            error_details={"stage": stage, "error": message},
+        )
+    except Exception as exc:
+        logger.error("Failed to mark scan_run %s as failed: %s", scan_run_id, exc)
+
+
 def _next_run_from_cron(cron_expression: str, tz: str = "UTC") -> Optional[datetime]:
     """Return the next run timestamp for a cron expression. Falls back gracefully."""
     try:
@@ -159,6 +174,10 @@ async def create_schedule_endpoint(
     # tenant_id must come from auth context — never trust request body
     if auth and getattr(auth, "engine_tenant_id", None):
         data["tenant_id"] = auth.engine_tenant_id
+
+    # customer_id from auth context too — prevent tagging under another customer
+    if auth and getattr(auth, "customer_id", None):
+        data["customer_id"] = auth.customer_id
 
     try:
         schedule = create_schedule(data)
@@ -372,10 +391,13 @@ async def run_now(
         # scan_run_operations not yet implemented — return scan_run_id only
         scan_run = {"scan_run_id": scan_run_id}
 
-    # Fire Argo workflow (best-effort, non-blocking)
+    # Fire Argo workflow. trigger_scan returns the workflow name on success and
+    # None on failure (it logs but does not raise). Surface the failure rather
+    # than reporting a false success that leaves the scan_run stuck 'pending'.
+    workflow_name = None
     try:
         from engine_onboarding.scheduler.argo_client import trigger_scan
-        await trigger_scan(
+        workflow_name = await trigger_scan(
             scan_run_id=scan_run_id,
             tenant_id=schedule["tenant_id"],
             account_id=schedule["account_id"],
@@ -389,6 +411,14 @@ async def run_now(
         )
     except Exception as e:
         logger.warning(f"Argo trigger failed for run-now {scan_run_id}: {e}")
+        workflow_name = None
+
+    if not workflow_name:
+        _mark_run_failed(scan_run_id, "argo_submit", "Workflow submission failed — scan orchestrator unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Scan could not be started — the scan orchestrator is unavailable. Please retry.",
+        )
 
     return {
         "message":     "Scan triggered",
@@ -432,6 +462,7 @@ async def run_all_schedules(
 
     argo = ArgoClient()
     triggered = []
+    failed = []
     errors = []
 
     for sched in schedules:
@@ -472,14 +503,23 @@ async def run_all_schedules(
                 include_services=sched.get("include_services") if isinstance(sched.get("include_services"), list) else None,
             )
         except Exception as exc:
+            # Per-account failure must NOT abort the batch — mark this run failed,
+            # record it, and continue with the remaining accounts.
             logger.warning("run-all: Argo submit failed for %s (%s): %s", scan_run_id, account_id, exc)
+            _mark_run_failed(scan_run_id, "argo_submit", "Workflow submission failed — scan orchestrator unavailable")
+            failed.append({"scan_run_id": scan_run_id, "account_id": account_id, "error": "argo_submit_failed"})
+            continue
 
         triggered.append({"scan_run_id": scan_run_id, "account_id": account_id})
 
-    logger.info("run-all triggered %d scans for tenant %s", len(triggered), tenant_id)
+    logger.info(
+        "run-all: %d triggered, %d failed for tenant %s",
+        len(triggered), len(failed), tenant_id,
+    )
     return {
         "triggered":    len(triggered),
         "scan_run_ids": triggered,
+        "failed":       failed,
         "errors":       errors,
         "cap":          cap,
     }

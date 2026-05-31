@@ -171,7 +171,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             """
             SELECT
                 s.id, s.token, s.user_id, s.permissions_cache, s.scope_cache,
-                u.email,
+                u.email, u.customer_id,
                 r.name as role_name, r.level as role_level, r.scope_level as role_scope_level
             FROM user_sessions s
             JOIN users u ON u.id = s.user_id
@@ -199,6 +199,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     role_scope_level=row["role_scope_level"] or "account",
                     permissions_cache=_j(row["permissions_cache"], []),
                     scope_cache=scope,
+                    customer_id=str(row["customer_id"]) if row["customer_id"] else None,
                 )
 
         # Fallback: try sessions without token_hint (old sessions created before
@@ -211,7 +212,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 s.id, s.token, s.user_id,
                 COALESCE(s.permissions_cache, '[]'::jsonb)  AS permissions_cache,
                 COALESCE(s.scope_cache,       '{}'::jsonb)  AS scope_cache,
-                u.email,
+                u.email, u.customer_id,
                 r.name       AS role_name,
                 r.level      AS role_level,
                 r.scope_level AS role_scope_level
@@ -253,6 +254,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     role_scope_level=row["role_scope_level"] or "account",
                     permissions_cache=_j(row["permissions_cache"], []),
                     scope_cache=scope,
+                    customer_id=str(row["customer_id"]) if row["customer_id"] else None,
                 )
 
         return None

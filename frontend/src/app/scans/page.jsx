@@ -151,13 +151,13 @@ function RunNowModal({ accounts, schedules, onClose, onLaunched }) {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
-      <div className="rounded-xl w-full max-w-md shadow-2xl"
+      <div className="rounded-xl w-full max-w-md shadow-2xl flex flex-col max-h-[90vh]"
         style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-primary)' }}>
-        <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
           <h2 className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>Run Scan Now</h2>
           <button onClick={onClose} className="text-xs px-2 py-1 rounded hover:opacity-70" style={{ color: 'var(--text-muted)' }}>✕</button>
         </div>
-        <div className="px-5 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div>
             <label className="block text-xs font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>Filter by Account (optional)</label>
             <div className="relative">
@@ -192,7 +192,7 @@ function RunNowModal({ accounts, schedules, onClose, onLaunched }) {
           </div>
           {error && <p className="text-xs text-red-400">{error}</p>}
         </div>
-        <div className="flex justify-end gap-2 px-5 py-4 border-t" style={{ borderColor: 'var(--border-primary)' }}>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t flex-shrink-0" style={{ borderColor: 'var(--border-primary)' }}>
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm"
             style={{ color: 'var(--text-secondary)', border: '1px solid var(--border-primary)' }}>Cancel</button>
           <button onClick={handleRun} disabled={!scheduleId || launching}
