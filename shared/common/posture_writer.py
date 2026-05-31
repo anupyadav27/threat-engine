@@ -153,8 +153,9 @@ def upsert_posture_signals(
     set_clauses.append("updated_at = NOW()")
 
     # ON CONFLICT targets (resource_uid, tenant_id) — the real unique constraint
-    # (uq_rsp_resource_tenant). scan_run_id is updated on every conflict so the
-    # row always reflects the latest scan.
+    # (uq_rsp_resource_tenant). scan_run_id and resource_type are updated on every
+    # conflict so the row always reflects the latest scan's canonical type.
+    set_clauses.insert(0, "resource_type = EXCLUDED.resource_type")
     set_clauses.insert(0, "scan_run_id = EXCLUDED.scan_run_id")
 
     sql = f"""
