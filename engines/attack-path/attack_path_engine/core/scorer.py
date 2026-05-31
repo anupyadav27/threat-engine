@@ -31,7 +31,7 @@ Security notes:
 from __future__ import annotations
 
 import logging
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from ..models.attack_path import PostureRow, RawPath, ScoredPath
 
@@ -421,14 +421,97 @@ def _chain_type(path: RawPath, posture_lookup: Dict[str, PostureRow]) -> str:
     return f"{entry_label} → {crown_label}"
 
 
+def _derive_objective(
+    crown_jewel_uid: str,
+    cj_type: str,
+    access_capability: str,
+    posture_lookup: Dict[str, "PostureRow"],
+    objective_catalog: Dict[str, Dict[str, Any]],
+    fallback_table: Dict[tuple, Dict[str, str]],
+) -> tuple:
+    """Return (objective_type, objective_satisfied) for a path.
+
+    Lookup order:
+      1. objective_catalog keyed by (provider, resource_type) from posture_lookup.
+      2. fallback_table keyed by (crown_jewel_type, access_capability).
+      3. fallback_table keyed by (crown_jewel_type, '*') wildcard.
+      4. Default: DATA_THEFT / None.
+
+    objective_satisfied is True when the path's final edge capability matches
+    the objective's required_capability, False when it does not (topology-only
+    reach without the confirmatory credential edge).
+    """
+    cap_lower = (access_capability or "").lower()
+
+    # Primary: catalog lookup by (provider, resource_type)
+    cp = posture_lookup.get(crown_jewel_uid or "")
+    if cp and objective_catalog:
+        provider = (cp.resource_type.split(".")[0] if "." in (cp.resource_type or "") else "")
+        # Try to extract provider from posture row — stored in resource_type prefix or uid prefix
+        # Crown jewel uid format: arn:aws:... → provider='aws'; //gcp.com/... → provider='gcp'
+        uid = crown_jewel_uid or ""
+        if uid.startswith("arn:aws"):
+            provider = "aws"
+        elif uid.startswith("//"):
+            provider = "gcp"
+        elif "/subscriptions/" in uid:
+            provider = "azure"
+        elif "acs:" in uid or "aliyuncs" in uid:
+            provider = "alicloud"
+        elif "ocid1." in uid:
+            provider = "oci"
+        elif "crn:" in uid:
+            provider = "ibm"
+
+        rtype = (cp.resource_type or "").lower().replace(".", "_").replace("-", "_")
+        catalog_key = (provider, rtype)
+        if catalog_key in objective_catalog:
+            entry = objective_catalog[catalog_key]
+            obj_type = entry["objective_type"]
+            req_cap  = entry["required_capability"]
+            satisfied = cap_lower == req_cap.lower() if req_cap else None
+            return obj_type, satisfied
+
+    # Fallback: (crown_jewel_type, access_capability) exact match
+    fb_key = (cj_type, cap_lower)
+    if fb_key in fallback_table:
+        entry = fallback_table[fb_key]
+        satisfied = cap_lower == entry["required_capability"].lower()
+        return entry["objective_type"], satisfied
+
+    # Fallback wildcard: (crown_jewel_type, '*')
+    fb_wild = (cj_type, "*")
+    if fb_wild in fallback_table:
+        entry = fallback_table[fb_wild]
+        satisfied = cap_lower == entry["required_capability"].lower()
+        return entry["objective_type"], satisfied
+
+    return "DATA_THEFT", None
+
+
 def score_paths(
     raw_paths: list,
     posture_lookup: Dict[str, PostureRow],
     findings_lookup: Optional[Dict] = None,
+    objective_catalog: Optional[Dict[tuple, Dict[str, Any]]] = None,
+    fallback_table: Optional[Dict[tuple, Dict[str, str]]] = None,
 ) -> list:
-    """Score all raw paths and return a list of ScoredPath objects."""
-    findings_lookup = findings_lookup or {}
+    """Score all raw paths and return a list of ScoredPath objects.
+
+    Args:
+        raw_paths:         RawPath objects from BFS.
+        posture_lookup:    uid → PostureRow dict.
+        findings_lookup:   uid → {misconfigs, cves, threat_detections}.
+        objective_catalog: (provider, resource_type) → {objective_type, required_capability}.
+                           Built from attack_objective_catalog table by run_scan.py.
+        fallback_table:    (crown_jewel_type, access_capability|'*') → {objective_type, required_capability}.
+                           Built from attack_objective_fallback table by run_scan.py.
+    """
+    findings_lookup  = findings_lookup  or {}
+    objective_catalog = objective_catalog or {}
+    fallback_table    = fallback_table    or {}
     scored = []
+
     for raw in raw_paths:
         p = probability_score(raw, posture_lookup, findings_lookup)
         i = impact_score(raw, posture_lookup)
@@ -472,6 +555,15 @@ def score_paths(
             cj_type, raw.crown_jewel_uid or "", access_cap_raw, posture_lookup
         )
 
+        # Derive formal attack objective from catalog (OBJ-03)
+        obj_type, obj_satisfied = _derive_objective(
+            crown_uid, cj_type, access_cap_raw,
+            posture_lookup, objective_catalog, fallback_table,
+        )
+
+        # OBJ-05: topology-only paths (objective_satisfied=False) get downgraded
+        # to speculative confidence — they prove network reach but not the final
+        # credential edge needed to complete the objective.
         sp = ScoredPath(
             **raw.model_dump(),
             probability_score=p,
@@ -484,6 +576,8 @@ def score_paths(
             data_classification=data_class,
             has_active_cdr_actor=has_cdr,
             attack_impact_type=attack_impact_type,
+            objective_type=obj_type,
+            objective_satisfied=obj_satisfied,
         )
         scored.append(sp)
     return scored

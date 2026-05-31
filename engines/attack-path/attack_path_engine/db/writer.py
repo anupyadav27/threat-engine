@@ -80,6 +80,7 @@ def write_paths(
                     absorbed_count, choke_node_uid,
                     effective_access_principal, access_capability,
                     confidence_level, attack_name, attack_story, attack_technique_chain,
+                    objective_type, objective_satisfied,
                     status, first_seen_at, last_seen_at, updated_at
                 )
                 VALUES (
@@ -94,6 +95,7 @@ def write_paths(
                     %s, %s,
                     %s, %s,
                     %s, %s, %s, %s,
+                    %s, %s,
                     'active', NOW(), NOW(), NOW()
                 )
                 ON CONFLICT (path_id) DO UPDATE SET
@@ -123,6 +125,8 @@ def write_paths(
                     entry_point_type            = EXCLUDED.entry_point_type,
                     data_classification         = EXCLUDED.data_classification,
                     confidence_level            = EXCLUDED.confidence_level,
+                    objective_type              = EXCLUDED.objective_type,
+                    objective_satisfied         = EXCLUDED.objective_satisfied,
                     -- only overwrite narrative fields when a new explanation was generated
                     attack_name          = COALESCE(EXCLUDED.attack_name, attack_paths.attack_name),
                     attack_story         = COALESCE(EXCLUDED.attack_story, attack_paths.attack_story),
@@ -145,6 +149,7 @@ def write_paths(
                     p.absorbed_count, p.choke_node_uid,
                     p.effective_access_principal, p.access_capability,
                     confidence_level, attack_name, attack_story, attack_technique_chain,
+                    p.objective_type or None, p.objective_satisfied,
                 ),
             )
 

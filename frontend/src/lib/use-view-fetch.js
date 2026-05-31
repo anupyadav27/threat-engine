@@ -20,7 +20,7 @@ export function useViewFetch(viewName, extraParams = {}) {
   const [error, setError]     = useState(null);
 
   const { selectedTenant } = useAuth();
-  const { provider, account, region } = useGlobalFilter();
+  const { provider, account, region, scopeTenant } = useGlobalFilter();
 
   // Stable ref for extraParams to avoid unnecessary re-fetches
   const extraRef = useRef(extraParams);
@@ -49,7 +49,8 @@ export function useViewFetch(viewName, extraParams = {}) {
     } finally {
       setLoading(false);
     }
-  }, [viewName, selectedTenant, provider, account, region]);
+  // scopeTenant in deps: re-fetch when scope bar tenant changes (activeTenantHeader reads cspm_scope_tenant)
+  }, [viewName, selectedTenant, provider, account, region, scopeTenant]);
 
   useEffect(() => {
     doFetch();

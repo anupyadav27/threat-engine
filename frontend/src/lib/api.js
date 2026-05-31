@@ -32,6 +32,12 @@ function makeUrl(path) {
 function activeTenantHeader() {
   if (typeof window === 'undefined') return {};
   try {
+    // Scope bar override: when user selects exactly 1 tenant in the scope bar,
+    // cspm_scope_tenant is set and takes priority over the OrgTenantSwitcher value.
+    const scopeTenant = window.localStorage.getItem('cspm_scope_tenant');
+    if (scopeTenant) return { 'X-Active-Tenant-Id': scopeTenant };
+
+    // Fallback: OrgTenantSwitcher active tenant
     const raw = window.localStorage.getItem('cspm_active_tenant');
     if (!raw) return {};
     const parsed = JSON.parse(raw);

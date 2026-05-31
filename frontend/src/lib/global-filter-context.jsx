@@ -115,6 +115,19 @@ export function GlobalFilterProvider({ children }) {
     writeStorage(selectedTenantIds, selectedProviderIds, selectedAccountIds, timeRange);
   }, [selectedTenantIds, selectedProviderIds, selectedAccountIds, timeRange]);
 
+  // scopeTenant — the single tenant to use for all BFF calls via X-Active-Tenant-Id.
+  // Exactly 1 selected → use it. 0 or many → null (falls back to OrgTenantSwitcher / all-tenants).
+  const scopeTenant = selectedTenantIds.size === 1 ? [...selectedTenantIds][0] : null;
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (scopeTenant) {
+      localStorage.setItem('cspm_scope_tenant', scopeTenant);
+    } else {
+      localStorage.removeItem('cspm_scope_tenant');
+    }
+  }, [scopeTenant]);
+
   // Fetch accounts whenever auth initializes or tenant selection changes.
   const tenantKey = [...selectedTenantIds].sort().join(',');
 
@@ -256,6 +269,8 @@ export function GlobalFilterProvider({ children }) {
     selectedTenantIds, selectedProviderIds, selectedAccountIds,
     toggleTenantFilter, toggleProviderFilter, toggleAccountFilter,
     clearTenantFilter, clearProviderFilter, clearAccountFilter,
+    // scopeTenant: the single tenant currently active in the scope bar (null = all tenants)
+    scopeTenant,
   };
 
   return (

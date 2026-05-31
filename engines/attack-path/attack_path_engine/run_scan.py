@@ -759,12 +759,30 @@ def run_attack_path_scan(
         findings_lookup = _build_findings_lookup(di_conn, tenant_id, all_uids)
         _jlog("findings_lookup_built", entries=len(findings_lookup), scan_run_id=scan_run_id)
 
+        # ── Stage 3c: Load attack objective catalog ───────────────────────────
+        # Loads (provider, resource_type) → {objective_type, required_capability}
+        # from attack_objective_catalog for objective tagging + OBJ-05 validation.
+        # Non-fatal: falls back to empty dicts (uses hardcoded fallback table).
+        _jlog("stage", name="objective_catalog_load", scan_run_id=scan_run_id)
+        objective_catalog, fallback_table = _load_objective_catalog(di_conn)
+        _jlog(
+            "objective_catalog_loaded",
+            scan_run_id=scan_run_id,
+            catalog_entries=len(objective_catalog),
+            fallback_entries=len(fallback_table),
+        )
+
         # ── Stage 4: Score paths ──────────────────────────────────────────────
         # findings_lookup is passed so CDR threat_detections + MITRE technique
         # chains on each hop directly influence P (probability score).
+        # objective_catalog passed for formal attack objective tagging (OBJ-02 to OBJ-05).
         _jlog("stage", name="score", scan_run_id=scan_run_id)
         from .core.scorer import score_paths
-        scored_paths = score_paths(raw_paths, posture_lookup, findings_lookup)
+        scored_paths = score_paths(
+            raw_paths, posture_lookup, findings_lookup,
+            objective_catalog=objective_catalog,
+            fallback_table=fallback_table,
+        )
         _jlog("paths_scored", count=len(scored_paths), scan_run_id=scan_run_id)
 
         # ── Stage 4b: MITRE ATT&CK attack vector classification ──────────────
@@ -975,6 +993,67 @@ def run_attack_path_scan(
         scan_duration_seconds=elapsed,
     )
     return metrics
+
+
+def _load_objective_catalog(
+    di_conn: Any,
+) -> tuple:
+    """Load attack_objective_catalog and attack_objective_fallback from DI DB.
+
+    Returns:
+        (objective_catalog, fallback_table) where:
+          objective_catalog: Dict[(provider, resource_type) → {objective_type, required_capability}]
+          fallback_table:    Dict[(crown_jewel_type, access_capability) → {objective_type, required_capability}]
+
+    Non-fatal: returns empty dicts if the table doesn't exist yet (migration not applied).
+    """
+    objective_catalog: Dict[str, Any] = {}
+    fallback_table: Dict[str, Any] = {}
+
+    try:
+        with di_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT provider, resource_type, objective_type, required_capability
+                FROM attack_objective_catalog
+                WHERE is_active = TRUE
+                """
+            )
+            for row in cur.fetchall():
+                key = (row["provider"], row["resource_type"])
+                objective_catalog[key] = {
+                    "objective_type":      row["objective_type"],
+                    "required_capability": row["required_capability"],
+                }
+    except Exception as exc:
+        logger.debug("attack_objective_catalog not available (non-fatal): %s", exc)
+        try:
+            di_conn.rollback()
+        except Exception:
+            pass
+
+    try:
+        with di_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT crown_jewel_type, access_capability, objective_type, required_capability
+                FROM attack_objective_fallback
+                """
+            )
+            for row in cur.fetchall():
+                key = (row["crown_jewel_type"], row["access_capability"])
+                fallback_table[key] = {
+                    "objective_type":      row["objective_type"],
+                    "required_capability": row["required_capability"],
+                }
+    except Exception as exc:
+        logger.debug("attack_objective_fallback not available (non-fatal): %s", exc)
+        try:
+            di_conn.rollback()
+        except Exception:
+            pass
+
+    return objective_catalog, fallback_table
 
 
 def _build_findings_lookup(

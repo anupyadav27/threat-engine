@@ -98,6 +98,17 @@ class ScoredPath(RawPath):
     #         InfrastructureTakeover | BusinessDisruption | ServiceControl
     attack_impact_type: str = ""
 
+    # Formal attack objective from attack_objective_catalog (OBJ-02).
+    # One of: DATA_THEFT | DATA_DESTRUCTION | SECRET_THEFT | DECRYPTION |
+    #         PRIVILEGE_ESCALATION | CLUSTER_TAKEOVER | ACCOUNT_TAKEOVER |
+    #         AI_MODEL_ACCESS | CODE_ACCESS
+    objective_type: str = ""
+
+    # TRUE  = final edge capability satisfies the objective's required_capability.
+    # FALSE = topology-only path (network reach to target without confirmed credential edge).
+    # None  = objective not evaluated (no catalog entry for this resource_type).
+    objective_satisfied: Optional[bool] = None
+
 
 class Path(ScoredPath):
     """ScoredPath with deduplication / grouping metadata appended by deduplicator.py."""
