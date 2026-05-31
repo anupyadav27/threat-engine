@@ -1085,6 +1085,94 @@ async def get_identity_hourly_activity(
         conn.close()
 
 
+@app.get("/api/v1/cdr/actor/baseline-trend")
+async def get_actor_baseline_trend(
+    principal: str = Query(..., max_length=512, description="Full actor principal ARN"),
+    auth: Any = Depends(require_permission("cdr:read")),
+):
+    """14-day behavioral baseline trend for a single actor principal.
+
+    Joins cdr_actor_daily_stats with cdr_baselines to return per-metric time
+    series and anomaly thresholds (mean + 2σ). Only returns metrics that have
+    at least one data point in the last 14 days.
+
+    Security: tenant_id from AuthContext only — principal is a filter hint, not
+    a tenant selector. Validated max 512 chars; no raw event data returned.
+
+    Args:
+        principal: Full actor_principal ARN (entity_key in stats tables).
+        auth: AuthContext from require_permission dependency.
+
+    Returns:
+        Dict with 'principal' and 'metrics' (list of per-metric trend objects).
+    """
+    import psycopg2.extras
+    from collections import defaultdict
+
+    if "\x00" in principal:
+        raise HTTPException(status_code=400, detail="Invalid principal identifier")
+
+    tenant_id = (
+        getattr(auth, "engine_tenant_id", None)
+        or getattr(auth, "tenant_id", None)
+        or "default-tenant"
+    )
+    conn = get_cdr_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT metric_name, stat_date, value
+                FROM cdr_actor_daily_stats
+                WHERE tenant_id = %s
+                  AND entity_type = 'actor.principal'
+                  AND entity_key  = %s
+                  AND stat_date  >= CURRENT_DATE - INTERVAL '14 days'
+                ORDER BY metric_name, stat_date
+                """,
+                (tenant_id, principal),
+            )
+            stat_rows = cur.fetchall()
+
+            cur.execute(
+                """
+                SELECT metric_name, mean, stddev
+                FROM cdr_baselines
+                WHERE tenant_id = %s AND entity_key = %s
+                """,
+                (tenant_id, principal),
+            )
+            baselines = {row["metric_name"]: dict(row) for row in cur.fetchall()}
+    except Exception as exc:
+        logger.error("baseline-trend query failed for %s: %s", principal, exc)
+        raise HTTPException(status_code=500, detail="Failed to load baseline trend")
+    finally:
+        conn.close()
+
+    grouped: dict = defaultdict(list)
+    for row in stat_rows:
+        grouped[row["metric_name"]].append({
+            "date":  str(row["stat_date"]),
+            "value": float(row["value"]),
+        })
+
+    metrics = []
+    for metric, points in grouped.items():
+        b = baselines.get(metric, {})
+        mean   = float(b["mean"])   if b.get("mean")   is not None else None
+        stddev = float(b["stddev"]) if b.get("stddev") is not None else None
+        threshold = (mean + 2 * stddev) if mean is not None and stddev is not None else None
+        metrics.append({
+            "metric":    metric,
+            "points":    sorted(points, key=lambda p: p["date"]),
+            "mean":      mean,
+            "stddev":    stddev,
+            "threshold": threshold,
+        })
+
+    return {"principal": principal, "metrics": metrics}
+
+
 @app.get("/api/v1/cdr/top-rules")
 async def top_rules(
     scan_run_id: Optional[str] = Query(None),

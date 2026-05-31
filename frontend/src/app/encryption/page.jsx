@@ -765,6 +765,7 @@ export default function EncryptionPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={tabData}
+        persistenceKey="encryption"
         insightRow={insightStrip}
         loading={loading}
         error={error}

@@ -394,6 +394,7 @@ export default function AiSecurityPage() {
         pageContext={pageContext}
         kpiGroups={kpiGroups}
         tabData={tabData}
+        persistenceKey="ai_security"
         loading={loading}
         error={error}
         onRowClick={handleRowClick}

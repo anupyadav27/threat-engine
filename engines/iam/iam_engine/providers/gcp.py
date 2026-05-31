@@ -5,13 +5,15 @@ Reads GCP IAM data from discovery_findings / check_findings to surface:
   - Primitive roles (roles/owner, roles/editor) assigned to identities
   - Public service accounts (allUsers / allAuthenticatedUsers bindings)
   - Service accounts with project-level admin rights
+  - Writes GCP IAM bindings to iam_policy_statements for attack-path IAM edges
 
 Queries discovery_findings for GCP IAM resources (service='iam' or
 service='cloudresourcemanager') and check_findings for GCP IAM failures.
 """
 
+import hashlib
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .base import BaseIAMProvider, empty_result
 
@@ -22,6 +24,49 @@ _PRIMITIVE_ROLES = {"roles/owner", "roles/editor"}
 
 # Public principals that should never have roles
 _PUBLIC_PRINCIPALS = {"allUsers", "allAuthenticatedUsers"}
+
+
+def _gcp_role_to_pseudo_action(role: str) -> str:
+    """Convert a GCP IAM role to a pseudo service:action format.
+
+    Enables the attack-path iam_policy validator to map GCP bindings to
+    resource types using the same SERVICE_TO_TYPE_HINTS logic as AWS.
+
+    Examples:
+        roles/storage.objectAdmin      → storage:objectAdmin
+        roles/bigquery.dataViewer      → bigquery:dataViewer
+        roles/cloudkms.cryptoKeyDecrypter → cloudkms:cryptoKeyDecrypter
+        roles/owner                    → *:*
+        roles/editor                   → *:*
+        roles/viewer                   → *:read
+        projects/p/roles/custom        → *:*
+    """
+    if not role:
+        return "*:*"
+    role_lower = role.lower()
+    if role_lower in ("roles/owner", "roles/editor"):
+        return "*:*"
+    if role_lower == "roles/viewer":
+        return "*:read"
+    if role.startswith("roles/"):
+        suffix = role[6:]
+        if "." in suffix:
+            svc, action = suffix.split(".", 1)
+            return f"{svc.lower()}:{action}"
+        return f"{suffix.lower()}:*"
+    # Custom project-scoped roles — treat conservatively
+    return "*:*"
+
+
+def _gcp_member_type(member: str) -> str:
+    """Derive attached_to_type from GCP IAM member string."""
+    if member.startswith("serviceAccount:"):
+        return "service_account"
+    if member.startswith("user:"):
+        return "user"
+    if member.startswith("group:"):
+        return "group"
+    return "user"
 
 
 class GCPIAMProvider(BaseIAMProvider):
@@ -208,4 +253,89 @@ class GCPIAMProvider(BaseIAMProvider):
             logger.warning(f"GCP IAM check_findings query failed (non-fatal): {e}")
 
         result["policy_findings"] = policy_findings
+
+        # ── Write GCP IAM bindings to iam_policy_statements ──
+        # Enables attack-path iam_policy validator to build GCP identity→resource edges.
+        # Each (member, role, resource) tuple becomes one statement row.
+        _write_gcp_policy_statements(
+            scan_run_id, tenant_id, account_id, iam_rows,
+        )
+
         return result
+
+
+def _write_gcp_policy_statements(
+    scan_run_id: str,
+    tenant_id: str,
+    account_id: str,
+    iam_rows: List[Dict[str, Any]],
+) -> None:
+    """Convert GCP IAM bindings to iam_policy_statements rows for attack-path edges."""
+    if not iam_rows:
+        return
+
+    statements: List[Dict[str, Any]] = []
+    for row in iam_rows:
+        fields = row.get("emitted_fields") or {}
+        resource_uid = row.get("resource_uid", "") or ""
+        bindings = fields.get("bindings") or fields.get("iamBindings") or []
+        if not isinstance(bindings, list):
+            continue
+
+        for binding in bindings:
+            if not isinstance(binding, dict):
+                continue
+            role = binding.get("role", "")
+            members = binding.get("members") or []
+            if not role or not isinstance(members, list):
+                continue
+
+            pseudo_action = _gcp_role_to_pseudo_action(role)
+            is_admin = pseudo_action == "*:*"
+
+            for member in members:
+                if not isinstance(member, str):
+                    continue
+                # Skip public bindings — they don't represent identity-specific access
+                if member in _PUBLIC_PRINCIPALS:
+                    continue
+
+                # Use a stable hash so repeated scans update rather than duplicate
+                stmt_key = f"gcp|{tenant_id}|{member}|{role}|{resource_uid}"
+                stmt_id = "gcp_" + hashlib.sha1(stmt_key.encode()).hexdigest()[:40]
+
+                statements.append({
+                    "statement_id":   stmt_id,
+                    "scan_run_id":    scan_run_id,
+                    "tenant_id":      tenant_id,
+                    "provider":       "gcp",
+                    "account_id":     account_id,
+                    "policy_arn":     role,
+                    "policy_name":    role,
+                    "policy_type":    "binding",
+                    "is_aws_managed": False,
+                    "attached_to_arn":  member,
+                    "attached_to_type": _gcp_member_type(member),
+                    "resource_uid":   resource_uid,
+                    "sid":            None,
+                    "effect":         "Allow",
+                    "actions":        [pseudo_action],
+                    "not_action_mode": False,
+                    "resources":      [resource_uid] if resource_uid else ["*"],
+                    "conditions":     None,
+                    "principals":     [member],
+                    "is_admin":       is_admin,
+                    "is_wildcard_principal": False,
+                    "has_external_id": None,
+                    "is_cross_account": None,
+                })
+
+    if not statements:
+        return
+
+    try:
+        from iam_engine.storage.iam_db_writer import save_policy_statements
+        count = save_policy_statements(scan_run_id, tenant_id, statements, provider="gcp")
+        logger.info(f"GCP IAM: wrote {count} policy statements to iam_policy_statements")
+    except Exception as e:
+        logger.warning(f"GCP IAM: failed to write policy statements (non-fatal): {e}")

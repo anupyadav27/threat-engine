@@ -107,8 +107,10 @@ class RiskEvaluator:
                         attack_path_count,
                         is_choke_point,
                         has_active_cdr_actor,
-                        cert_days_to_expiry,
-                        blast_radius_count
+                        cert_days_remaining,
+                        blast_radius_count,
+                        is_crown_jewel,
+                        crown_jewel_type
                     FROM resource_security_posture
                     WHERE tenant_id = %s
                       AND resource_uid = ANY(%s)
@@ -120,8 +122,10 @@ class RiskEvaluator:
                         "attack_path_count":    int(row.get("attack_path_count") or 0),
                         "is_choke_point":       bool(row.get("is_choke_point") or False),
                         "has_active_cdr_actor": bool(row.get("has_active_cdr_actor") or False),
-                        "cert_days_to_expiry":  row.get("cert_days_to_expiry"),
+                        "cert_days_to_expiry":  row.get("cert_days_remaining"),
                         "blast_radius_count":   int(row.get("blast_radius_count") or 0),
+                        "is_crown_jewel":       bool(row.get("is_crown_jewel") or False),
+                        "crown_jewel_type":     row.get("crown_jewel_type"),
                     }
             logger.info(
                 "AP signals: loaded posture rows for %d / %d resource UIDs",
@@ -236,7 +240,11 @@ class RiskEvaluator:
             resource_uids=unique_uids,
             tenant_id=tenant_id,
         )
-        logger.info("AP signals: %d resources have attack path posture data", len(ap_signals_cache))
+        cj_count = sum(1 for s in ap_signals_cache.values() if s.get("is_crown_jewel"))
+        logger.info(
+            "AP signals: %d resources have posture data (%d crown jewels)",
+            len(ap_signals_cache), cj_count,
+        )
 
         scenarios: List[Dict[str, Any]] = []
         for finding in findings:
@@ -253,6 +261,20 @@ class RiskEvaluator:
                         {k: v for k, v in ap_sig.items() if v},
                     )
                     finding = {**finding, "exposure_factor": boosted_ef}
+
+                # Inject crown jewel classification into finding for FAIR compute_scenario().
+                # Crown jewel signals are written by CrownJewelClassifier (attack-path engine)
+                # and available in resource_security_posture by the time risk engine runs (Stage 7).
+                if ap_sig.get("is_crown_jewel"):
+                    finding = {
+                        **finding,
+                        "is_crown_jewel": True,
+                        "crown_jewel_type": ap_sig.get("crown_jewel_type"),
+                    }
+                    logger.debug(
+                        "Crown jewel signal for %s: type=%s",
+                        resource_uid, ap_sig.get("crown_jewel_type"),
+                    )
 
             scenario = compute_scenario(finding, model_config)
 

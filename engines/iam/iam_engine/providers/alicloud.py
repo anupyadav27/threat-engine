@@ -253,4 +253,118 @@ class AliCloudIAMProvider(BaseIAMProvider):
             "AliCloud IAM provider: %d findings for scan=%s account=%s",
             len(policy_findings), scan_run_id, account_id,
         )
+        _write_alicloud_policy_statements(scan_run_id, tenant_id, account_id, rows)
         return result
+
+
+def _extract_alicloud_statements(
+    scan_run_id: str,
+    tenant_id: str,
+    account_id: str,
+    rows: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Extract iam_policy_statements rows from AliCloud RAM discovery rows.
+
+    AliCloud RAM actions already use service:action format (e.g. oss:GetObject)
+    so they feed directly into the attack-path SERVICE_TO_TYPE_HINTS parser.
+    """
+    import hashlib
+    statements = []
+
+    for row in rows:
+        fields = row.get("emitted_fields") or {}
+        resource_uid = row.get("resource_uid", "") or ""
+        resource_type = (row.get("resource_type") or "").lower()
+
+        # Role or user rows that have AttachedPolicies with wildcard → write *:* statement
+        if "user" in resource_type or "role" in resource_type:
+            attached = fields.get("AttachedPolicies") or []
+            policy_doc = fields.get("PolicyDocument") or {}
+            stmts = policy_doc.get("Statement") or []
+
+            # Direct wildcard admin policies
+            for pol in attached:
+                pname = pol.get("PolicyName", "")
+                if pname in _ADMIN_POLICIES:
+                    sid = "ali_" + hashlib.sha1(
+                        f"alicloud|{tenant_id}|{resource_uid}|admin".encode()
+                    ).hexdigest()[:40]
+                    statements.append({
+                        "statement_id":   sid,
+                        "scan_run_id":    scan_run_id,
+                        "tenant_id":      tenant_id,
+                        "provider":       "alicloud",
+                        "account_id":     account_id,
+                        "policy_arn":     pname,
+                        "policy_name":    pname,
+                        "policy_type":    "attached",
+                        "is_aws_managed": False,
+                        "attached_to_arn":  resource_uid,
+                        "attached_to_type": "role" if "role" in resource_type else "user",
+                        "resource_uid":   resource_uid,
+                        "sid":            None,
+                        "effect":         "Allow",
+                        "actions":        ["*:*"],
+                        "not_action_mode": False,
+                        "resources":      ["*"],
+                        "conditions":     None,
+                        "principals":     [resource_uid],
+                        "is_admin":       True,
+                        "is_wildcard_principal": False,
+                        "has_external_id": None,
+                        "is_cross_account": None,
+                    })
+
+            # Inline policy document statements on this entity
+            for s in stmts:
+                if not isinstance(s, dict) or s.get("Effect") != "Allow":
+                    continue
+                actions = s.get("Action") or []
+                if isinstance(actions, str):
+                    actions = [actions]
+                resources = s.get("Resource") or ["*"]
+                if isinstance(resources, str):
+                    resources = [resources]
+                sid_key = f"alicloud|{tenant_id}|{resource_uid}|{','.join(actions[:3])}"
+                stmt_id = "ali_" + hashlib.sha1(sid_key.encode()).hexdigest()[:40]
+                statements.append({
+                    "statement_id":   stmt_id,
+                    "scan_run_id":    scan_run_id,
+                    "tenant_id":      tenant_id,
+                    "provider":       "alicloud",
+                    "account_id":     account_id,
+                    "policy_arn":     resource_uid,
+                    "policy_name":    resource_uid,
+                    "policy_type":    "inline",
+                    "is_aws_managed": False,
+                    "attached_to_arn":  resource_uid,
+                    "attached_to_type": "role" if "role" in resource_type else "user",
+                    "resource_uid":   resource_uid,
+                    "sid":            s.get("Sid"),
+                    "effect":         "Allow",
+                    "actions":        actions,
+                    "not_action_mode": False,
+                    "resources":      resources,
+                    "conditions":     None,
+                    "principals":     [resource_uid],
+                    "is_admin":       "*" in actions,
+                    "is_wildcard_principal": False,
+                    "has_external_id": None,
+                    "is_cross_account": None,
+                })
+
+    return statements
+
+
+def _write_alicloud_policy_statements(
+    scan_run_id: str, tenant_id: str, account_id: str, rows: List[Dict[str, Any]],
+) -> None:
+    statements = _extract_alicloud_statements(scan_run_id, tenant_id, account_id, rows)
+    if not statements:
+        return
+    try:
+        from iam_engine.storage.iam_db_writer import save_policy_statements
+        count = save_policy_statements(scan_run_id, tenant_id, statements, provider="alicloud")
+        logger.info("AliCloud IAM: wrote %d policy statements", count)
+    except Exception as e:
+        logger.warning("AliCloud IAM: failed to write policy statements (non-fatal): %s", e)

@@ -1,0 +1,893 @@
+---
+# Resource Attack Ontology Catalog
+# Loaded by: catalog/ontology/upload_ontology_catalog.py
+# Destination: resource_ontology_catalog in threat_engine_di
+#
+# Axis A — entry_point_category: how attackers GET IN
+#   INTERNET_ENTRY | IDENTITY_ENTRY | THIRD_PARTY_ENTRY |
+#   WORKLOAD_ENTRY | MANAGEMENT_ENTRY | DATA_ENTRY
+#
+# Axis B — attack_target_category: what attackers WANT
+#   DATA_TARGET | SECRET_TARGET | CRYPTO_TARGET |
+#   IDENTITY_TARGET | CONTROL_PLANE_TARGET | WORKLOAD_TARGET
+#
+# A resource_type may have BOTH axes (e.g. ec2_instance = WORKLOAD_ENTRY + WORKLOAD_TARGET).
+# In that case add TWO entries — one per axis.
+#
+# condition_operator: eq | ne | not_null | contains
+# is_conditional: false = classify ALL instances; true = check condition_field first.
+#
+# resource_type must match asset_inventory.resource_type exactly.
+# AWS has TWO naming conventions — both covered below:
+#   underscore types: ec2_instance, iam_role  (step6 scanner — has emitted_fields)
+#   dot-notation:     ec2.instance, iam.role  (Resource Explorer — limited emitted_fields)
+
+resources:
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # AWS — underscore types (step6 scanner, full emitted_fields)
+  # ════════════════════════════════════════════════════════════════════════════
+
+  # ── INTERNET_ENTRY ─────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: apigatewayv2_api
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: API Gateway v2 HTTP/WebSocket API
+
+  - csp: aws
+    resource_type: apigateway_rest_api
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: API Gateway v1 REST API
+
+  - csp: aws
+    resource_type: cloudfront_distribution
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: CloudFront CDN distribution
+
+  - csp: aws
+    resource_type: elbv2_load_balancer
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: true
+    condition_field: Scheme
+    condition_value: internet-facing
+    condition_operator: eq
+    description: ALB/NLB with internet-facing scheme only
+
+  # ── WORKLOAD_ENTRY ─────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: ec2_instance
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: true
+    condition_field: PublicIpAddress
+    condition_operator: not_null
+    description: EC2 instance with public IP (lateral entry point)
+
+  - csp: aws
+    resource_type: lambda_function
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: Lambda function (compromised workload)
+
+  - csp: aws
+    resource_type: ecs_cluster
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: ECS cluster (container workload)
+
+  # ── MANAGEMENT_ENTRY ───────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: eks_cluster
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: EKS cluster API server (management plane)
+
+  - csp: aws
+    resource_type: ssm_managed_instance
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: SSM managed instance (management plane access)
+
+  # ── IDENTITY_ENTRY ─────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: iam_user
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: IAM user (credential compromise path)
+
+  - csp: aws
+    resource_type: iam_role
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: IAM role (assume-role attack path)
+
+  # ── THIRD_PARTY_ENTRY ──────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: iam_open_id_connect_provider
+    entry_point_category: THIRD_PARTY_ENTRY
+    is_conditional: false
+    description: OIDC provider (GitHub Actions / CI-CD federation)
+
+  # ── DATA_ENTRY ─────────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: s3_bucket
+    entry_point_category: DATA_ENTRY
+    is_conditional: true
+    condition_field: PublicAccessBlockConfiguration.BlockPublicAcls
+    condition_value: "False"
+    condition_operator: eq
+    description: S3 bucket with public access not blocked
+
+  # ── DATA_TARGET ────────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: s3_bucket
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: S3 bucket (sensitive data store)
+
+  - csp: aws
+    resource_type: rds_db_instance
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: RDS database instance
+
+  - csp: aws
+    resource_type: efs_file_system
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: EFS file system
+
+  - csp: aws
+    resource_type: backup_backup_vault
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: AWS Backup vault
+
+  - csp: aws
+    resource_type: glacier_vault
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: S3 Glacier vault
+
+  # ── SECRET_TARGET ──────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: secretsmanager_secret
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: Secrets Manager secret
+
+  - csp: aws
+    resource_type: ssm_document
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: SSM document (may contain sensitive runbooks/secrets)
+
+  - csp: aws
+    resource_type: ssm_patch_baseline
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: SSM patch baseline
+
+  # ── CRYPTO_TARGET ──────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: kms_key
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: KMS customer managed key
+
+  - csp: aws
+    resource_type: kms_alias
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: KMS alias (points to CMK)
+
+  - csp: aws
+    resource_type: acm_certificate
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: ACM TLS certificate
+
+  # ── IDENTITY_TARGET ────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: iam_role
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: true
+    condition_field: RoleName
+    condition_value: Admin
+    condition_operator: contains
+    description: IAM admin role (privilege escalation target)
+
+  - csp: aws
+    resource_type: iam_user
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: IAM user (account takeover target)
+
+  - csp: aws
+    resource_type: cognito_user_pool
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: Cognito user pool (identity store)
+
+  - csp: aws
+    resource_type: iam_instance_profile
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: IAM instance profile (role escalation via EC2)
+
+  # ── CONTROL_PLANE_TARGET ───────────────────────────────────────────────────
+  - csp: aws
+    resource_type: eks_cluster
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: EKS cluster control plane
+
+  - csp: aws
+    resource_type: ecs_cluster
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: ECS cluster
+
+  - csp: aws
+    resource_type: organizations_account
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: AWS Organizations account (environment takeover)
+
+  # ── WORKLOAD_TARGET ────────────────────────────────────────────────────────
+  - csp: aws
+    resource_type: ec2_instance
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: EC2 compute instance
+
+  - csp: aws
+    resource_type: lambda_function
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: Lambda function
+
+  - csp: aws
+    resource_type: eks_nodegroup
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: EKS node group
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # AWS — dot-notation types (Resource Explorer discovery, limited emitted_fields)
+  # Same categories as above — covers both naming conventions in asset_inventory.
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - csp: aws
+    resource_type: "ec2.instance"
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: EC2 instance (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "ec2.instance"
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: EC2 instance (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "iam.role"
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: IAM role (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "iam.role"
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: IAM role (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "iam.user"
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: IAM user (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "iam.user"
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: IAM user (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "kms.key"
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: KMS key (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "s3.bucket"
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: S3 bucket (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "lambda.function"
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: Lambda function (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "lambda.function"
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: Lambda function (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "secretsmanager.secret"
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: Secrets Manager secret (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "eks.cluster"
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: EKS cluster (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "eks.cluster"
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: EKS cluster (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "ecs.cluster"
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: ECS cluster (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "dynamodb.table"
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: DynamoDB table (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "rds.db-instance"
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: RDS instance (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "elasticfilesystem.file-system"
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: EFS file system (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "acm.certificate"
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: ACM certificate (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "elbv2.load-balancer"
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: ELBv2 (Resource Explorer — no Scheme field, classify all)
+
+  - csp: aws
+    resource_type: "apigateway.rest-api"
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: API Gateway REST API (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "apigatewayv2.api"
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: API Gateway v2 (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "cloudfront.distribution"
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: CloudFront (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "cognito-idp.user-pool"
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: Cognito user pool (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "backup.backup-vault"
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: Backup vault (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "ssm.managed-instance"
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: SSM managed instance (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "kms.alias"
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: KMS alias (Resource Explorer type)
+
+  - csp: aws
+    resource_type: "iam.instance-profile"
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: IAM instance profile (Resource Explorer type)
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # Azure
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - csp: azure
+    resource_type: network.load_balancer
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: Azure Load Balancer
+
+  - csp: azure
+    resource_type: network.application_gateway
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: Azure Application Gateway
+
+  - csp: azure
+    resource_type: cdn.profile
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: Azure CDN / Front Door
+
+  - csp: azure
+    resource_type: web.site
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: Azure App Service (web endpoint)
+
+  - csp: azure
+    resource_type: web.site
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: Azure App Service (workload target)
+
+  - csp: azure
+    resource_type: compute.virtual_machine
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: Azure VM
+
+  - csp: azure
+    resource_type: compute.virtual_machine
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: Azure VM
+
+  - csp: azure
+    resource_type: containerservice.managed_cluster
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: Azure AKS cluster
+
+  - csp: azure
+    resource_type: containerservice.managed_cluster
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: Azure AKS cluster
+
+  - csp: azure
+    resource_type: storage.storage_account
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: Azure Storage Account
+
+  - csp: azure
+    resource_type: StorageAccount
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: Azure Storage Account (Resource Explorer type)
+
+  - csp: azure
+    resource_type: sql.database
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: Azure SQL Database
+
+  - csp: azure
+    resource_type: sql.server
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: Azure SQL Server
+
+  - csp: azure
+    resource_type: keyvault.vault
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: Azure Key Vault (secrets + keys)
+
+  - csp: azure
+    resource_type: KeyVault
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: Azure Key Vault (Resource Explorer type)
+
+  - csp: azure
+    resource_type: authorization.role_assignment
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: Azure RBAC role assignment
+
+  - csp: azure
+    resource_type: logic.workflow
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: Azure Logic App
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # GCP
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - csp: gcp
+    resource_type: compute.url_map
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: GCP HTTP(S) Load Balancer URL map
+
+  - csp: gcp
+    resource_type: compute.forwardingRule
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: GCP forwarding rule (internet-facing LB)
+
+  - csp: gcp
+    resource_type: compute.instance
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: GCP Compute instance
+
+  - csp: gcp
+    resource_type: compute.instance
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: GCP Compute instance
+
+  - csp: gcp
+    resource_type: run.service
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: GCP Cloud Run service (public HTTPS)
+
+  - csp: gcp
+    resource_type: run.service
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: GCP Cloud Run service
+
+  - csp: gcp
+    resource_type: cloudfunctions.function
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: GCP Cloud Function
+
+  - csp: gcp
+    resource_type: cloudfunctions.function
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: GCP Cloud Function
+
+  - csp: gcp
+    resource_type: container.cluster
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: GCP GKE cluster
+
+  - csp: gcp
+    resource_type: container.cluster
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: GCP GKE cluster
+
+  - csp: gcp
+    resource_type: storage.bucket
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: GCP Cloud Storage bucket
+
+  - csp: gcp
+    resource_type: storage_buckets.list
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: GCP Cloud Storage bucket (list discovery type)
+
+  - csp: gcp
+    resource_type: sqladmin.instance
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: GCP Cloud SQL instance
+
+  - csp: gcp
+    resource_type: cloudkms.crypto_key
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: GCP Cloud KMS crypto key
+
+  - csp: gcp
+    resource_type: "secretmanager.googleapis.com/Secret"
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: GCP Secret Manager secret (googleapis type)
+
+  - csp: gcp
+    resource_type: gcp.secret
+    attack_target_category: SECRET_TARGET
+    is_conditional: false
+    description: GCP Secret Manager secret
+
+  - csp: gcp
+    resource_type: iam.service_account
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: GCP service account (identity entry)
+
+  - csp: gcp
+    resource_type: iam.service_account
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: GCP service account (identity target)
+
+  - csp: gcp
+    resource_type: gcp.iam_service_account
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: GCP service account (alternate type)
+
+  - csp: gcp
+    resource_type: gcp.iam_service_account
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: GCP service account (alternate type)
+
+  - csp: gcp
+    resource_type: "iam.googleapis.com/ServiceAccount"
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: GCP service account (googleapis discovery type)
+
+  - csp: gcp
+    resource_type: "iam.googleapis.com/ServiceAccount"
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: GCP service account (googleapis discovery type)
+
+  - csp: gcp
+    resource_type: "pubsub.googleapis.com/Topic"
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: GCP Pub/Sub topic
+
+  - csp: gcp
+    resource_type: gcp.pubsub_topic
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: GCP Pub/Sub topic (alternate type)
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # OCI
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - csp: oci
+    resource_type: compute.instance
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: OCI Compute instance
+
+  - csp: oci
+    resource_type: compute.instance
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: OCI Compute instance
+
+  - csp: oci
+    resource_type: "oci.core/Instance"
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: OCI Compute instance (alternate discovery type)
+
+  - csp: oci
+    resource_type: "oci.core/Instance"
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: OCI Compute instance (alternate discovery type)
+
+  - csp: oci
+    resource_type: "compute.oci.core/Instance"
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: OCI Compute instance (type 2)
+
+  - csp: oci
+    resource_type: "compute.oci.core/Instance"
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: OCI Compute instance (type 2)
+
+  - csp: oci
+    resource_type: database.autonomous_database
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: OCI Autonomous Database
+
+  - csp: oci
+    resource_type: containerengine.cluster
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: OCI OKE cluster
+
+  - csp: oci
+    resource_type: containerengine.cluster
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: OCI OKE cluster
+
+  - csp: oci
+    resource_type: key_management.vault
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: OCI Vault (KMS)
+
+  - csp: oci
+    resource_type: "oci.key_management/Vault"
+    attack_target_category: CRYPTO_TARGET
+    is_conditional: false
+    description: OCI Vault (alternate discovery type)
+
+  - csp: oci
+    resource_type: loadbalancer.load_balancer
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: OCI Load Balancer
+
+  - csp: oci
+    resource_type: "oci.core/SecurityList"
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: OCI Security List (network control plane)
+
+  - csp: oci
+    resource_type: "oci.audit/Configuration"
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: OCI Audit configuration
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # AliCloud
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - csp: alicloud
+    resource_type: ecs.instance
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: AliCloud ECS instance
+
+  - csp: alicloud
+    resource_type: ecs.instance
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: AliCloud ECS instance
+
+  - csp: alicloud
+    resource_type: rds.db_instance
+    attack_target_category: DATA_TARGET
+    is_conditional: false
+    description: AliCloud RDS instance
+
+  - csp: alicloud
+    resource_type: slb.load_balancer
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: AliCloud Server Load Balancer
+
+  - csp: alicloud
+    resource_type: cs.cluster
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: AliCloud Container Service cluster
+
+  - csp: alicloud
+    resource_type: cs.cluster
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: AliCloud Container Service cluster
+
+  - csp: alicloud
+    resource_type: ram_ListRole
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: AliCloud RAM role (discovery list type)
+
+  - csp: alicloud
+    resource_type: ram_ListRole
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: AliCloud RAM role (discovery list type)
+
+  - csp: alicloud
+    resource_type: ram_ListUser
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: AliCloud RAM user (discovery list type)
+
+  - csp: alicloud
+    resource_type: ram_ListUser
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: AliCloud RAM user (discovery list type)
+
+  - csp: alicloud
+    resource_type: ecs.security_group
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: AliCloud ECS security group (network control)
+
+  # ════════════════════════════════════════════════════════════════════════════
+  # IBM
+  # ════════════════════════════════════════════════════════════════════════════
+
+  - csp: ibm
+    resource_type: is.instance
+    entry_point_category: WORKLOAD_ENTRY
+    is_conditional: false
+    description: IBM VPC Virtual Server Instance
+
+  - csp: ibm
+    resource_type: is.instance
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: IBM VPC Virtual Server Instance
+
+  - csp: ibm
+    resource_type: is.load_balancer
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: IBM VPC Load Balancer
+
+  - csp: ibm
+    resource_type: containers.kubernetes
+    entry_point_category: MANAGEMENT_ENTRY
+    is_conditional: false
+    description: IBM Kubernetes Service cluster
+
+  - csp: ibm
+    resource_type: containers.kubernetes
+    attack_target_category: CONTROL_PLANE_TARGET
+    is_conditional: false
+    description: IBM Kubernetes Service cluster
+
+  - csp: ibm
+    resource_type: codeengine.app
+    entry_point_category: INTERNET_ENTRY
+    is_conditional: false
+    description: IBM Code Engine app (internet-facing)
+
+  - csp: ibm
+    resource_type: codeengine.app
+    attack_target_category: WORKLOAD_TARGET
+    is_conditional: false
+    description: IBM Code Engine app
+
+  - csp: ibm
+    resource_type: iam.service_id
+    entry_point_category: IDENTITY_ENTRY
+    is_conditional: false
+    description: IBM IAM service ID (credential path)
+
+  - csp: ibm
+    resource_type: iam.service_id
+    attack_target_category: IDENTITY_TARGET
+    is_conditional: false
+    description: IBM IAM service ID (identity target)

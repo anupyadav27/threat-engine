@@ -59,8 +59,9 @@ def write_network_relationships(
 ) -> int:
     """Derive topology edges from NetworkTopology and upsert to asset_relationships.
 
-    Non-fatal — any exception is caught and logged so a relationship write failure
-    never aborts the main scan pipeline.
+    Also marks internet-accessible resources in resource_security_posture via
+    is_attack_entry_point=TRUE (ONTO-1-F). Non-fatal — any exception is caught
+    and logged so a relationship write failure never aborts the main scan pipeline.
 
     Returns:
         Number of edges written (0 on error).
@@ -82,6 +83,18 @@ def write_network_relationships(
                 account_id=account_id,
                 provider=provider,
             )
+
+            # ONTO-1-F: mark internet-accessible resources as attack entry points
+            entry_point_uids = [
+                e["source_uid"] for e in edges
+                if e.get("relation_type") == "INTERNET_ACCESSIBLE"
+                and e.get("source_uid")
+                and not e["source_uid"].startswith("pseudo:")
+                and not e["source_uid"].startswith("internet:")
+            ]
+            if entry_point_uids:
+                _mark_attack_entry_points(conn, tenant_id, entry_point_uids)
+
             logger.info(
                 "Network relationship writer: wrote %d edges for scan %s", written, scan_run_id
             )
@@ -94,6 +107,38 @@ def write_network_relationships(
             "Network relationship writer failed (non-fatal): %s", exc, exc_info=True
         )
         return 0
+
+
+def _mark_attack_entry_points(conn: Any, tenant_id: str, resource_uids: List[str]) -> None:
+    """Set is_attack_entry_point=TRUE on resource_security_posture for INTERNET-exposed resources.
+
+    Only updates existing posture rows — does not insert. Resources without a posture
+    row are newly discovered and will be processed in the next full scan cycle.
+    """
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE resource_security_posture
+                SET is_attack_entry_point       = TRUE,
+                    attack_entry_point_category = 'INTERNET_ENTRY',
+                    updated_at                  = NOW()
+                WHERE tenant_id    = %s
+                  AND resource_uid = ANY(%s)
+                """,
+                (tenant_id, resource_uids),
+            )
+        conn.commit()
+        logger.info(
+            "Network relationship writer: marked %d resources as attack entry points (tenant=%s)",
+            len(resource_uids), tenant_id,
+        )
+    except Exception as exc:
+        logger.warning("Failed to mark attack entry points (non-fatal): %s", exc)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
 
 def _derive_edges(

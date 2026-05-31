@@ -36,6 +36,11 @@ class RawPath(BaseModel):
     # Per-hop evidence collected by Phase-2 OPTIONAL MATCH clauses
     hop_evidence: List[Dict[str, Any]] = Field(default_factory=list)
 
+    # Set by pg_graph from entry_categories passed by run_scan.py.
+    # One of: INTERNET_ENTRY | IDENTITY_ENTRY | CICD_ENTRY | THIRD_PARTY_ENTRY |
+    #         INTERNAL_WORKLOAD_ENTRY | ENDPOINT_AGENT_ENTRY
+    entry_point_category: str = "INTERNET_ENTRY"
+
 
 class PostureRow(BaseModel):
     """Subset of resource_security_posture used by the scorer and deduplicator.
@@ -88,6 +93,11 @@ class ScoredPath(RawPath):
     # Orca-style explanation (populated by path_explainer.py for top-N paths)
     explanation: Optional[Dict[str, Any]] = None
 
+    # Business impact category derived from crown_jewel_type + access_capability.
+    # One of: DataExposure | SecretExposure | PrivilegeTakeover |
+    #         InfrastructureTakeover | BusinessDisruption | ServiceControl
+    attack_impact_type: str = ""
+
 
 class Path(ScoredPath):
     """ScoredPath with deduplication / grouping metadata appended by deduplicator.py."""
@@ -95,12 +105,17 @@ class Path(ScoredPath):
     # Phase 1 (exact dedup)
     path_id: str = ""                       # sha256("|".join(node_uids))
 
-    # Phase 3 (convergence grouping)
-    group_id: Optional[str] = None         # first 12 chars of sha256(group_key)
+    # Phase 3 (exposure-key grouping)
+    group_id: Optional[str] = None         # first 16 chars of sha256(exposure_key)
     group_size: int = 1
     is_representative: bool = True
     choke_node_uid: Optional[str] = None   # penultimate node in group tail
     absorbed_count: int = 0               # how many shorter paths this path absorbed
+
+    # Exposure key components (set by deduplicator, exposed in BFF)
+    # "Who can reach my crown jewel, via what capability?"
+    effective_access_principal: Optional[str] = None  # node_uids[-2]: last principal before target
+    access_capability: Optional[str] = None           # edge_types[-1]: e.g. "can_read", "can_decrypt"
 
 
 class ChokePoint(BaseModel):

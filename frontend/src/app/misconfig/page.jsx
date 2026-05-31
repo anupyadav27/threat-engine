@@ -1536,6 +1536,7 @@ export default function MisconfigurationsPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={{ overview: { renderTab: () => <>{kpiStripNode}{insightRowContent}</> }, ...tabData }}
+        persistenceKey="misconfig"
         loading={loading}
         error={error}
         defaultTab="overview"

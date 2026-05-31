@@ -257,4 +257,98 @@ class IBMIAMProvider(BaseIAMProvider):
             "IBM IAM provider: %d findings for scan=%s account=%s",
             len(policy_findings), scan_run_id, account_id,
         )
+        _write_ibm_policy_statements(scan_run_id, tenant_id, account_id, rows)
         return result
+
+
+# IBM IAM role → pseudo-action
+_IBM_ROLE_ACTION_MAP = {
+    "Administrator": "*:*",
+    "Manager":       "*:*",
+    "Operator":      "*:*",
+    "Editor":        "*:write",
+    "Writer":        "*:write",
+    "Viewer":        "*:read",
+    "Reader":        "*:read",
+}
+
+
+def _ibm_roles_to_actions(roles: List[Dict]) -> List[str]:
+    """Convert IBM IAM role list to pseudo-actions."""
+    actions = set()
+    for r in roles:
+        rid = r.get("role_id", "")
+        # role_id looks like "crn:v1:bluemix:public:iam::::role:Administrator"
+        for role_name, action in _IBM_ROLE_ACTION_MAP.items():
+            if role_name in rid:
+                actions.add(action)
+                break
+        else:
+            actions.add("*:read")  # conservative fallback
+    return list(actions) if actions else ["*:read"]
+
+
+def _write_ibm_policy_statements(
+    scan_run_id: str, tenant_id: str, account_id: str, rows: List[Dict[str, Any]],
+) -> None:
+    """Convert IBM IAM service ID and access group policies to iam_policy_statements."""
+    import hashlib
+    if not rows:
+        return
+
+    statements = []
+    for row in rows:
+        fields = row.get("emitted_fields") or {}
+        resource_uid = row.get("resource_uid", "") or ""
+        resource_type = (row.get("resource_type") or "").lower()
+
+        if "service_id" not in resource_type and "access_group" not in resource_type and "trusted_profile" not in resource_type:
+            continue
+
+        policies = fields.get("policies") or []
+        for pol in policies:
+            if not isinstance(pol, dict):
+                continue
+            roles_list = pol.get("roles") or []
+            actions = _ibm_roles_to_actions(roles_list)
+            is_admin = "*:*" in actions
+
+            stmt_key = f"ibm|{tenant_id}|{resource_uid}|{pol.get('id','')}"
+            stmt_id = "ibm_" + hashlib.sha1(stmt_key.encode()).hexdigest()[:40]
+
+            attached_type = "service_principal" if "service_id" in resource_type else "group"
+
+            statements.append({
+                "statement_id":   stmt_id,
+                "scan_run_id":    scan_run_id,
+                "tenant_id":      tenant_id,
+                "provider":       "ibm",
+                "account_id":     account_id,
+                "policy_arn":     pol.get("id", resource_uid),
+                "policy_name":    pol.get("id", resource_uid),
+                "policy_type":    "access_policy",
+                "is_aws_managed": False,
+                "attached_to_arn":  resource_uid,
+                "attached_to_type": attached_type,
+                "resource_uid":   resource_uid,
+                "sid":            None,
+                "effect":         "Allow",
+                "actions":        actions,
+                "not_action_mode": False,
+                "resources":      ["*"],
+                "conditions":     None,
+                "principals":     [resource_uid],
+                "is_admin":       is_admin,
+                "is_wildcard_principal": False,
+                "has_external_id": None,
+                "is_cross_account": None,
+            })
+
+    if not statements:
+        return
+    try:
+        from iam_engine.storage.iam_db_writer import save_policy_statements
+        count = save_policy_statements(scan_run_id, tenant_id, statements, provider="ibm")
+        logger.info("IBM IAM: wrote %d policy statements", count)
+    except Exception as e:
+        logger.warning("IBM IAM: failed to write policy statements (non-fatal): %s", e)

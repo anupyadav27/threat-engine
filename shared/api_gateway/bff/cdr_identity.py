@@ -148,6 +148,10 @@ async def view_cdr_identity(
                 client, "cdr", "/api/v1/cdr/identities",
                 params=summary_params, auth_headers=fwd_headers,
             )
+            baseline_data = await _fetch_engine(
+                client, "cdr", "/api/v1/cdr/actor/baseline-trend",
+                params={"principal": principal}, auth_headers=fwd_headers,
+            )
     except Exception as exc:
         logger.warning("cdr_identity BFF fetch failed: %s", exc)
         _emit_audit(
@@ -191,9 +195,15 @@ async def view_cdr_identity(
         findings=findings if isinstance(findings, list) else None,
     )
 
+    baseline_metrics = (baseline_data or {}).get("metrics", []) if isinstance(baseline_data, dict) else []
+
     return {
         "identity": identity,
         "findings": findings,
         "hourlyData": hourly,
         "dowData": dow,
+        "baselineTrend": {
+            "metrics": baseline_metrics,
+            "has_data": len(baseline_metrics) > 0,
+        },
     }

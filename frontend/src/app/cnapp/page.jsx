@@ -291,6 +291,7 @@ export default function CnappPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={tabData}
+        persistenceKey="cnapp"
         loading={false}
         error={error}
         defaultTab="overview"

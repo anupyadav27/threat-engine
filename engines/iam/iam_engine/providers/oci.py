@@ -410,4 +410,140 @@ class OCIIAMProvider(BaseIAMProvider):
             logger.warning(f"OCI IAM check_findings query failed (non-fatal): {e}")
 
         result["policy_findings"] = policy_findings
+        _write_oci_policy_statements(scan_run_id, tenant_id, account_id, policies)
         return result
+
+
+# OCI IAM verb → pseudo-action suffix
+_OCI_VERB_MAP = {
+    "manage":  "*",
+    "use":     "write",
+    "read":    "read",
+    "inspect": "read",
+}
+
+# OCI resource family → service prefix for pseudo-action
+_OCI_RESOURCE_TO_SERVICE = {
+    "all-resources":    "*",
+    "all_resources":    "*",
+    "instance-family":  "compute",
+    "instances":        "compute",
+    "object-family":    "objectstorage",
+    "buckets":          "objectstorage",
+    "objects":          "objectstorage",
+    "volume-family":    "blockstorage",
+    "volumes":          "blockstorage",
+    "database-family":  "database",
+    "db-systems":       "database",
+    "autonomous-databases": "database",
+    "vaults":           "kms",
+    "keys":             "kms",
+    "secrets":          "secretsmanager",
+    "secret-family":    "secretsmanager",
+    "clusters":         "container",
+    "cluster-family":   "container",
+    "functions-family": "cloudfunctions",
+    "functions":        "cloudfunctions",
+    "streams":          "streaming",
+    "stream-family":    "streaming",
+}
+
+
+def _oci_stmt_to_pseudo_action(statement: str) -> tuple:
+    """Parse OCI policy statement string to (attached_to_arn, [pseudo_actions]).
+
+    OCI policy syntax: Allow <subject> to <verb> <resource-type> in <scope>
+    Returns ("group:<GroupName>", ["service:action"]) or ("", []) on parse failure.
+    """
+    import re
+    stmt_lower = statement.lower().strip()
+    # Pattern: allow <subject-type> <subject-name> to <verb> <resource> in ...
+    m = re.match(
+        r"allow\s+(group|service|any-user|dynamic-group)\s*([^\s]+)?\s+to\s+(\w+)\s+([\w-]+)",
+        stmt_lower,
+    )
+    if not m:
+        return "", []
+
+    subject_type = m.group(1)
+    subject_name = m.group(2) or ""
+    verb = m.group(3)
+    resource = m.group(4)
+
+    attached_to = f"{subject_type}:{subject_name}" if subject_name else subject_type
+    svc = _OCI_RESOURCE_TO_SERVICE.get(resource, resource.replace("-", "_"))
+    action_suffix = _OCI_VERB_MAP.get(verb, "read")
+
+    if svc == "*":
+        pseudo = ["*:*"] if action_suffix == "*" else [f"*:{action_suffix}"]
+    else:
+        pseudo = [f"{svc}:{action_suffix}"]
+
+    return attached_to, pseudo
+
+
+def _write_oci_policy_statements(
+    scan_run_id: str,
+    tenant_id: str,
+    account_id: str,
+    policies: List[Dict[str, Any]],
+) -> None:
+    """Convert OCI IAM policy statements to iam_policy_statements rows."""
+    import hashlib
+    if not policies:
+        return
+
+    statements = []
+    for row in policies:
+        fields = row.get("emitted_fields") or {}
+        resource_uid = row.get("resource_uid", "") or ""
+        policy_name = fields.get("name", resource_uid)
+        stmts = fields.get("statements") or []
+        if isinstance(stmts, str):
+            stmts = [stmts]
+
+        for stmt_str in stmts:
+            if not isinstance(stmt_str, str):
+                continue
+            attached_to, actions = _oci_stmt_to_pseudo_action(stmt_str)
+            if not attached_to or not actions:
+                continue
+
+            is_admin = "*:*" in actions
+            stmt_key = f"oci|{tenant_id}|{attached_to}|{resource_uid}|{stmt_str[:80]}"
+            stmt_id = "oci_" + hashlib.sha1(stmt_key.encode()).hexdigest()[:40]
+
+            statements.append({
+                "statement_id":   stmt_id,
+                "scan_run_id":    scan_run_id,
+                "tenant_id":      tenant_id,
+                "provider":       "oci",
+                "account_id":     account_id,
+                "policy_arn":     resource_uid,
+                "policy_name":    policy_name,
+                "policy_type":    "policy_statement",
+                "is_aws_managed": False,
+                "attached_to_arn":  attached_to,
+                "attached_to_type": "group",
+                "resource_uid":   resource_uid,
+                "sid":            None,
+                "effect":         "Allow",
+                "actions":        actions,
+                "not_action_mode": False,
+                "resources":      ["*"],
+                "conditions":     None,
+                "principals":     [attached_to],
+                "is_admin":       is_admin,
+                "is_wildcard_principal": False,
+                "has_external_id": None,
+                "is_cross_account": None,
+            })
+
+    if not statements:
+        return
+    try:
+        from iam_engine.storage.iam_db_writer import save_policy_statements
+        count = save_policy_statements(scan_run_id, tenant_id, statements, provider="oci")
+        logger.info("OCI IAM: wrote %d policy statements", count)
+    except Exception as e:
+        logger.warning("OCI IAM: failed to write policy statements (non-fatal): %s", e)

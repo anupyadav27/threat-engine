@@ -222,8 +222,12 @@ def _paginate_api_call(client, action: str, params: Dict[str, Any],
             if client.can_paginate(action):
                 paginator = client.get_paginator(action)
 
+                # Use a local copy so we never mutate the caller's params dict.
+                # Fallback paths (except clauses) use the original unmodified params.
+                local_params = dict(params)
+
                 has_max_results = any(k.lower() in ['maxresults', 'maxrecords', 'limit', 'maxitems']
-                                     for k in params.keys())
+                                     for k in local_params.keys())
 
                 if not has_max_results:
                     if service_name == 'sagemaker':
@@ -329,20 +333,29 @@ def _paginate_api_call(client, action: str, params: Dict[str, Any],
                         # SSM / Systems Manager (max=50)
                         'list_nodes': 50,
                         'list_nodes_summary': 50,
+                        # RDS — MaxRecords ceiling is 100 for most describe_* actions
+                        'describe_db_instances': 100,
+                        'describe_db_clusters': 100,
+                        'describe_db_snapshots': 100,
+                        'describe_db_subnet_groups': 100,
+                        'describe_db_parameter_groups': 100,
+                        'describe_db_cluster_parameter_groups': 100,
+                        'describe_db_engine_versions': 100,
+                        'describe_reserved_db_instances': 100,
                     }
                     if action in ACTION_MAX_RESULTS:
                         default_page_size = ACTION_MAX_RESULTS[action]
 
-                    params['MaxResults'] = default_page_size
+                    local_params['MaxResults'] = default_page_size
                     logger.debug(f"Auto-added MaxResults={default_page_size} for {action} (service: {service_name})")
 
-                page_size = params.get('MaxResults', 1000)
+                page_size = local_params.get('MaxResults', 1000)
                 pagination_config = {
                     'PageSize': min(page_size, 1000),
                     'MaxItems': None
                 }
 
-                page_params = {k: v for k, v in params.items()
+                page_params = {k: v for k, v in local_params.items()
                               if k not in ['MaxResults', 'MaxRecords', 'Limit', 'MaxItems']}
 
                 page_iterator = paginator.paginate(**page_params, PaginationConfig=pagination_config)

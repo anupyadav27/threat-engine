@@ -148,6 +148,12 @@ SERVICE_ROUTES = {
         "prefixes": ["/api/v1/secops"],
         "health_endpoint": "/api/v1/health/live"
     },
+    "cdr": {
+        "url": os.getenv("CDR_ENGINE_URL", "http://engine-cdr"),
+        "prefix": "/api/v1/cdr",
+        "prefixes": ["/api/v1/cdr"],
+        "health_endpoint": "/api/v1/health/live"
+    },
     "ciem": {
         "url": os.getenv("CIEM_ENGINE_URL", "http://engine-ciem"),
         "prefix": "/api/v1/ciem",

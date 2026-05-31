@@ -163,6 +163,7 @@ def save_policy_statements(
     scan_run_id: str,
     tenant_id: str,
     statements: List[Dict[str, Any]],
+    provider: str = "aws",
 ) -> int:
     """
     Save parsed IAM policy statements to iam_policy_statements table.
@@ -170,7 +171,8 @@ def save_policy_statements(
     Args:
         scan_run_id: Scan run identifier
         tenant_id: Tenant identifier
-        statements: List of statement dicts from policy_parser.policies_to_db_rows()
+        statements: List of statement dicts (from policy_parser or CSP-specific converters)
+        provider: Cloud provider — 'aws', 'gcp', 'azure', 'oci', etc.
 
     Returns:
         Number of rows inserted
@@ -195,6 +197,7 @@ def save_policy_statements(
                     statement_id VARCHAR(255) PRIMARY KEY,
                     scan_run_id VARCHAR(255) NOT NULL,
                     tenant_id VARCHAR(255) NOT NULL,
+                    provider VARCHAR(20) DEFAULT 'aws',
                     account_id VARCHAR(50),
                     policy_arn TEXT,
                     policy_name VARCHAR(255),
@@ -219,11 +222,16 @@ def save_policy_statements(
                         REFERENCES tenants(tenant_id) ON DELETE CASCADE
                 )
             """)
+            # Idempotent column addition for existing tables
+            cur.execute("""
+                ALTER TABLE iam_policy_statements
+                ADD COLUMN IF NOT EXISTS provider VARCHAR(20) DEFAULT 'aws'
+            """)
 
             for stmt in statements:
                 cur.execute("""
                     INSERT INTO iam_policy_statements (
-                        statement_id, scan_run_id, tenant_id, account_id,
+                        statement_id, scan_run_id, tenant_id, provider, account_id,
                         policy_arn, policy_name, policy_type, is_aws_managed,
                         attached_to_arn, attached_to_type, resource_uid,
                         sid, effect, actions, not_action_mode, resources,
@@ -231,15 +239,20 @@ def save_policy_statements(
                         is_admin, is_wildcard_principal, has_external_id, is_cross_account
                     )
                     VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s, %s, %s, %s, %s::jsonb, %s,
                         %s, %s, %s, %s
                     )
-                    ON CONFLICT (statement_id) DO NOTHING
+                    ON CONFLICT (statement_id) DO UPDATE SET
+                        provider         = EXCLUDED.provider,
+                        actions          = EXCLUDED.actions,
+                        attached_to_type = EXCLUDED.attached_to_type,
+                        scan_run_id      = EXCLUDED.scan_run_id
                 """, (
                     stmt["statement_id"],
                     stmt["scan_run_id"],
                     stmt["tenant_id"],
+                    stmt.get("provider", provider),
                     stmt.get("account_id"),
                     stmt.get("policy_arn"),
                     stmt.get("policy_name"),

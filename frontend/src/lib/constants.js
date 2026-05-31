@@ -234,6 +234,7 @@ export const ENGINE_ENDPOINTS = {
   gateway: '/gateway',
   rule: '/rule',
   vulnerability: '/vulnerability',
+  cdr: '/gateway',
   cnapp: '/cnapp',
   cwpp: '/cwpp',
   billing: '/gateway',

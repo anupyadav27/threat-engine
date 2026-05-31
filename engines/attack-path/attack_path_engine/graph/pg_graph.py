@@ -5,7 +5,7 @@ Replaces Neo4j as the primary path-computation engine.
 Neo4j is retained for visualization/UI rendering only.
 
 Architecture:
-  1. Load inventory_relationships for tenant from inventory DB.
+  1. Load asset_relationships WHERE is_attack_edge=TRUE for the tenant.
   2. Build in-memory adjacency list: from_uid → [(to_uid, rel_type, from_type, to_type)].
   3. Load crown jewels and internet-exposed nodes from resource_security_posture.
   4. Run BFS forward from each internet-exposed node, stopping at crown jewels.
@@ -13,10 +13,17 @@ Architecture:
 
 Design decisions:
   - Pure Python BFS — no graph DB dependency.
-  - Reads ALL relationships for the tenant (not filtered by scan_run_id) so the
-    graph reflects the accumulated topology from multiple scans.
+  - Only edges with is_attack_edge=TRUE are loaded — these are edges that the
+    VAL-01 validator layer has explicitly promoted as traversable attack edges.
+    Structural/context-only edges (PROTECTED_BY, GOVERNED_BY, ROUTES_VIA, etc.)
+    are excluded. This eliminates noisy false-positive paths.
+  - Reads ALL validated edges for the tenant (not filtered by scan_run_id) so
+    the graph reflects accumulated topology from multiple scans.
   - Max 500 paths, max 7 hops, consistent with Neo4j BFS limits.
   - relation_type is preserved verbatim; attack_vector.py maps it to MITRE techniques.
+  - Synthetic in-memory edges (IAM permission edges, EKS worker-node edges) are
+    merged via extra_edges in run_pg_bfs() — they bypass the DB filter and are
+    already pre-validated by their source builders.
 
 Security notes:
   - All queries scoped by tenant_id — no cross-tenant leakage.
@@ -35,81 +42,22 @@ from ..models.attack_path import RawPath
 
 logger = logging.getLogger("attack-path.pg_graph")
 
-# BFS limits (match Neo4j client constants)
-MAX_PATHS = 500
+# BFS limits
+# MAX_HOPS=7: keeps paths actionable (>7 hops is rarely exploitable end-to-end).
+# MAX_PATHS=10_000: safety valve against pathological graphs only.
+# Quality filtering (top-N by score) is applied POST-dedup in run_scan.py, so this
+# cap should never be the binding constraint in practice — dedup collapses paths first.
+MAX_PATHS = 10_000
 MAX_HOPS = 7
 
-# Posture-only relations written to asset_relationships but NOT traversal edges.
-# ExposureLoader handles INTERNET_ACCESSIBLE separately; DataSec/DBSec consume
-# ENCRYPTED_BY/PROTECTED_BY/GOVERNED_BY/ROUTES_VIA directly from the DB.
-_POSTURE_ONLY_RELS: frozenset = frozenset({
-    "INTERNET_ACCESSIBLE", "ENCRYPTED_BY", "PROTECTED_BY", "GOVERNED_BY", "ROUTES_VIA",
-})
-
-# Relation types that represent attack-path-relevant edges.
-# Covers AWS, Azure, GCP, OCI, AliCloud, IBM Cloud, and K8s edge types.
-_ATTACK_RELEVANT_TYPES: Set[str] = {
-    # Generic / all-CSP
-    "accesses",
-    "attached_to",
-    "contains",
-    "depends_on",
-    "encrypted_by",
-    "exposed_via",
-    "executes_on",
-    "has_role",
-    "member_of",
-    "mounts",
-    "reads",
-    "routes_to",
-    "uses",
-    "writes",
-    "can_assume",
-    "can_access",
-    "reachable_from",
-    "lateral_movement",
-    "privilege_escalation",
-    "data_access",
-    "exposure",
-    "execution",
-    "data_flow",
-    "internet_connected",   # inventory engine marks exposure edges for all CSPs
-    "exposed_through",      # synonym used by some inventory providers
-    "grants_access_to",     # IAM permission edges
-    "stores_data_in",       # compute → data store
-    "assumes",              # role assumption
-    # Non-AWS CSPs (Azure, GCP, OCI, AliCloud, IBM, K8s)
-    "connected_to",         # Azure VNet peering, GCP VPC peering, OCI VCN peering
-    "allows_traffic_from",  # Azure NSG, OCI Security List, GCP Firewall allow rule
-    "serves_traffic_for",   # Load Balancer → backend pool (all CSPs)
-    "has_policy",           # Azure/GCP/OCI IAM policy attachments
-    "manages",              # Management plane: cluster → node, control plane → workload
-    "triggers",             # Cloud Functions, Lambda, Azure Functions event triggers
-    "invokes",              # API Gateway → Lambda / Cloud Function
-    "controlled_by",        # Resource controlled by management plane (K8s, OCI)
-    "runs_on",              # Container → node, Lambda → compute fleet
-    # Per-engine security edges (written to asset_relationships, new in catalog sprint)
-    "linked_to",            # IAM identity chain (LINKED_TO edges from iam_relationship_writer)
-    "grants_decrypt_to",    # KMS key grants decrypt to external principal (data_exfil)
-    "has_endpoint",         # NLB/ALB exposes a service endpoint (network engine)
-    "peered_with",          # VPC peering (same account)
-    "peered_with_external", # VPC peering (cross-account — lateral movement)
-    "mounted_by",           # EFS/block volume mounted by workload
-    "connected_via",        # Transit gateway / direct connect
-    "worker_node_of",       # EC2 is a worker node of an EKS cluster
-    "can_access",           # Explicit IAM allow (already in set, kept for clarity)
-    # Topology edges that enable multi-hop lateral movement chains.
-    # An attacker who compromises resource A can traverse to resource B if:
-    #   - A HAS_PROFILE B → A can use B's IAM permissions (privilege escalation)
-    #   - A IN_VPC/IN_SUBNET B → A has L3 network access to other resources in same zone
-    #   - A CONTAINED_BY/PLACED_IN B → inverse containment; bridges resource → zone → resource chains
-    #   - A ASSOCIATED_WITH B → explicit association between resources (e.g. Lambda → VPC config)
-    "has_profile",          # EC2 instance has IAM instance profile → role assumption chain
-    "in_vpc",               # Resource in VPC → lateral movement within VPC boundary
-    "in_subnet",            # Resource in subnet → L3-level lateral movement path
-    "contained_by",         # Inverse of CONTAINS; enables bidirectional topology traversal
-    "placed_in",            # Resource placed in network zone (region/AZ/subnet)
-    "associated_with",      # Generic resource association (Lambda↔VPC, SG↔resource, etc.)
+# Maps attack_entry_point_category values → hop_category string used in hop_categories[0]
+_ENTRY_CAT_TO_HOP: Dict[str, str] = {
+    "INTERNET_ENTRY":          "internet",
+    "IDENTITY_ENTRY":          "identity",
+    "CICD_ENTRY":              "cicd",
+    "THIRD_PARTY_ENTRY":       "third_party",
+    "INTERNAL_WORKLOAD_ENTRY": "compute",
+    "ENDPOINT_AGENT_ENTRY":    "compute",
 }
 
 
@@ -118,11 +66,15 @@ def build_pg_graph(
     tenant_id: str,
     scan_run_id: Optional[str] = None,
 ) -> Dict[str, List[Tuple[str, str, str, str]]]:
-    """Load asset_relationships and return an adjacency list.
+    """Load validated attack edges from asset_relationships and return an adjacency list.
 
-    Reads ALL rows for the tenant (no scan_run_id filter) so the graph
-    reflects accumulated topology across scans. Only edge types in
-    _ATTACK_RELEVANT_TYPES are included to keep the graph focused.
+    Only loads rows where is_attack_edge=TRUE — edges explicitly promoted by the
+    VAL-01 validator layer (internet_reachability, service_chain, identity_usage,
+    assume_role, data_access). Structural/context-only edges are excluded.
+
+    Reads ALL validated edges for the tenant (no scan_run_id filter) so the graph
+    reflects accumulated topology across scans. Synthetic in-memory edges (IAM
+    permission edges, EKS worker-node edges) are merged by the caller via extra_edges.
 
     Args:
         inventory_conn: psycopg2 connection to threat_engine_di.
@@ -134,13 +86,11 @@ def build_pg_graph(
     """
     adj: Dict[str, List[Tuple[str, str, str, str]]] = defaultdict(list)
 
-    attack_rel_list = [r.upper() for r in _ATTACK_RELEVANT_TYPES]
-    placeholders = ",".join(["%s"] * len(attack_rel_list))
     total = 0
     try:
         with inventory_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                f"""
+                """
                 SELECT DISTINCT
                     source_uid                    AS from_uid,
                     target_uid                    AS to_uid,
@@ -149,11 +99,12 @@ def build_pg_graph(
                     COALESCE(target_type, '')     AS to_type
                 FROM asset_relationships
                 WHERE tenant_id = %s
-                  AND UPPER(relation_type) IN ({placeholders})
+                  AND is_attack_edge = TRUE
                   AND source_uid IS NOT NULL
                   AND target_uid IS NOT NULL
+                  AND UPPER(relation_type) != 'INTERNET_ACCESSIBLE'
                 """,
-                (tenant_id, *attack_rel_list),
+                (tenant_id,),
             )
             for row in cur.fetchall():
                 adj[row["from_uid"]].append((
@@ -213,25 +164,29 @@ def reverse_bfs(
     posture_lookup: Dict[str, Any],
     max_hops: int = MAX_HOPS,
     max_paths: int = MAX_PATHS,
+    entry_categories: Optional[Dict[str, str]] = None,
 ) -> List[RawPath]:
-    """Run BFS forward from internet-exposed nodes toward crown jewels.
+    """Run BFS forward from all attack entry points toward crown jewels.
 
     Args:
         adj:              Adjacency list from build_pg_graph().
-        exposed_uids:     Set of internet-exposed resource UIDs (entry points).
+        exposed_uids:     Set of all attack entry point UIDs (internet + identity + cicd + ...).
         crown_jewel_uids: Set of crown jewel UIDs (path destinations).
         posture_lookup:   Pre-fetched posture signals for categorisation.
         max_hops:         Maximum BFS depth.
         max_paths:        Stop after collecting this many paths.
+        entry_categories: Dict[uid → attack_entry_point_category] for all entry UIDs.
+                          Drives hop_categories[0] and entry_point_category on RawPath.
 
     Returns:
         List of RawPath objects, one per complete path found.
     """
     paths: List[RawPath] = []
+    _ec = entry_categories or {}
 
     if not exposed_uids or not crown_jewel_uids:
         logger.info(
-            "pg BFS skipped: exposed_uids=%d crown_jewel_uids=%d",
+            "pg BFS skipped: entry_uids=%d crown_jewel_uids=%d",
             len(exposed_uids),
             len(crown_jewel_uids),
         )
@@ -244,9 +199,38 @@ def reverse_bfs(
         max_hops,
     )
 
+    # Pre-BFS: entry nodes that ARE crown jewels → depth-0 direct-exposure paths.
+    for uid in sorted(exposed_uids):
+        if len(paths) >= max_paths:
+            break
+        if uid in crown_jewel_uids:
+            pr = posture_lookup.get(uid)
+            rtype = getattr(pr, "resource_type", "") or ""
+            entry_cat = _ec.get(uid, "INTERNET_ENTRY")
+            hop_cat = _ENTRY_CAT_TO_HOP.get(entry_cat, "internet")
+            paths.append(RawPath(
+                crown_jewel_uid=uid,
+                entry_point_uid=uid,
+                node_uids=[uid],
+                node_types=[rtype],
+                edge_types=[],
+                hop_categories=[hop_cat],
+                depth=0,
+                max_epss=None,
+                misconfig_count=0,
+                threat_count=0,
+                top_cves=[],
+                entry_point_category=entry_cat,
+            ))
+
+    logger.info("pg BFS depth-0 (direct exposure): %d paths", sum(1 for p in paths if p.depth == 0))
+
     for entry_uid in sorted(exposed_uids):
         if len(paths) >= max_paths:
             break
+
+        entry_cat = _ec.get(entry_uid, "INTERNET_ENTRY")
+        entry_hop_cat = _ENTRY_CAT_TO_HOP.get(entry_cat, "internet")
 
         # BFS state: (current_uid, path_node_uids, path_rel_types, path_from_types, path_to_types)
         queue: deque = deque()
@@ -267,16 +251,16 @@ def reverse_bfs(
 
             if current_uid in crown_jewel_uids and current_uid != entry_uid:
                 # Found a complete path — build RawPath and stop BFS from this node.
-                # Crown jewels are destinations, not transit nodes. Continuing BFS
-                # from a crown jewel generates invalid paths (CJ as intermediate hop)
-                # and wastes work the deduplicator would have to undo downstream.
                 hop_categories = []
                 for i, uid in enumerate(node_uids):
-                    is_exposed_hop = (i == 0)
-                    rtype = from_types[i] if i < len(from_types) else (
-                        to_types[i - 1] if i > 0 and i - 1 < len(to_types) else ""
-                    )
-                    hop_categories.append(_categorise_hop(rtype, is_exposed_hop))
+                    if i == 0:
+                        # Entry hop: use the actual entry category, not resource type
+                        hop_categories.append(entry_hop_cat)
+                    else:
+                        rtype = from_types[i] if i < len(from_types) else (
+                            to_types[i - 1] if i > 0 and i - 1 < len(to_types) else ""
+                        )
+                        hop_categories.append(_categorise_hop(rtype, False))
 
                 paths.append(RawPath(
                     crown_jewel_uid=current_uid,
@@ -290,6 +274,7 @@ def reverse_bfs(
                     misconfig_count=0,
                     threat_count=0,
                     top_cves=[],
+                    entry_point_category=entry_cat,
                 ))
                 continue  # do NOT explore further from the crown jewel
 
@@ -325,38 +310,56 @@ def run_pg_bfs(
     max_hops: int = MAX_HOPS,
     max_paths: int = MAX_PATHS,
     extra_edges: Optional[Dict[str, List[Tuple[str, str, str, str]]]] = None,
+    entry_categories: Optional[Dict[str, str]] = None,
 ) -> List[RawPath]:
     """Top-level entry point called from run_scan.py.
 
-    Builds the graph from inventory_relationships and merges any caller-supplied
-    synthetic edges (e.g. IAM permission edges from iam_policy_statements).
+    Builds the graph from asset_relationships (is_attack_edge=TRUE) and merges
+    caller-supplied synthetic edges. Supports all attack entry point types:
+    internet-exposed, identity (IAM), CI/CD, third-party, internal workload, endpoint agent.
 
     Args:
-        inventory_conn:        psycopg2 connection to the inventory DB.
+        inventory_conn:        psycopg2 connection to the DI DB.
         tenant_id:             Tenant identifier.
         scan_run_id:           Current pipeline run UUID.
-        internet_exposed_uids: UIDs with is_internet_exposed=true.
+        internet_exposed_uids: ALL attack entry point UIDs (internet + non-internet).
         posture_lookup:        Pre-fetched posture dict (uid → PostureRow).
         max_hops:              BFS depth limit (default 7).
         max_paths:             Path count limit (default 500).
-        extra_edges:           Optional dict of synthetic edges to merge into the
-                               adjacency list before BFS.  Format matches adj:
-                               {from_uid: [(to_uid, rel_type, from_type, to_type), ...]}
+        extra_edges:           Optional dict of synthetic edges to merge.
+        entry_categories:      Dict[uid → attack_entry_point_category] for all entry UIDs.
+                               Drives hop_categories[0] and entry_point_category on RawPath.
 
     Returns:
         List[RawPath] — same contract as Neo4jClient.reverse_bfs().
     """
     adj = build_pg_graph(inventory_conn, tenant_id, scan_run_id)
 
-    # Merge synthetic edges (e.g. IAM permission graph, EKS node membership)
+    # Merge synthetic edges (e.g. IAM permission graph, EKS node membership).
+    # Also register alias keys: role ARNs may appear as the last path segment
+    # (e.g. "my-role") in CAN_USE_IDENTITY edges, while the synthetic edge source
+    # is the full ARN ("arn:aws:iam::123:role/my-role"). Build a suffix→full_uid
+    # alias map so both formats connect through the adjacency list.
     if extra_edges:
         extra_count = 0
+        # Build alias: last path segment of each extra_uid → extra_uid (full ARN)
+        uid_aliases: Dict[str, str] = {}
+        for extra_uid in extra_edges:
+            suffix = extra_uid.rstrip("/").rsplit("/", 1)[-1]
+            if suffix and suffix != extra_uid:
+                uid_aliases[suffix] = extra_uid
+
         for from_uid, edges in extra_edges.items():
             adj.setdefault(from_uid, [])
             adj[from_uid].extend(edges)
+            # Also register under short-name alias so suffix-only UIDs resolve
+            suffix = from_uid.rstrip("/").rsplit("/", 1)[-1]
+            if suffix and suffix != from_uid:
+                adj.setdefault(suffix, [])
+                adj[suffix].extend(edges)
             extra_count += len(edges)
-        logger.info("pg_graph: merged %d synthetic extra edges from %d sources",
-                    extra_count, len(extra_edges))
+        logger.info("pg_graph: merged %d synthetic extra edges from %d sources (%d aliases)",
+                    extra_count, len(extra_edges), len(uid_aliases))
 
     if not adj:
         logger.warning("pg_graph returned empty adjacency list — no paths possible")
@@ -374,4 +377,5 @@ def run_pg_bfs(
         posture_lookup=posture_lookup,
         max_hops=max_hops,
         max_paths=max_paths,
+        entry_categories=entry_categories,
     )

@@ -72,6 +72,7 @@ Pulls CRITICAL/HIGH findings from all 8 source engines. Enriches with:
 - Data sensitivity (from `datasec_data_catalog.sensitivity_level`)
 - EPSS score (probability of exploitation)
 - Industry/revenue context (from `risk_model_config`)
+- **Crown jewel data** (from `resource_security_posture.is_crown_jewel` + `crown_jewel_type`)
 
 ### Stage 2: FAIR Calculation — `risk_scenarios`
 4 canonical scenario types per finding:
@@ -82,12 +83,25 @@ Pulls CRITICAL/HIGH findings from all 8 source engines. Enriches with:
 
 FAIR outputs per scenario: `fair_lef` (Loss Event Frequency), `fair_lm` (Loss Magnitude), `fair_risk_score` = LEF × LM.
 
+**Crown Jewel Multipliers** (as of v-risk-cj3) — `engines/risk/models/fair_model.py`:
+```python
+CROWN_JEWEL_MULTIPLIER = {
+    "encryption_control": 20.0, "k8s_secrets": 18.0, "identity": 18.0,
+    "infra_control": 15.0, "k8s_cluster_admin": 15.0,
+    "data": 12.0, "data_warehouse": 12.0, "k8s_privileged_workload": 12.0,
+    "ai_model": 10.0, "code": 10.0,
+}
+```
+Logic: `asset_mult = max(static_asset_mult, crown_jewel_mult)` — takes the higher, never stacks.
+Data source: `_load_attack_path_signals()` reads `is_crown_jewel`, `crown_jewel_type`, `cert_days_remaining` from `resource_security_posture` (DI DB). **GOTCHA:** column is `cert_days_remaining`, NOT `cert_days_to_expiry` — querying the wrong name silently kills the entire posture query (exception caught → empty dict → 0 crown jewels).
+
 Blast radius enrichment: Neo4j graph traversal via `GET /api/v1/threat/analysis/blast-radius` → stored as `blast_radius_score` (0-100) + `blast_radius_sample` (up to 10 reachable resource UIDs).
 
-### Stage 3: Aggregation — `risk_report` + `risk_summary`
+### Stage 3: Aggregation — `risk_report` + `risk_summary` + **RSP write-back**
 - Roll up per-scenario into engine-level summaries (`risk_summary`)
 - Roll up engine summaries into scan-level report (`risk_report`)
 - Write time-series point to `risk_trends`
+- **NEW (v-risk-cj3):** `_write_risk_scores_to_posture()` — aggregates by resource_uid, UPDATEs `resource_security_posture` (DI DB) with `total_exposure_likely`, `risk_tier`, `fair_risk_score`, `risk_scan_id`. Requires di_017 migration applied to threat_engine_di.
 
 ---
 
@@ -258,9 +272,20 @@ ORDER BY scan_date DESC LIMIT 6;
 
 ## 6. UI Pages I Power
 
-- **`/risk`** — financial risk dashboard: total exposure ($USD), top scenarios, engine breakdown
-- **`/risk/scenarios`** — scenario list with FAIR details, blast radius, MITRE mapping
-- **`/risk/trends`** — historical exposure trend chart
+**`/risk`** — Single-page investigation workflow (v-portal-risk-ui1). 5 numbered steps in Overview tab:
+1. **Financial Exposure** — 2×2 KPI tiles (Risk Score/ALE/Critical Scenarios/Open Mitigations) + FAIR gauge + domain score bars
+2. **Domain Risk Analysis** — interactive donut pie + FAIR 5×5 heat map
+3. **Top Risk Scenarios** — timeline feed top-5 by ALE; Crown Jewel badge if `is_crown_jewel=true`
+4. **Risk Score Trend** — stat pills + area chart with High≥75/Medium≥40 reference lines
+5. **Crown Jewel Assets at Risk** — scenarios where `is_crown_jewel=true`, sorted by ALE
+
+Tab-level interactive filters (PageLayout FilterBar — client-side):
+- Scenarios: risk_rating + threat_category; groupBy both
+- Register: status + category
+- Roadmap: priority
+
+No inline filter UI — GlobalFilterBar at AppShell handles scope; `useViewFetch('risk')` auto-passes provider/account/region to BFF on change.
+
 - **`/dashboard`** — risk score KPI card, total exposure headline number
 
 ---
@@ -270,7 +295,7 @@ ORDER BY scan_date DESC LIMIT 6;
 ```yaml
 name: engine-risk
 namespace: threat-engine-engines
-image: yadavanup84/engine-risk:v-risk-dcat01
+image: yadavanup84/engine-risk:v-risk-cj3
 containerPort: 8009
 service: ClusterIP port 8009 → targetPort 8009   ← NOT port 80
 replicas: 1
@@ -297,9 +322,22 @@ env: RISK_DB_*, all engine DB vars, NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD
 
 **blast_radius_score ≠ Neo4j blast radius** — The `blast_radius_score` in `risk_scenarios` is a numeric risk score (0-100). The `GET /api/v1/threat/analysis/blast-radius` endpoint returns graph reachability from Neo4j. They are derived from the same graph traversal but serve different purposes.
 
-**FAIR per_record_cost default = $4.45** — This is based on IBM Cost of a Data Breach 2023 report. The default in `risk_model_config` is $4.45 per record. Tenants can override via their industry config.
+**FAIR per_record_cost default = $4.45** — IBM Cost of a Data Breach 2023. Tenants can override via industry config.
 
-**Reads 8 DBs + Neo4j** — Risk engine has the broadest DB dependency. If any source engine has 0 findings (e.g., datasec returns 0), risk still runs but the affected scenario types will have $0 exposure for that engine.
+**Reads 8 DBs + Neo4j** — Risk engine has the broadest DB dependency. If any source engine has 0 findings, risk still runs but that engine's scenario types will show $0.
+
+**cert_days_remaining NOT cert_days_to_expiry** — `_load_attack_path_signals()` reads column `cert_days_remaining` from `resource_security_posture`. Using `cert_days_to_expiry` (wrong name) silently kills the entire AP signals query — 0 crown jewels, 0 boosts on all scans. This was the root cause of v-risk-cj1/cj2 under-reporting. Fixed in v-risk-cj3.
+
+**RSP write-back requires di_017 migration** — `_write_risk_scores_to_posture()` in the reporter UPDATEs `resource_security_posture`. Migration `di_017_rsp_risk_scores.sql` must be applied to `threat_engine_di` first. Applied 2026-05-30. Without it, the UPDATE silently fails (column not found).
+
+**Trigger scan manually (no API auth workaround):** Run inside the pod:
+```bash
+kubectl exec -n threat-engine-engines deployment/engine-risk -- python3 -c "
+from engines.risk.run_scan import run_risk_scan
+result = run_risk_scan('<scan_run_id>')
+print(result)
+"
+```
 
 **Port-forward:**
 ```bash

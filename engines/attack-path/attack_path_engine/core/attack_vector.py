@@ -52,7 +52,56 @@ class MitreTechnique:
 
 EDGE_TO_TECHNIQUE: Dict[str, List[MitreTechnique]] = {
 
-    # Public exposure edges
+    # ── Validator-generated attack edges ─────────────────────────────────────
+    # These are the primary edges written by the VAL-01 validator layer and
+    # picked up by BFS as is_attack_edge=TRUE rows in asset_relationships.
+
+    "can_reach": [
+        MitreTechnique("T1190", "Exploit Public-Facing Application", "initial-access",
+                       "Initial Access", "Resource reachable via network — internet or lateral pivot"),
+        MitreTechnique("T1021", "Remote Services", "lateral-movement",
+                       "Lateral Movement", "Attacker pivots to a reachable resource"),
+    ],
+    "can_read": [
+        MitreTechnique("T1530", "Data from Cloud Storage Object", "collection",
+                       "Collection", "IAM policy grants read access to a sensitive data resource"),
+    ],
+    "can_invoke": [
+        MitreTechnique("T1648", "Serverless Execution", "execution",
+                       "Execution", "IAM policy grants invoke access to a serverless function"),
+        MitreTechnique("T1059", "Command and Scripting Interpreter", "execution",
+                       "Execution", "Attacker can trigger remote code execution via invocation"),
+    ],
+    "can_decrypt": [
+        MitreTechnique("T1486", "Data Encrypted for Impact", "impact",
+                       "Impact", "IAM policy grants KMS decrypt — attacker can access encrypted data"),
+        MitreTechnique("T1552", "Unsecured Credentials", "credential-access",
+                       "Credential Access", "KMS access enables credential decryption"),
+    ],
+    "can_write": [
+        MitreTechnique("T1485", "Data Destruction", "impact",
+                       "Impact", "IAM policy grants write access — potential data tampering or destruction"),
+    ],
+    "can_use_identity": [
+        MitreTechnique("T1098", "Account Manipulation", "persistence",
+                       "Persistence", "Resource can use an IAM identity for lateral movement"),
+        MitreTechnique("T1078", "Valid Accounts", "privilege-escalation",
+                       "Privilege Escalation", "Attacker leverages a cloud identity for access"),
+    ],
+    "can_assume": [
+        MitreTechnique("T1548", "Abuse Elevation Control Mechanism", "privilege-escalation",
+                       "Privilege Escalation", "Resource can assume a privileged IAM role"),
+    ],
+    "assumes": [
+        MitreTechnique("T1548", "Abuse Elevation Control Mechanism", "privilege-escalation",
+                       "Privilege Escalation", "Principal assumes a role with broader permissions"),
+    ],
+    "worker_node_of": [
+        MitreTechnique("T1611", "Escape to Host", "privilege-escalation",
+                       "Privilege Escalation", "EC2 worker node of K8s cluster — node compromise escalates to cluster"),
+    ],
+
+    # ── Public exposure edges ─────────────────────────────────────────────────
     "exposed_via": [
         MitreTechnique("T1190", "Exploit Public-Facing Application", "initial-access",
                        "Initial Access", "Public-facing resource exploitable from the internet"),
@@ -94,6 +143,14 @@ EDGE_TO_TECHNIQUE: Dict[str, List[MitreTechnique]] = {
                        "Privilege Escalation", "Resource has an IAM role attached"),
         MitreTechnique("T1098", "Account Manipulation", "persistence",
                        "Persistence", "IAM role can be abused for privilege escalation"),
+    ],
+    "has_profile": [
+        MitreTechnique("T1078", "Valid Accounts", "privilege-escalation",
+                       "Privilege Escalation", "EC2 instance has an instance profile with attached IAM role"),
+    ],
+    "linked_to": [
+        MitreTechnique("T1078", "Valid Accounts", "lateral-movement",
+                       "Lateral Movement", "Resource is linked to another — pivot via shared identity or config"),
     ],
     "attached_to": [
         MitreTechnique("T1078", "Valid Accounts", "privilege-escalation",

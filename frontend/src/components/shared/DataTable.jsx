@@ -55,16 +55,30 @@ export default function DataTable({
   renderExpandedRow,
   hideToolbar = false,
   defaultDensity = 'compact',
+  persistenceKey = null,
 }) {
+  // Read persisted column/group prefs from localStorage (keyed per page)
+  const readPref = (suffix, fallback) => {
+    if (!persistenceKey || typeof window === 'undefined') return fallback;
+    try {
+      const raw = localStorage.getItem(`cspm_${suffix}_${persistenceKey}`);
+      return raw ? JSON.parse(raw) : fallback;
+    } catch { return fallback; }
+  };
+  const writePref = (suffix, value) => {
+    if (!persistenceKey || typeof window === 'undefined') return;
+    try { localStorage.setItem(`cspm_${suffix}_${persistenceKey}`, JSON.stringify(value)); } catch {}
+  };
+
   const [searchText, setSearchText] = useState('');
   const [columnSearches, setColumnSearches] = useState({});
   const [sorting, setSorting] = useState([]);
   const [currentPageSize, setCurrentPageSize] = useState(pageSize);
   const [goToPageInput, setGoToPageInput] = useState('');
   const [exportProgress, setExportProgress] = useState(null);
-  // Column visibility & density
-  const [columnVisibility, setColumnVisibility] = useState({});
-  const [density, setDensity] = useState(defaultDensity); // 'compact' | 'comfortable' | 'spacious'
+  // Column visibility & density — restored from localStorage when persistenceKey is set
+  const [columnVisibility, setColumnVisibility] = useState(() => readPref('cols', {}));
+  const [density, setDensity] = useState(() => readPref('density', defaultDensity));
   const [showColPicker, setShowColPicker] = useState(false);
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [hoveredRow, setHoveredRow] = useState(null);
@@ -72,9 +86,14 @@ export default function DataTable({
   const [openFilterCol, setOpenFilterCol] = useState(null);
   const [filterBtnPos, setFilterBtnPos] = useState(null); // { top, left } for fixed popover
   const [filterSearch, setFilterSearch] = useState({});
-  const [groupBy, setGroupBy] = useState('');
+  const [groupBy, setGroupBy] = useState(() => readPref('groupby', ''));
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // tracks collapsed groups; default = all expanded
   const [showGroupPicker, setShowGroupPicker] = useState(false);
+
+  // Persist column visibility, density, groupBy whenever they change
+  useEffect(() => { writePref('cols', columnVisibility); }, [columnVisibility]);      // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { writePref('density', density); }, [density]);                    // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { writePref('groupby', groupBy); }, [groupBy]);                    // eslint-disable-line react-hooks/exhaustive-deps
 
   // Severity left-border stripe color
   const SEV_STRIPE = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#3b82f6' };

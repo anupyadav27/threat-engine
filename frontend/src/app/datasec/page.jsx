@@ -750,6 +750,7 @@ export default function DataSecurityPage() {
         pageContext={pageContext}
         kpiGroups={[]}
         tabData={{ overview: { renderTab: () => insightStrip }, ...tabData }}
+        persistenceKey="datasec"
         loading={loading}
         error={error}
         defaultTab="overview"

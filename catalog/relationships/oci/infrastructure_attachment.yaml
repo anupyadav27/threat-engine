@@ -15,6 +15,7 @@ rules:
     field_path: "vnicAttachments[*].vnicId"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: OCI compute instance attached to VNICs
 
   # ── Compute Instance → Boot Volume ────────────────────────────────────────────
@@ -24,6 +25,7 @@ rules:
     field_path: "bootVolumeAttachments[*].bootVolumeId"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: OCI compute instance attached to boot volume
 
   # ── Compute Instance → Block Volume ───────────────────────────────────────────
@@ -33,6 +35,7 @@ rules:
     field_path: "volumeAttachments[*].volumeId"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: OCI compute instance attached to block volumes
 
   # ── VNIC → Subnet ─────────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ rules:
     field_path: "subnetId"
     field_path_type: field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: OCI VNIC placed in subnet
 
   # ── VNIC → NSG (Network Security Group) ──────────────────────────────────────
@@ -51,6 +55,7 @@ rules:
     field_path: "nsgIds[*]"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: OCI VNIC governed by network security groups
 
   # ── OKE Cluster → Node Pool ───────────────────────────────────────────────────
@@ -60,6 +65,7 @@ rules:
     field_path: "nodePools[*].id"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: attack_traversal
     description: OKE cluster contains node pools
 
   # ── Load Balancer → Backend Set ───────────────────────────────────────────────
@@ -69,6 +75,7 @@ rules:
     field_path: "backendSets"
     field_path_type: field_ref
     attack_path_category: internet_exposure
+    graph_role: attack_traversal
     description: OCI load balancer routes to backend sets
 
   # ── Autonomous DB → VCN ────────────────────────────────────────────────────────
@@ -78,4 +85,73 @@ rules:
     field_path: "subnetId"
     field_path_type: field_ref
     attack_path_category: data_access
+    graph_role: context
     description: OCI Autonomous Database in VCN
+
+  # ── OCI Management Agent → Compute Instance (MANAGED_BY_AGENT) ───────────────
+  # OCI Management Agent (oracle-cloud-agent) enables remote command execution
+  # via OCI Bastion sessions and Run Command. Instances with this agent are
+  # reachable without SSH key if the agent is active.
+  # attack-path BFS seeds ENDPOINT_AGENT_ENTRY from target_uid of these edges.
+  # Prerequisite: add catalog/discovery_generator_data/oci/step6_managementagent.discovery.yaml
+  # Source field: hostId links to the compute instance OCID.
+  - source_resource_type: managementagent_management_agent
+    target_resource_type: compute.instance
+    relation_type: MANAGED_BY_AGENT
+    field_path: "hostId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: OCI compute instance managed by Oracle Cloud Agent (Run Command capable)
+
+  # ── OCI Compute Instance → Security List ─────────────────────────────────────
+  - source_resource_type: oci.core/Instance
+    target_resource_type: oci.core/SecurityList
+    relation_type: GOVERNED_BY
+    field_path: "subnetId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: OCI compute instance governed by security list via subnet
+
+  # ── OCI Compute Instance → VCN ───────────────────────────────────────────────
+  - source_resource_type: oci.core/Instance
+    target_resource_type: oci.core/Vcn
+    relation_type: PLACED_IN
+    field_path: "compartmentId"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: context
+    description: OCI compute instance placed in VCN compartment
+
+  # ── OCI Functions → Dynamic Group (USES_IDENTITY) ────────────────────────────
+  # OCI Functions use dynamic groups + policies for resource access.
+  # lateral movement: internet → function → dynamic group policy → object storage.
+  - source_resource_type: oci.functions/Function
+    target_resource_type: oci.key_management/Vault
+    relation_type: ENCRYPTED_BY
+    field_path: "configuredAt"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: OCI Function encrypted by Vault key (KMS equivalent)
+
+  # ── OCI Object Storage → Vault (CMK) ─────────────────────────────────────────
+  - source_resource_type: oci.objectstorage/Bucket
+    target_resource_type: oci.key_management/Vault
+    relation_type: ENCRYPTED_BY
+    field_path: "kmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: OCI Object Storage bucket encrypted by Vault key
+
+  # ── OCI Autonomous Database → Vault (CMK) ────────────────────────────────────
+  - source_resource_type: oci.database/AutonomousDatabase
+    target_resource_type: oci.key_management/Vault
+    relation_type: ENCRYPTED_BY
+    field_path: "kmsKeyId"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: OCI Autonomous Database encrypted by Vault key

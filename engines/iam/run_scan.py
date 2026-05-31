@@ -104,7 +104,7 @@ def main():
         # All engines share the same scan_run_id
         threat_scan_id = scan_run_id
 
-        tenant_id = metadata.get("tenant_id", "default-tenant")
+        tenant_id = metadata.get("tenant_id") or metadata.get("tenant_id_raw") or "00000000-0000-0000-0000-000000000001"
         provider = (metadata.get("provider") or metadata.get("provider_type", "aws")).lower()
 
         logger.info(f"Resolved: tenant={tenant_id} provider={provider} threat_scan_id={threat_scan_id}")

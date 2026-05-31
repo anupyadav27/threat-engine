@@ -434,6 +434,7 @@ export default function CwppPage() {
         pageContext={pageContext}
         kpiGroups={data?.kpiGroups || []}
         tabData={tabData}
+        persistenceKey="cwpp"
         loading={false}
         error={error}
         defaultTab={activeTab}

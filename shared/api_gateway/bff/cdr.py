@@ -28,6 +28,19 @@ router = APIRouter(prefix="/api/v1/views", tags=["BFF Views"])
 CDR_URL = ENGINE_URLS.get("cdr", "http://engine-cdr")
 
 
+def _build_sequence_detections(raw: Optional[dict]) -> dict:
+    """Extract sequence findings from /cdr/findings?rule_source=sequence response."""
+    findings = safe_get(raw, "findings", [])
+    has_critical = any(
+        (f.get("severity") or "").lower() == "critical" for f in findings
+    )
+    return {
+        "findings": findings,
+        "total": len(findings),
+        "has_critical": has_critical,
+    }
+
+
 @router.get("/cdr", response_model=CdrViewResponse, response_model_exclude_none=False)
 async def view_cdr(
     request: Request,
@@ -57,9 +70,10 @@ async def view_cdr(
         ("cdr", "/api/v1/cdr/identities",   {**qs, "limit": "20"}),
         ("cdr", "/api/v1/cdr/top-rules",    {**qs, "limit": "15"}),
         ("cdr", "/api/v1/cdr/log-sources",  qs),
+        ("cdr", "/api/v1/cdr/findings",     {**qs, "rule_source": "sequence", "limit": "20"}),
     ], auth_headers=fwd_headers)
 
-    dashboard, identities, top_rules, log_sources_data = results
+    dashboard, identities, top_rules, log_sources_data, sequence_data = results
     stats = None
 
     summary    = safe_get(dashboard, "summary", {})
@@ -191,6 +205,7 @@ async def view_cdr(
         "last":            last_obj,
         "donutSlices":     donut_slices,
         "filters":         filters,
+        "sequenceDetections": _build_sequence_detections(sequence_data),
         "data": {
             "identities":     identity_list,
             "totalFindings":  total_findings,

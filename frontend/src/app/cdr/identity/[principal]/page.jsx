@@ -33,6 +33,117 @@ function fmtTs(iso) {
   return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+const METRIC_LABELS = {
+  api_call_count:     'API Call Count',
+  unique_services:    'Unique Services',
+  unique_resources:   'Unique Resources',
+  unique_source_ips:  'Source IPs',
+  after_hours_ratio:  'After-Hours Ratio',
+  cross_region_ratio: 'Cross-Region Ratio',
+};
+
+function Sparkline({ points, mean, threshold, anomalous }) {
+  if (!points?.length) return null;
+  const W = 160, H = 36, PAD = 4;
+  const vals   = points.map(p => p.value);
+  const maxVal = Math.max(...vals, threshold ?? 0, mean ?? 0, 0.01);
+  const minVal = Math.min(...vals, 0);
+  const range  = maxVal - minVal || 1;
+  const toY    = v => H - PAD - ((v - minVal) / range) * (H - PAD * 2);
+  const toX    = i => PAD + (i / Math.max(points.length - 1, 1)) * (W - PAD * 2);
+
+  const pathD = points.map((p, i) =>
+    `${i === 0 ? 'M' : 'L'}${toX(i).toFixed(1)},${toY(p.value).toFixed(1)}`
+  ).join(' ');
+
+  const lineColor = anomalous ? '#ef4444' : '#6366f1';
+
+  return (
+    <svg width={W} height={H} style={{ flexShrink: 0 }}>
+      {mean != null && (
+        <line x1={PAD} x2={W - PAD} y1={toY(mean)} y2={toY(mean)}
+          stroke="#6b7280" strokeWidth={1} strokeDasharray="3 2" opacity={0.5} />
+      )}
+      {threshold != null && (
+        <line x1={PAD} x2={W - PAD} y1={toY(threshold)} y2={toY(threshold)}
+          stroke={anomalous ? '#ef4444' : '#f97316'} strokeWidth={1}
+          strokeDasharray="4 2" opacity={0.7} />
+      )}
+      <path d={pathD} fill="none" stroke={lineColor} strokeWidth={1.5}
+        strokeLinejoin="round" strokeLinecap="round" />
+      {points.length > 0 && (
+        <circle cx={toX(points.length - 1)} cy={toY(points[points.length - 1].value)}
+          r={2.5} fill={lineColor} />
+      )}
+    </svg>
+  );
+}
+
+function BaselineSparklines({ metrics }) {
+  if (!metrics?.length) {
+    return (
+      <div className="rounded-xl border p-5" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
+          14-Day Behavioral Baseline
+        </div>
+        <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+          Insufficient history for baseline — actor needs at least 14 days of data.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>
+      <div className="px-5 py-4 border-b" style={{ backgroundColor: 'var(--bg-secondary)', borderColor: 'var(--border-primary)' }}>
+        <div className="text-sm font-semibold" style={{ color: 'var(--text-primary)' }}>14-Day Behavioral Baseline</div>
+        <div className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+          Per-metric trend vs baseline threshold — red = anomalous
+        </div>
+      </div>
+      <div className="divide-y" style={{ divideColor: 'var(--border-primary)' }}>
+        {metrics.map(m => {
+          const latest    = m.points?.length ? m.points[m.points.length - 1].value : null;
+          const anomalous = latest != null && m.threshold != null && latest > m.threshold;
+          const sigmas    = (m.mean != null && m.stddev && m.stddev > 0 && latest != null)
+            ? ((latest - m.mean) / m.stddev).toFixed(1)
+            : null;
+          const label = METRIC_LABELS[m.metric] || m.metric.replace(/_/g, ' ');
+
+          return (
+            <div key={m.metric} className="flex items-center gap-4 px-5 py-3"
+              style={{ borderColor: 'var(--border-primary)' }}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-medium capitalize" style={{ color: 'var(--text-secondary)' }}>
+                    {label}
+                  </span>
+                  {anomalous && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ backgroundColor: 'rgba(239,68,68,0.12)', color: '#ef4444' }}>
+                      {sigmas ? `↑ ${sigmas}σ` : 'ANOMALY'}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--text-muted)' }}>
+                  {m.mean != null && <span>baseline {m.mean.toFixed(1)}</span>}
+                  {m.threshold != null && <span>· threshold {m.threshold.toFixed(1)}</span>}
+                  {latest != null && (
+                    <span className="font-bold" style={{ color: anomalous ? '#ef4444' : 'var(--text-secondary)' }}>
+                      · now {latest.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <Sparkline points={m.points} mean={m.mean} threshold={m.threshold} anomalous={anomalous} />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function IdentityProfilePage() {
   const params  = useParams();
   const router  = useRouter();
@@ -43,10 +154,11 @@ export default function IdentityProfilePage() {
 
   const { data, loading, error } = useViewFetch('cdr_identity', { principal });
 
-  const identity = data?.identity || {};
-  const findings = data?.findings || [];
-  const hourlyData = data?.hourlyData || data?.hourly_data || [];
-  const dowData    = data?.dowData    || data?.dow_data    || [];
+  const identity    = data?.identity || {};
+  const findings    = data?.findings || [];
+  const hourlyData  = data?.hourlyData || data?.hourly_data || [];
+  const dowData     = data?.dowData    || data?.dow_data    || [];
+  const baselineTrend = data?.baselineTrend || { metrics: [], has_data: false };
 
   const timelineFindings = useMemo(() =>
     findings.filter(f => f.event_time),
@@ -227,6 +339,9 @@ export default function IdentityProfilePage() {
       {(hourlyData.length > 0 || dowData.length > 0) && (
         <ActivityHeatmap hourlyData={hourlyData} dowData={dowData} />
       )}
+
+      {/* 14-day behavioral baseline sparklines */}
+      <BaselineSparklines metrics={baselineTrend.metrics} />
 
       {/* Findings table */}
       <div className="rounded-xl border overflow-hidden" style={{ backgroundColor: 'var(--bg-card)', borderColor: 'var(--border-primary)' }}>

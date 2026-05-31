@@ -295,8 +295,12 @@ async def list_accounts(
     _: Any = Depends(require_permission("cloud_accounts:read")),
 ):
     """List cloud accounts with optional filters and pagination."""
-    # AC5: enforce tenant scope from auth context — prevent cross-tenant list
-    if auth and getattr(auth, "engine_tenant_id", None):
+    # AC5: enforce tenant scope from auth context — prevent cross-tenant list.
+    # Platform-level users (scope_level='platform') may pass an explicit tenant_id
+    # query param (set by the BFF when the user selects a tenant in the scope bar).
+    # For all other roles, auth.engine_tenant_id is the authoritative scope.
+    is_platform = getattr(auth, "scope_level", None) == "platform"
+    if auth and not is_platform and getattr(auth, "engine_tenant_id", None):
         tenant_id = auth.engine_tenant_id
     filters = {}
     if customer_id:                           filters["customer_id"]   = customer_id

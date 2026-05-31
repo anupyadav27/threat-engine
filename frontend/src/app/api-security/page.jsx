@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import { Webhook, AlertTriangle, ShieldAlert, Shield, Globe, Lock } from 'lucide-react';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import EngineShell from '@/components/shared/EngineShell';
-import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
@@ -140,8 +139,7 @@ export default function APISecurityPage() {
   const staleKeys = findings.filter(f => f.rule_id?.includes('stale_key')).length;
 
   return (
-    <PageLayout>
-      <EngineShell
+    <EngineShell
         title="API Security"
         subtitle="OWASP API Top 10 · Auth · WAF · Rate Limits · Key Lifecycle"
         icon={<Webhook size={20} color={C.purple} />}
@@ -301,7 +299,6 @@ export default function APISecurityPage() {
             onClose={() => setSelected(null)}
           />
         )}
-      </EngineShell>
-    </PageLayout>
+    </EngineShell>
   );
 }

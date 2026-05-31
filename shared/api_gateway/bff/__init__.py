@@ -92,6 +92,8 @@ from .api_security import router as api_security_router
 from .chat import router as chat_router
 from .threat_technique import router as threat_technique_router
 from .di_assets import router as di_assets_router
+from .relationship_quality import router as relationship_quality_router
+from .resource_detail import router as resource_detail_router
 
 # Combined router — include this in main.py
 router = APIRouter()
@@ -140,5 +142,7 @@ for _sub in (
     chat_router,
     threat_technique_router,
     di_assets_router,
+    relationship_quality_router,
+    resource_detail_router,
 ):
     router.include_router(_sub)

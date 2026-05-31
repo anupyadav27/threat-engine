@@ -155,6 +155,13 @@ def _build_rows(
             edge.get("target_type") or "",
             edge["relation_type"],
             meta,
+            edge.get("relationship_category") or "infrastructure",
+            edge.get("attack_path_category"),
+            edge.get("evidence_field_path"),
+            edge.get("evidence_value"),
+            edge.get("resolution_status") or "unresolved",
+            edge.get("confidence") or "medium",
+            bool(edge.get("is_attack_edge", False)),
         ))
     return rows
 
@@ -171,15 +178,30 @@ def _execute_upsert(conn: Any, rows: list[tuple]) -> int:
             target_uid,
             target_type,
             relation_type,
-            relation_metadata
+            relation_metadata,
+            relationship_category,
+            attack_path_category,
+            evidence_field_path,
+            evidence_value,
+            resolution_status,
+            confidence,
+            is_attack_edge
         )
         VALUES %s
         ON CONFLICT (scan_run_id, tenant_id, source_uid, relation_type, target_uid)
         DO UPDATE SET
-            relation_metadata = EXCLUDED.relation_metadata,
-            source_type       = EXCLUDED.source_type,
-            target_type       = EXCLUDED.target_type,
-            last_seen_at      = NOW()
+            relation_metadata     = EXCLUDED.relation_metadata,
+            source_type           = EXCLUDED.source_type,
+            target_type           = EXCLUDED.target_type,
+            relationship_category = EXCLUDED.relationship_category,
+            attack_path_category  = EXCLUDED.attack_path_category,
+            evidence_field_path   = EXCLUDED.evidence_field_path,
+            evidence_value        = EXCLUDED.evidence_value,
+            resolution_status     = EXCLUDED.resolution_status,
+            confidence            = EXCLUDED.confidence,
+            -- only promote is_attack_edge, never demote (TRUE wins over FALSE)
+            is_attack_edge        = GREATEST(asset_relationships.is_attack_edge, EXCLUDED.is_attack_edge),
+            last_seen_at          = NOW()
     """
     with conn.cursor() as cur:
         psycopg2.extras.execute_values(cur, sql, rows, page_size=_BATCH_SIZE)

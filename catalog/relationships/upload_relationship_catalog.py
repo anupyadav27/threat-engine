@@ -38,12 +38,12 @@ INSERT INTO resource_relationship_catalog (
     csp, source_resource_type, target_resource_type, relation_type,
     relationship_category, field_path, field_path_type,
     target_identifier_field, policy_principal_key, policy_effect_filter,
-    attack_path_category, description, is_active, updated_at
+    attack_path_category, description, is_active, graph_role, updated_at
 ) VALUES (
     %(csp)s, %(source_resource_type)s, %(target_resource_type)s, %(relation_type)s,
     %(relationship_category)s, %(field_path)s, %(field_path_type)s,
     %(target_identifier_field)s, %(policy_principal_key)s, %(policy_effect_filter)s,
-    %(attack_path_category)s, %(description)s, %(is_active)s, NOW()
+    %(attack_path_category)s, %(description)s, %(is_active)s, %(graph_role)s, NOW()
 )
 ON CONFLICT (csp, source_resource_type, relation_type, field_path)
 DO UPDATE SET
@@ -56,6 +56,7 @@ DO UPDATE SET
     attack_path_category    = EXCLUDED.attack_path_category,
     description             = EXCLUDED.description,
     is_active               = EXCLUDED.is_active,
+    graph_role              = EXCLUDED.graph_role,
     updated_at              = NOW()
 """
 
@@ -95,6 +96,7 @@ def _build_rows(csp: str, catalog: Dict[str, Any]) -> List[Dict[str, Any]]:
             "attack_path_category":  rule.get("attack_path_category"),
             "description":           rule.get("description"),
             "is_active":             rule.get("is_active", True),
+            "graph_role":            rule.get("graph_role", "context"),
         })
     return rows
 

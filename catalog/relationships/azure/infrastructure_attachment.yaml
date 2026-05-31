@@ -15,6 +15,7 @@ rules:
     field_path: "networkProfile.networkInterfaces[*].id"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: Azure VM attached to network interfaces
 
   # ── VM → NSG (via NIC) ──────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ rules:
     field_path: "networkSecurityGroup.id"
     field_path_type: field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: Azure NIC governed by NSG
 
   # ── VM → Managed Disk ───────────────────────────────────────────────────────
@@ -33,6 +35,7 @@ rules:
     field_path: "storageProfile.dataDisks[*].managedDisk.id"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: Azure VM attached to managed data disks
 
   # ── VM → OS Disk ─────────────────────────────────────────────────────────────
@@ -42,6 +45,7 @@ rules:
     field_path: "storageProfile.osDisk.managedDisk.id"
     field_path_type: field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: Azure VM attached to OS managed disk
 
   # ── VM → Subnet ──────────────────────────────────────────────────────────────
@@ -51,6 +55,7 @@ rules:
     field_path: "ipConfigurations[*].subnet.id"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: context
     description: Azure NIC placed in subnet
 
   # ── AKS Cluster → Node Pool ──────────────────────────────────────────────────
@@ -60,6 +65,7 @@ rules:
     field_path: "agentPoolProfiles[*].name"
     field_path_type: array_field_ref
     attack_path_category: lateral_movement
+    graph_role: attack_traversal
     description: AKS cluster contains agent pool profiles
 
   # ── SQL Server → Database ────────────────────────────────────────────────────
@@ -69,6 +75,7 @@ rules:
     field_path: "Databases[*].name"
     field_path_type: array_field_ref
     attack_path_category: data_access
+    graph_role: context
     description: Azure SQL server contains databases
 
   # ── App Service → Storage Account ────────────────────────────────────────────
@@ -78,6 +85,7 @@ rules:
     field_path: "siteConfig.appSettings[*].value"
     field_path_type: array_field_ref
     attack_path_category: data_access
+    graph_role: context
     description: App Service connected to storage accounts (via app settings)
 
   # ── Key Vault → Disk (CMK) ────────────────────────────────────────────────────
@@ -87,6 +95,7 @@ rules:
     field_path: "encryption.diskEncryptionSetId"
     field_path_type: field_ref
     attack_path_category: data_access
+    graph_role: context
     description: Azure managed disk encrypted by disk encryption set (Key Vault)
 
   # ── Load Balancer → Backend Pool VMs ────────────────────────────────────────
@@ -96,4 +105,102 @@ rules:
     field_path: "backendAddressPools[*].backendIPConfigurations[*].id"
     field_path_type: array_field_ref
     attack_path_category: internet_exposure
+    graph_role: attack_traversal
     description: Azure Load Balancer routes to backend VMs
+
+  # ── Azure Arc Machine (MANAGED_BY_AGENT) ─────────────────────────────────────
+  # Azure Arc connected machines are non-Azure servers enrolled via the Azure Connected
+  # Machine Agent. They are directly reachable via "az connectedmachine run-command".
+  # attack-path BFS seeds ENDPOINT_AGENT_ENTRY from these resources.
+  # Prerequisite: add catalog/discovery_generator_data/azure/step6_hybridcompute.discovery.yaml
+  # Source emits: id, name, properties.status, properties.osSku, properties.vmId
+  - source_resource_type: hybridcompute_machine
+    target_resource_type: hybridcompute_machine
+    relation_type: MANAGED_BY_AGENT
+    field_path: "id"
+    field_path_type: field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: Azure Arc connected machine reachable via RunCommand (remote shell)
+
+  # ── VM → Managed Identity (System-assigned) ──────────────────────────────────
+  # System-assigned Managed Identity creates a service principal scoped to the VM.
+  # Lateral movement: compromise VM → use identity → access Key Vault / Storage / etc.
+  - source_resource_type: compute.virtual_machine
+    target_resource_type: authorization.role_assignment
+    relation_type: USES_IDENTITY
+    field_path: "identity.principalId"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Azure VM uses system-assigned managed identity (service principal)
+
+  # ── VM → User-assigned Managed Identity ──────────────────────────────────────
+  - source_resource_type: compute.virtual_machine
+    target_resource_type: msi.user_assigned_identity
+    relation_type: USES_IDENTITY
+    field_path: "identity.userAssignedIdentities[*]"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Azure VM uses user-assigned managed identity
+
+  # ── AKS Cluster → Node Pool ───────────────────────────────────────────────────
+  - source_resource_type: containerservice.managed_cluster
+    target_resource_type: containerservice.agent_pool
+    relation_type: CONTAINS
+    field_path: "agentPoolProfiles[*].name"
+    field_path_type: array_field_ref
+    attack_path_category: lateral_movement
+    graph_role: attack_traversal
+    description: AKS cluster contains node pools (worker node chain)
+
+  # ── AKS Cluster → Managed Identity ───────────────────────────────────────────
+  - source_resource_type: containerservice.managed_cluster
+    target_resource_type: msi.user_assigned_identity
+    relation_type: USES_IDENTITY
+    field_path: "identity.userAssignedIdentities[*]"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: AKS cluster uses managed identity for API server auth
+
+  # ── Function App → Managed Identity ──────────────────────────────────────────
+  - source_resource_type: web.site
+    target_resource_type: authorization.role_assignment
+    relation_type: USES_IDENTITY
+    field_path: "identity.principalId"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: attack_traversal
+    description: Azure Function App uses managed identity
+
+  # ── Storage Account → Key Vault (CMK) ────────────────────────────────────────
+  - source_resource_type: storage.storage_account
+    target_resource_type: keyvault.vault
+    relation_type: ENCRYPTED_BY
+    field_path: "encryption.keyVaultProperties.keyVaultUri"
+    field_path_type: field_ref
+    attack_path_category: data_access
+    graph_role: context
+    description: Azure Storage Account encrypted with customer-managed key in Key Vault
+
+  # ── Key Vault → Role Assignment (access control) ──────────────────────────────
+  - source_resource_type: keyvault.vault
+    target_resource_type: authorization.role_assignment
+    relation_type: GOVERNED_BY
+    field_path: "properties.accessPolicies[*].objectId"
+    field_path_type: array_field_ref
+    attack_path_category: privilege_escalation
+    graph_role: context
+    description: Key Vault access controlled by role assignments / access policies
+
+  # ── Container Registry → Role Assignment ──────────────────────────────────────
+  - source_resource_type: containerregistry.registry
+    target_resource_type: authorization.role_assignment
+    relation_type: GOVERNED_BY
+    field_path: "id"
+    field_path_type: field_ref
+    attack_path_category: privilege_escalation
+    graph_role: context
+    description: Azure Container Registry access controlled by role assignments

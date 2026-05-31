@@ -33,6 +33,15 @@ logger = logging.getLogger(__name__)
 _BATCH_SIZE = 500
 
 
+def _resolution_status(tgt_uid: str, raw_ident: str) -> str:
+    """Classify how the target UID was resolved."""
+    if tgt_uid == raw_ident:
+        return "target_not_found"   # fell back to synthetic UID
+    if tgt_uid.startswith("pseudo:"):
+        return "pseudo_target"
+    return "resolved"
+
+
 # ── Field path traversal ────────────────────────────────────────────────────────
 
 def _resolve_field_ref(emitted: Dict[str, Any], field_path: str) -> List[str]:
@@ -131,7 +140,8 @@ def _load_catalog_rules(conn: "psycopg2.connection", csp: str) -> List[Dict[str,
     sql = """
         SELECT id, source_resource_type, target_resource_type, relation_type,
                field_path, field_path_type, target_identifier_field,
-               attack_path_category, description
+               attack_path_category, description,
+               COALESCE(graph_role, 'context') AS graph_role
         FROM resource_relationship_catalog
         WHERE csp = %s AND is_active = TRUE AND relationship_category = 'infrastructure'
         ORDER BY source_resource_type, relation_type
@@ -192,22 +202,48 @@ def _resolve_target_uid(
     csp: str,
     target_resource_type: str,
     identifier: str,
+    target_identifier_field: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Resolve a raw identifier (e.g. volume ID, ARN, IP) to a canonical resource_uid
-    in asset_inventory. Tries exact match on resource_uid first, then looks for
-    the identifier inside emitted_fields values.
+    Resolve a raw identifier to a canonical resource_uid in asset_inventory.
+
+    Resolution order:
+      0. target_identifier_field match — query emitted_fields->>'field' = identifier
+         (explicit, most reliable; use when rule defines target_identifier_field)
+      1. Exact resource_uid match
+      2. ARN suffix match (identifier appears at end of resource_uid)
+      3. S3 domain→ARN resolution for CloudFront origin domains
+      4. Synthetic UID fallback (edge is still written with raw identifier)
     """
     if not identifier:
         return None
 
-    # 1. Exact resource_uid match
     sql_exact = """
         SELECT resource_uid FROM asset_inventory
         WHERE tenant_id = %s AND scan_run_id = %s AND provider = %s
           AND resource_type = %s AND resource_uid = %s
         LIMIT 1
     """
+
+    # 0. Explicit field match — rule says which emitted_fields key holds the identifier
+    if target_identifier_field:
+        sql_field = """
+            SELECT resource_uid FROM asset_inventory
+            WHERE tenant_id = %s AND scan_run_id = %s AND provider = %s
+              AND resource_type = %s
+              AND emitted_fields->>%s = %s
+            LIMIT 1
+        """
+        with conn.cursor() as cur:
+            cur.execute(sql_field, (
+                tenant_id, scan_run_id, csp, target_resource_type,
+                target_identifier_field, identifier,
+            ))
+            row = cur.fetchone()
+            if row:
+                return row[0]
+
+    # 1. Exact resource_uid match
     with conn.cursor() as cur:
         cur.execute(sql_exact, (tenant_id, scan_run_id, csp, target_resource_type, identifier))
         row = cur.fetchone()
@@ -232,7 +268,28 @@ def _resolve_target_uid(
         if row:
             return row[0]
 
-    # 3. Not found — use identifier as synthetic UID so edge is still written
+    # 3. S3-specific: resolve S3 domain patterns → "arn:aws:s3:::bucket"
+    #    Handles:
+    #      bucket.s3.amazonaws.com           (path-style, global)
+    #      bucket.s3.region.amazonaws.com    (path-style, regional)
+    #      bucket.s3-website.region.amazonaws.com  (website endpoint)
+    #      bucket.s3-website-region.amazonaws.com  (legacy website endpoint)
+    if target_resource_type == 's3_bucket' and '.amazonaws.com' in identifier:
+        bucket_name: str | None = None
+        if '.s3.' in identifier:
+            bucket_name = identifier.split('.s3.')[0]
+        elif '.s3-website' in identifier:
+            # s3-website endpoints: bucket.s3-website[-.]region.amazonaws.com
+            bucket_name = identifier.split('.s3-website')[0]
+        if bucket_name:
+            s3_arn = f'arn:aws:s3:::{bucket_name}'
+            with conn.cursor() as cur:
+                cur.execute(sql_exact, (tenant_id, scan_run_id, csp, 's3_bucket', s3_arn))
+                row = cur.fetchone()
+                if row:
+                    return row[0]
+
+    # 4. Not found — use identifier as synthetic UID so edge is still written
     return identifier
 
 
@@ -297,6 +354,27 @@ def _run(
         field_path = rule["field_path"]
         path_type = rule.get("field_path_type") or "field_ref"
         category = rule.get("attack_path_category") or "lateral_movement"
+        tgt_id_field = rule.get("target_identifier_field") or None
+        confidence = rule.get("confidence") or "high"
+        rel_category = rule.get("relationship_category") or "infrastructure"
+        is_attack_edge = rule.get("graph_role") == "attack_traversal"
+
+        # Gap detection: warn when the source type has no rows in asset_inventory.
+        # This fires every scan and surfaces missing discovery coverage in engine logs.
+        with conn.cursor() as _gap_cur:
+            _gap_cur.execute(
+                """SELECT COUNT(*) FROM asset_inventory
+                   WHERE tenant_id=%s AND scan_run_id=%s AND provider=%s AND resource_type=%s""",
+                (tenant_id, scan_run_id, csp, src_type),
+            )
+            _src_count = _gap_cur.fetchone()[0]
+        if _src_count == 0:
+            logger.warning(
+                "DISCOVERY_GAP csp=%s rule=%s->%s [%s]: "
+                "source_resource_type has 0 rows in asset_inventory — "
+                "check discovery YAML for this service",
+                csp, src_type, tgt_type, rel_type,
+            )
 
         rule_edges = 0
         for src_uid, emitted in _fetch_source_resources(
@@ -305,21 +383,32 @@ def _run(
             identifiers = _extract_identifiers(emitted, field_path, path_type)
             for ident in identifiers:
                 tgt_uid = _resolve_target_uid(
-                    conn, tenant_id, scan_run_id, csp, tgt_type, ident
+                    conn, tenant_id, scan_run_id, csp, tgt_type, ident,
+                    target_identifier_field=tgt_id_field,
                 )
                 if not tgt_uid:
                     continue
                 edges.append({
-                    "source_uid":       src_uid,
-                    "source_type":      src_type,
-                    "target_uid":       tgt_uid,
-                    "target_type":      tgt_type,
-                    "relation_type":    rel_type,
+                    "source_uid":            src_uid,
+                    "source_type":           src_type,
+                    "target_uid":            tgt_uid,
+                    "target_type":           tgt_type,
+                    "relation_type":         rel_type,
                     "relation_metadata": {
                         "attack_path_category": category,
-                        "catalog_rule_id": rule.get("id"),
-                        "raw_identifier": ident,
+                        "catalog_rule_id":      rule.get("id"),
+                        "raw_identifier":       ident,
+                        "graph_role":           rule.get("graph_role", "context"),
                     },
+                    # Enrichment columns
+                    "relationship_category": rel_category,
+                    "attack_path_category":  category,
+                    "evidence_field_path":   field_path,
+                    "evidence_value":        ident,
+                    "resolution_status":     _resolution_status(tgt_uid, ident),
+                    "confidence":            confidence,
+                    # BFS gate: TRUE for attack_traversal rules, FALSE for context rules
+                    "is_attack_edge":        is_attack_edge,
                 })
                 rule_edges += 1
 

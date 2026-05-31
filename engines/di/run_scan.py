@@ -79,10 +79,12 @@ def _record_di_engine_status(scan_run_id: str, status: str, started_at: str | No
 from di_engine.phase0.enumerator import run_phase0
 from di_engine.phase2.writer import write_assets, write_errors, update_scan_status
 from di_engine.phase2.catalog_relationship_writer import write_catalog_relationships
+from di_engine.phase3.ontology_writer import write_ontology_classifications
 # DI monolithic relationship_writer removed — per-engine writers (network, IAM, encryption)
 # write security edges.  catalog_relationship_writer handles infrastructure attachment edges
 # derived from the resource_relationship_catalog table (seeded by
 # catalog/relationships/upload_relationship_catalog.py).
+# ontology_writer (Phase 3) classifies assets as attack entry points / attack targets.
 
 
 def _resolve_credentials(account_id: str, credential_ref: str, credential_type: str, provider: str) -> dict:
@@ -224,6 +226,15 @@ async def run_scan(scan_run_id: str, services: list[str] | None = None) -> None:
         account_id=account_id,
         provider=provider,
     )
+
+    # Phase 3: classify assets as attack entry points / attack targets
+    entry_pts, targets = write_ontology_classifications(
+        scan_run_id=scan_run_id,
+        tenant_id=tenant_id,
+        account_id=account_id,
+        provider=provider,
+    )
+    logger.info("Phase 3 complete: %d entry_points, %d targets classified", entry_pts, targets)
 
     # Write all enumeration errors
     errors_written = write_errors(all_errors)

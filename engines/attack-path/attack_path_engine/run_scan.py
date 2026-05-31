@@ -35,7 +35,7 @@ import logging
 import os
 import sys
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 import psycopg2.extras
 
@@ -128,15 +128,30 @@ def _mark_internet_exposed_from_discoveries(
                           AND resource_uid IS NOT NULL
                           AND resource_uid != ''
                           AND (
-                            (emitted_fields->>'PublicIpAddress') IS NOT NULL
-                            OR (emitted_fields->>'PubliclyAccessible') = 'true'
-                            OR (emitted_fields->>'Scheme') = 'internet-facing'
-                            OR (emitted_fields->>'FunctionUrl') IS NOT NULL
+                            -- EC2 public IP: instances only, not image/status sub-resources
+                            ((emitted_fields->>'PublicIpAddress') IS NOT NULL
+                             AND resource_type = 'ec2_instance')
+                            -- RDS/cache publicly accessible: DB instances only
+                            OR ((emitted_fields->>'PubliclyAccessible') = 'true'
+                                AND resource_type IN (
+                                  'rds_db_instance', 'elasticache_cluster',
+                                  'elasticache_replication_group', 'redshift_cluster',
+                                  'opensearch_domain', 'opensearch_domain_config'
+                                ))
+                            -- ELB internet-facing scheme: load balancers only
+                            OR ((emitted_fields->>'Scheme') = 'internet-facing'
+                                AND resource_type = 'elbv2_load_balancer')
+                            -- Lambda function URL: function level only, not config/concurrency sub-resources
+                            OR ((emitted_fields->>'FunctionUrl') IS NOT NULL
+                                AND resource_type = 'lambda_function')
+                            -- API Gateway / CloudFront: always internet entry points
                             OR resource_type IN (
                               'apigateway.restapi',
                               'apigateway.httpapi',
                               'apigateway.v2api',
-                              'apigatewayv2.api'
+                              'apigatewayv2.api',
+                              'apigatewayv2_api',
+                              'cloudfront_distribution'
                             )
                           )
                         """,
@@ -182,41 +197,59 @@ def _mark_internet_exposed_from_discoveries(
         return 0
 
 
-def _fetch_internet_exposed_uids(
-    inventory_conn: Any,
+
+def _fetch_attack_entry_uids(
+    di_conn: Any,
     tenant_id: str,
-) -> list:
-    """Return resource_uids that are internet-exposed.
+) -> Dict[str, str]:
+    """Return {resource_uid: attack_entry_point_category} for ALL attack entry points.
 
-    Merges two sources:
-      1. resource_security_posture WHERE is_internet_exposed=true  (network/check engine signal)
-      2. asset_relationships WHERE relation_type='internet_connected' (FROM side = exposed resource)
+    Merges three sources in priority order:
+      1. resource_security_posture WHERE is_attack_entry_point=TRUE (explicit category set by engine)
+      2. resource_security_posture WHERE is_internet_exposed=TRUE (legacy signal → INTERNET_ENTRY)
+      3. asset_relationships internet edges (covers resources without posture rows yet)
 
-    Source 2 is critical when posture rows don't yet exist for newly discovered resources.
-    The FROM side of an internet_connected edge is always the cloud resource (e.g. EC2 instance);
-    the TO side is always the synthetic 'internet:0.0.0.0/0' sentinel node.
+    Returns:
+        Dict[uid → category] where category is one of:
+        INTERNET_ENTRY | IDENTITY_ENTRY | CICD_ENTRY | THIRD_PARTY_ENTRY |
+        INTERNAL_WORKLOAD_ENTRY | ENDPOINT_AGENT_ENTRY
     """
-    uids: set = set()
+    entry_map: Dict[str, str] = {}
     try:
-        with inventory_conn.cursor() as cur:
-            # Source 1: posture table
+        with di_conn.cursor() as cur:
+            # Source 1: explicit attack entry points with category
+            cur.execute(
+                """
+                SELECT resource_uid,
+                       COALESCE(attack_entry_point_category, 'INTERNET_ENTRY') AS category
+                FROM resource_security_posture
+                WHERE tenant_id = %s
+                  AND is_attack_entry_point = TRUE
+                  AND resource_uid IS NOT NULL
+                """,
+                (tenant_id,),
+            )
+            for uid, cat in cur.fetchall():
+                entry_map[uid] = cat
+
+            # Source 2: is_internet_exposed=TRUE (legacy signal; setdefault so explicit wins)
             cur.execute(
                 """
                 SELECT DISTINCT resource_uid
                 FROM resource_security_posture
                 WHERE tenant_id = %s
-                  AND is_internet_exposed = true
+                  AND is_internet_exposed = TRUE
+                  AND resource_uid IS NOT NULL
                 """,
                 (tenant_id,),
             )
-            for row in cur.fetchall():
-                uids.add(row[0])
+            for (uid,) in cur.fetchall():
+                entry_map.setdefault(uid, "INTERNET_ENTRY")
 
-            # Source 2: asset_relationships internet exposure edges
-            # Covers INTERNET_CONNECTED and INTERNET_ACCESSIBLE edge types.
+            # Source 3: internet relationship edges (covers missing posture rows)
             cur.execute(
                 """
-                SELECT DISTINCT source_uid AS uid
+                SELECT DISTINCT source_uid
                 FROM asset_relationships
                 WHERE tenant_id = %s
                   AND LOWER(relation_type) IN ('internet_connected', 'internet_accessible')
@@ -226,237 +259,286 @@ def _fetch_internet_exposed_uids(
                 """,
                 (tenant_id,),
             )
-            rel_uids = [row[0] for row in cur.fetchall()]
-            uids.update(rel_uids)
-            if rel_uids:
-                logger.info(
-                    "Added %d internet-exposed UIDs from asset_relationships tenant=%s",
-                    len(rel_uids), tenant_id,
-                )
+            for (uid,) in cur.fetchall():
+                entry_map.setdefault(uid, "INTERNET_ENTRY")
+
     except Exception as exc:
-        logger.warning("Could not fetch internet-exposed UIDs: %s", exc)
+        logger.warning("Could not fetch attack entry UIDs (falling back to empty set): %s", exc)
         try:
-            inventory_conn.rollback()
-        except Exception:
-            pass
-    return list(uids)
-
-
-def _build_iam_permission_edges(
-    tenant_id: str,
-    posture_lookup: Dict[str, Any],
-    scan_run_id: str = "",
-) -> Dict[str, list]:
-    """Build synthetic IAM role → crown jewel edges from iam_policy_statements.
-
-    These edges supplement inventory_relationships for cases where the IAM engine
-    has written policy statement data but the inventory engine has not yet linked
-    role ARNs to the resources they can access.
-
-    For non-AWS tenants the iam_policy_statements table is empty (IAM engine only
-    processes AWS IAM), so the function returns {} naturally with no code changes
-    needed.
-
-    Attack chain enabled:
-      Internet → EC2 → (assumes) → IAM role → (grants_access_to) → Crown Jewel
-
-    Returns:
-        Dict[role_arn → List[(crown_jewel_uid, 'grants_access_to', 'iam.role', crown_jewel_type)]]
-    """
-    # Map IAM service prefix → resource_type substrings that classify as that service.
-    # Each hint list includes the plain service name to catch resource_type='ecr'/'kms'
-    # (exact-name types) as well as compound types like 'ecr.repository'/'kms.key'.
-    SERVICE_TO_TYPE_HINTS: Dict[str, list] = {
-        "s3":              ["s3.bucket", "s3.", "s3"],
-        "dynamodb":        ["dynamodb.table", "dynamodb.", "dynamodb"],
-        "secretsmanager":  ["secretsmanager.secret", "secretsmanager."],
-        "kms":             ["kms.key", "kms.", "kms"],
-        "rds":             ["rds.db-instance", "rds.cluster", "rds."],
-        "elasticache":     ["elasticache.cluster", "elasticache."],
-        "kinesis":         ["kinesis.stream", "kinesis.", "kinesis"],
-        "eks":             ["eks.cluster", "eks.", "eks"],
-        "ecr":             ["ecr.repository", "ecr.", "ecr"],
-        "glue":            ["glue.database", "glue.table", "glue.", "glue"],
-        "athena":          ["athena.workgroup", "athena.", "athena"],
-        "emr":             ["emr.cluster", "emr.", "emr"],
-        "sagemaker":       ["sagemaker.", "sagemaker.model", "sagemaker"],
-        "ecs":             ["ecs.cluster", "ecs.", "ecs"],
-        "lambda":          ["lambda.function", "lambda.", "lambda"],
-        "redshift":        ["redshift.cluster", "redshift.", "redshift"],
-        "es":              ["opensearch.", "elasticsearch."],
-        "opensearch":      ["opensearch.", "opensearch.domain", "opensearch"],
-        "backup":          ["backup.backup-vault", "backup.", "backup"],
-        "efs":             ["elasticfilesystem.", "efs.", "efs"],
-    }
-
-    # Pre-build crown jewels grouped by service prefix
-    cj_by_service: Dict[str, list] = {}
-    for uid, row in posture_lookup.items():
-        if not getattr(row, "is_crown_jewel", False):
-            continue
-        rtype = getattr(row, "resource_type", "") or ""
-        for svc, hints in SERVICE_TO_TYPE_HINTS.items():
-            if any(rtype.startswith(h) or h in rtype for h in hints):
-                cj_by_service.setdefault(svc, []).append((uid, rtype))
-
-    if not cj_by_service:
-        logger.info("No crown jewels found in posture — skipping IAM edge build")
-        return {}
-
-    extra_edges: Dict[str, list] = {}
-
-    try:
-        from engine_common.db_connections import get_iam_conn
-        iam_conn = get_iam_conn()
-    except Exception as exc:
-        logger.warning("IAM DB unavailable — skipping IAM permission edges: %s", exc)
-        return {}
-
-    try:
-        with iam_conn.cursor() as cur:
-            # Do NOT filter by scan_run_id — IAM engine runs independently and its
-            # policy statements accumulate under different scan_run_ids than the
-            # main pipeline. Filtering would always return 0 rows.
-            cur.execute(
-                """
-                SELECT DISTINCT attached_to_arn, actions, effect, attached_to_type
-                FROM iam_policy_statements
-                WHERE tenant_id = %s
-                  AND effect = 'Allow'
-                  AND attached_to_arn IS NOT NULL
-                  AND actions IS NOT NULL
-                  AND NOT COALESCE(not_action_mode, FALSE)
-                """,
-                (tenant_id,),
-            )
-            rows = cur.fetchall()
-
-        # Build role → services_it_can_access
-        from collections import defaultdict
-        role_services: Dict[str, set] = defaultdict(set)
-        for role_arn, actions, _effect, attached_type in rows:
-            if not role_arn or not isinstance(actions, list):
-                continue
-            for action in actions:
-                if not isinstance(action, str):
-                    continue
-                action_lower = action.lower().strip()
-                if action_lower in ("*", "*:*"):
-                    # Wildcard — can access everything
-                    role_services[role_arn].update(SERVICE_TO_TYPE_HINTS.keys())
-                elif ":" in action_lower:
-                    svc = action_lower.split(":")[0]
-                    if svc in SERVICE_TO_TYPE_HINTS:
-                        role_services[role_arn].add(svc)
-
-        # Build extra_edges: role → [(crown_uid, 'grants_access_to', 'iam.role', rtype)]
-        for role_arn, services in role_services.items():
-            edges = []
-            for svc in services:
-                for (cj_uid, cj_rtype) in cj_by_service.get(svc, []):
-                    edges.append((cj_uid, "grants_access_to", "iam.role", cj_rtype))
-            if edges:
-                extra_edges[role_arn] = edges
-
-        logger.info(
-            "IAM permission edges: %d roles → %d synthetic edges (tenant=%s)",
-            len(extra_edges),
-            sum(len(v) for v in extra_edges.values()),
-            tenant_id,
-        )
-    except Exception as exc:
-        logger.warning("IAM permission edge build failed (non-fatal): %s", exc)
-        try:
-            iam_conn.rollback()
-        except Exception:
-            pass
-    finally:
-        try:
-            iam_conn.close()
+            di_conn.rollback()
         except Exception:
             pass
 
-    return extra_edges
+    return entry_map
 
 
-def _build_eks_worker_node_edges(
+# CICD OIDC providers whose presence in a trust policy marks the role as a CI/CD entry point
+_CICD_OIDC_PROVIDERS = (
+    "token.actions.githubusercontent.com",  # GitHub Actions
+    "gitlab.com",
+    "circleci.com",
+    "app.terraform.io",
+    "jenkins.io",
+    "bitbucket.org",
+)
+
+
+def _mark_non_internet_entry_points(
     di_conn: Any,
     tenant_id: str,
-    internet_exposed_uids: list,
-    posture_lookup: Optional[Dict[str, Any]] = None,
-) -> Dict[str, list]:
-    """Build synthetic EC2 → EKS cluster edges for EKS worker nodes.
+) -> Dict[str, int]:
+    """Detect and mark non-internet attack entry points in resource_security_posture.
 
-    EKS cluster ARNs are NOT in asset_inventory (only workloads like daemonsets/deployments
-    are stored there). We find the cluster via posture_lookup (resource_security_posture),
-    which stores the cluster with resource_type='eks.cluster'.
+    Categories marked:
+      IDENTITY_ENTRY     — IAM users without MFA (credential compromise attack surface)
+      CICD_ENTRY         — Roles with OIDC trust to external CI/CD providers
+      THIRD_PARTY_ENTRY  — Cross-account roles assumable by external AWS accounts
+      ENDPOINT_AGENT_ENTRY — EC2 instances with SSM agent (remote shell via StartSession)
+      INTERNAL_WORKLOAD_ENTRY — Pods/workloads with privileged container security violations
 
-    Strategy:
-      1. Scan posture_lookup for UIDs matching the EKS cluster ARN pattern:
-         arn:aws:eks:REGION:ACCOUNT:cluster/NAME  (6 colon-parts, last = 'cluster/X')
-      2. Build account+region → [cluster_arn] lookup.
-      3. Query asset_inventory for EC2 instances with EKS nodegroup instance profiles.
-      4. Match EC2 to cluster by account+region → emit worker_node_of edges.
+    Only marks; never unmarks. Non-fatal per category — one failure doesn't block others.
 
     Returns:
-        Dict[ec2_uid → [(eks_cluster_uid, 'worker_node_of', 'ec2.instance', 'eks.cluster')]]
+        Dict[category → count_marked]
     """
-    edges: Dict[str, list] = {}
+    counts: Dict[str, int] = {}
+
+    # ── IDENTITY_ENTRY: identity principals without MFA (multi-CSP) ───────────
+    # Covers AWS IAM users, Azure AD/Entra users, GCP service accounts, OCI IAM users.
+    # IAM engine sets mfa_enforced only on identity-type resources; resource_type
+    # patterns guard against non-identity rows that may inadvertently carry the field.
     try:
-        from collections import defaultdict
-
-        # Step 1: Find EKS cluster UIDs from posture_lookup
-        # EKS cluster is NOT in asset_inventory — use posture_lookup (resource_security_posture)
-        eks_by_account_region: Dict[str, list] = defaultdict(list)
-        if posture_lookup:
-            for uid in posture_lookup:
-                if not uid.startswith("arn:aws:eks:"):
-                    continue
-                parts = uid.split(":")
-                # Cluster ARN has exactly 6 colon-parts; last part = 'cluster/NAME' with no extra '/'
-                if len(parts) == 6 and parts[5].startswith("cluster/") and "/" not in parts[5][8:]:
-                    region = parts[3]
-                    account = parts[4]
-                    eks_by_account_region[f"{account}:{region}"].append(uid)
-
-        if not eks_by_account_region:
-            logger.info("EKS worker node edges: no cluster UIDs found in posture_lookup (tenant=%s)", tenant_id)
-            return {}
-
-        # Step 2: Find EC2 instances with EKS nodegroup instance profiles
         with di_conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT DISTINCT resource_uid, region, account_id
-                FROM asset_inventory
-                WHERE tenant_id = %s
-                  AND resource_type LIKE 'ec2%%'
-                  AND resource_uid LIKE 'arn:aws:ec2:%%:instance/%%'
-                  AND (emitted_fields->'IamInstanceProfile'->>'Arn') LIKE '%%instance-profile/eks-%%'
+                SELECT resource_uid
+                FROM resource_security_posture
+                WHERE tenant_id    = %s
+                  AND mfa_enforced  = FALSE
+                  AND resource_uid IS NOT NULL
+                  AND NOT COALESCE(is_attack_entry_point, FALSE)
+                  AND (
+                        resource_type ILIKE '%%iam%%user%%'          -- AWS / GCP IAM user
+                     OR resource_type ILIKE 'identity.user%%'        -- OCI identity.user
+                     OR resource_type ILIKE '%%directory%%user%%'    -- Azure AD user
+                     OR resource_type ILIKE '%%graph%%user%%'        -- Azure MS Graph user
+                     OR resource_type ILIKE '%%entra%%user%%'        -- Azure Entra ID user
+                     OR resource_type ILIKE '%%service_account%%'    -- GCP service account
+                  )
                 """,
                 (tenant_id,),
             )
-            ec2_rows = cur.fetchall()
+            iam_user_uids = [row[0] for row in cur.fetchall()]
 
-        for (ec2_uid, region, account_id) in ec2_rows:
-            key = f"{account_id}:{region}"
-            target_clusters = eks_by_account_region.get(key, [])
-            if target_clusters:
-                edges[ec2_uid] = [
-                    (cls_arn, "worker_node_of", "ec2.instance", "eks.cluster")
-                    for cls_arn in target_clusters
-                ]
-
-        if edges:
-            logger.info(
-                "EKS worker node edges: %d EC2 → %d cluster edges (tenant=%s)",
-                len(edges),
-                sum(len(v) for v in edges.values()),
-                tenant_id,
-            )
+        if iam_user_uids:
+            with di_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE resource_security_posture
+                    SET is_attack_entry_point       = TRUE,
+                        attack_entry_point_category = 'IDENTITY_ENTRY',
+                        updated_at                  = NOW()
+                    WHERE tenant_id    = %s
+                      AND resource_uid = ANY(%s)
+                    """,
+                    (tenant_id, iam_user_uids),
+                )
+                counts["IDENTITY_ENTRY"] = cur.rowcount
+            di_conn.commit()
     except Exception as exc:
-        logger.warning("EKS worker node edge build failed (non-fatal): %s", exc)
-    return edges
+        logger.debug("IDENTITY_ENTRY marking failed (non-fatal): %s", exc)
+        try:
+            di_conn.rollback()
+        except Exception:
+            pass
+
+    # ── CICD_ENTRY / THIRD_PARTY_ENTRY: IAM role trust policies ───────────
+    # Currently AWS-only: reads iam_policy_statements (written by the IAM engine
+    # for AWS IAM roles). Azure Managed Identity federation and GCP Workload Identity
+    # Federation are not yet captured in a shared table — extend the IAM engine to
+    # write their trust configurations when those CSPs are fully supported.
+    try:
+        from engine_common.db_connections import get_iam_conn
+        iam_conn = get_iam_conn()
+        cicd_uids: list = []
+        third_party_uids: list = []
+        try:
+            with iam_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT attached_to_arn, principal_arn
+                    FROM iam_policy_statements
+                    WHERE tenant_id      = %s
+                      AND effect         = 'Allow'
+                      AND attached_to_arn IS NOT NULL
+                      AND principal_arn   IS NOT NULL
+                    """,
+                    (tenant_id,),
+                )
+                for role_arn, principal_arn in cur.fetchall():
+                    p_lower = (principal_arn or "").lower()
+                    # CICD: trust to external OIDC providers
+                    if any(provider in p_lower for provider in _CICD_OIDC_PROVIDERS):
+                        cicd_uids.append(role_arn)
+                    # THIRD_PARTY: cross-account AssumeRole (different AWS account)
+                    elif principal_arn.startswith("arn:aws:iam:"):
+                        role_parts = (role_arn or "").split(":")
+                        princ_parts = principal_arn.split(":")
+                        if (len(role_parts) >= 5 and len(princ_parts) >= 5
+                                and role_parts[4] != princ_parts[4]):
+                            third_party_uids.append(role_arn)
+        finally:
+            iam_conn.close()
+
+        for uids, cat in ((list(set(cicd_uids)), "CICD_ENTRY"),
+                          (list(set(third_party_uids)), "THIRD_PARTY_ENTRY")):
+            if not uids:
+                continue
+            try:
+                with di_conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        UPDATE resource_security_posture
+                        SET is_attack_entry_point       = TRUE,
+                            attack_entry_point_category = %s,
+                            updated_at                  = NOW()
+                        WHERE tenant_id    = %s
+                          AND resource_uid = ANY(%s)
+                          AND NOT COALESCE(is_attack_entry_point, FALSE)
+                        """,
+                        (cat, tenant_id, uids),
+                    )
+                    counts[cat] = cur.rowcount
+                di_conn.commit()
+            except Exception as exc:
+                logger.debug("%s marking failed (non-fatal): %s", cat, exc)
+                try:
+                    di_conn.rollback()
+                except Exception:
+                    pass
+
+    except Exception as exc:
+        logger.debug("IAM trust policy scan unavailable (non-fatal): %s", exc)
+
+    # ── ENDPOINT_AGENT_ENTRY: agent-managed compute (multi-CSP) ──────────
+    # Primary: MANAGED_BY_AGENT edges written by catalog_relationship_writer.
+    #   Active CSP rules (catalog/relationships/{csp}/infrastructure_attachment.yaml):
+    #     AWS:   ssm_describe_instance_information.InstanceId → ec2_instance
+    #     Azure: hybridcompute_machine (when Arc discovery YAML is added)
+    #     GCP:   osconfig_inventory → compute.instance (when OS Config YAML added)
+    #     OCI:   managementagent_management_agent → compute.instance (when agent YAML added)
+    # Secondary: direct asset_inventory query for CSP-specific agent resource types
+    #   where the agent resource IS the compute endpoint (Azure Arc, GCP OS Config).
+    try:
+        agent_managed_uids: list = []
+        with di_conn.cursor() as cur:
+            # Primary: catalog-driven MANAGED_BY_AGENT edges (all CSPs)
+            cur.execute(
+                """
+                SELECT DISTINCT target_uid
+                FROM asset_relationships
+                WHERE tenant_id   = %s
+                  AND relation_type = 'MANAGED_BY_AGENT'
+                  AND target_uid IS NOT NULL
+                """,
+                (tenant_id,),
+            )
+            agent_managed_uids = [row[0] for row in cur.fetchall()]
+
+            if not agent_managed_uids:
+                # Secondary: CSPs where the agent resource IS the compute endpoint.
+                # Azure Arc machines are the managed servers themselves.
+                # GCP/OCI agent inventory rows ARE the managed instances.
+                cur.execute(
+                    """
+                    SELECT DISTINCT resource_uid
+                    FROM asset_inventory
+                    WHERE tenant_id = %s
+                      AND resource_uid IS NOT NULL
+                      AND resource_type = ANY(%s)
+                    """,
+                    (tenant_id, [
+                        "hybridcompute.machine",            # Azure Arc connected machine
+                        "hybridcompute_machine",            # (underscore-normalized variant)
+                        "managementagent.management_agent", # OCI management agent host
+                        "managementagent_management_agent", # (underscore-normalized)
+                        "osconfig.inventory",               # GCP OS Config inventory
+                        "osconfig_inventory",               # (underscore-normalized)
+                    ]),
+                )
+                agent_managed_uids = [row[0] for row in cur.fetchall()]
+
+        if agent_managed_uids:
+            with di_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE resource_security_posture
+                    SET is_attack_entry_point       = TRUE,
+                        attack_entry_point_category = 'ENDPOINT_AGENT_ENTRY',
+                        updated_at                  = NOW()
+                    WHERE tenant_id    = %s
+                      AND resource_uid = ANY(%s)
+                      AND NOT COALESCE(is_attack_entry_point, FALSE)
+                    """,
+                    (tenant_id, agent_managed_uids),
+                )
+                counts["ENDPOINT_AGENT_ENTRY"] = cur.rowcount
+            di_conn.commit()
+    except Exception as exc:
+        logger.debug("ENDPOINT_AGENT_ENTRY marking failed (non-fatal): %s", exc)
+        try:
+            di_conn.rollback()
+        except Exception:
+            pass
+
+    # ── INTERNAL_WORKLOAD_ENTRY: privileged pods ───────────────────────────
+    try:
+        from engine_common.db_connections import get_container_conn
+        container_conn = get_container_conn()
+        workload_uids: list = []
+        try:
+            with container_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT resource_uid
+                    FROM container_security_findings
+                    WHERE tenant_id  = %s
+                      AND LOWER(rule_id) LIKE '%%privileged%%'
+                      AND LOWER(status) = 'open'
+                      AND resource_uid IS NOT NULL
+                    """,
+                    (tenant_id,),
+                )
+                workload_uids = [row[0] for row in cur.fetchall()]
+        finally:
+            container_conn.close()
+
+        if workload_uids:
+            with di_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE resource_security_posture
+                    SET is_attack_entry_point       = TRUE,
+                        attack_entry_point_category = 'INTERNAL_WORKLOAD_ENTRY',
+                        updated_at                  = NOW()
+                    WHERE tenant_id    = %s
+                      AND resource_uid = ANY(%s)
+                      AND NOT COALESCE(is_attack_entry_point, FALSE)
+                    """,
+                    (tenant_id, workload_uids),
+                )
+                counts["INTERNAL_WORKLOAD_ENTRY"] = cur.rowcount
+            di_conn.commit()
+    except Exception as exc:
+        logger.debug("INTERNAL_WORKLOAD_ENTRY marking failed (non-fatal): %s", exc)
+        try:
+            di_conn.rollback()
+        except Exception:
+            pass
+
+    return counts
+
+
 
 
 def run_attack_path_scan(
@@ -488,13 +570,12 @@ def run_attack_path_scan(
     }
 
     # ── DB connections ────────────────────────────────────────────────────────
-    from engine_common.db_connections import get_attack_path_conn, get_di_conn, get_inventory_conn
+    from engine_common.db_connections import get_attack_path_conn, get_di_conn
 
     attack_path_conn = get_attack_path_conn()
-    # DI conn: reads/writes resource_security_posture and security_findings (now in DI DB)
+    # DI conn: all graph data (asset_relationships, asset_inventory, resource_security_posture)
+    # lives in threat_engine_di since inventory engine was retired 2026-05-27.
     di_conn = get_di_conn()
-    # inventory_conn: only for inventory_relationships graph topology (pg_graph)
-    inventory_conn = get_inventory_conn()
 
     # Threat DB connection — for reading threat_scenario_incidents.
     # Falls back to None if env vars not set (enrichment skipped gracefully).
@@ -562,19 +643,75 @@ def run_attack_path_scan(
         _jlog("crown_jewels_classified", count=cj_count, scan_run_id=scan_run_id)
 
         # ── Stage 2a-pre: Write is_internet_exposed from discovery data ─────────
-        # Reads discovery_findings.emitted_fields for public indicators
-        # (PublicIpAddress, PubliclyAccessible, Scheme=internet-facing, FunctionUrl)
-        # and upserts is_internet_exposed=true into resource_security_posture (DI DB).
-        # This runs BEFORE the BFS lookup so the BFS immediately sees real entry points
-        # without requiring the network engine to have written to posture first.
+        # Reads emitted_fields for public indicators and upserts is_internet_exposed=true.
         _jlog("stage", name="internet_exposed_mark", scan_run_id=scan_run_id)
         marked_count = _mark_internet_exposed_from_discoveries(di_conn, tenant_id, scan_run_id)
         _jlog("internet_exposed_marked", count=marked_count, scan_run_id=scan_run_id)
 
-        # ── Stage 2a: Fetch internet-exposed UIDs from resource_security_posture ─
-        _jlog("stage", name="internet_exposed_lookup", scan_run_id=scan_run_id)
-        internet_exposed_uids = _fetch_internet_exposed_uids(di_conn, tenant_id)
-        _jlog("internet_exposed_uids", count=len(internet_exposed_uids), scan_run_id=scan_run_id)
+        # ── Stage 2a-pre2b: Mark non-internet attack entry points ─────────────
+        # Detects and marks IDENTITY_ENTRY (IAM users without MFA), CICD_ENTRY
+        # (OIDC trust roles), THIRD_PARTY_ENTRY (cross-account roles),
+        # ENDPOINT_AGENT_ENTRY (SSM-managed EC2), INTERNAL_WORKLOAD_ENTRY
+        # (privileged pods). All non-fatal per category.
+        _jlog("stage", name="non_internet_entry_mark", scan_run_id=scan_run_id)
+        try:
+            entry_counts = _mark_non_internet_entry_points(di_conn, tenant_id)
+            _jlog(
+                "non_internet_entry_marked",
+                scan_run_id=scan_run_id,
+                identity=entry_counts.get("IDENTITY_ENTRY", 0),
+                cicd=entry_counts.get("CICD_ENTRY", 0),
+                third_party=entry_counts.get("THIRD_PARTY_ENTRY", 0),
+                endpoint_agent=entry_counts.get("ENDPOINT_AGENT_ENTRY", 0),
+                internal_workload=entry_counts.get("INTERNAL_WORKLOAD_ENTRY", 0),
+            )
+        except Exception as _ep_err:
+            logger.warning("Non-internet entry point marking failed (non-fatal): %s", _ep_err)
+
+        # ── Stage 2a: Fetch ALL attack entry point UIDs with categories ─────────
+        # Returns Dict[uid → category] merging all entry types.
+        # internet_exposed_uids is kept as the variable name for call-site compat.
+        _jlog("stage", name="entry_point_lookup", scan_run_id=scan_run_id)
+        entry_categories_map = _fetch_attack_entry_uids(di_conn, tenant_id)
+        internet_exposed_uids = list(entry_categories_map.keys())
+        _jlog(
+            "entry_point_uids",
+            scan_run_id=scan_run_id,
+            total=len(internet_exposed_uids),
+            internet=sum(1 for c in entry_categories_map.values() if c == "INTERNET_ENTRY"),
+            identity=sum(1 for c in entry_categories_map.values() if c == "IDENTITY_ENTRY"),
+            cicd=sum(1 for c in entry_categories_map.values() if c == "CICD_ENTRY"),
+            third_party=sum(1 for c in entry_categories_map.values() if c == "THIRD_PARTY_ENTRY"),
+            endpoint_agent=sum(1 for c in entry_categories_map.values() if c == "ENDPOINT_AGENT_ENTRY"),
+            internal_workload=sum(1 for c in entry_categories_map.values() if c == "INTERNAL_WORKLOAD_ENTRY"),
+        )
+
+        # ── Stage 2a-pre2: Attack edge validators ──────────────────────────────
+        # Reads asset_relationships + posture and writes is_attack_edge=TRUE rows
+        # for CAN_REACH, CAN_INVOKE, CAN_USE_IDENTITY, CAN_ASSUME, CAN_READ, etc.
+        # Non-fatal — validators do not block BFS if they fail.
+        _jlog("stage", name="attack_edge_validators", scan_run_id=scan_run_id)
+        try:
+            from .validators import run_all_validators
+            val_results = run_all_validators(
+                di_conn=di_conn,
+                scan_run_id=scan_run_id,
+                tenant_id=tenant_id,
+                account_id=account_id,
+                provider=provider,
+            )
+            _jlog(
+                "attack_edge_validators_complete",
+                scan_run_id=scan_run_id,
+                internet_reachability=val_results.get("internet_reachability", 0),
+                service_chain=val_results.get("service_chain", 0),
+                identity_usage=val_results.get("identity_usage", 0),
+                assume_role=val_results.get("assume_role", 0),
+                data_access=val_results.get("data_access", 0),
+                total=sum(val_results.values()),
+            )
+        except Exception as _val_err:
+            logger.warning("Attack edge validators failed (non-fatal): %s", _val_err)
 
         # ── Stage 3: Fetch posture_lookup ────────────────────────────────────
         # Loaded BEFORE BFS so pg_graph can use is_crown_jewel from posture.
@@ -582,35 +719,20 @@ def run_attack_path_scan(
         posture_lookup = _build_posture_lookup(di_conn, scan_run_id, tenant_id)
         _jlog("posture_lookup_built", entries=len(posture_lookup), scan_run_id=scan_run_id)
 
-        # ── Stage 2b-pre: IAM permission edges (synthetic graph enrichment) ────
-        # Reads iam_policy_statements to build IAM role → crown jewel edges.
-        # Attack path enabled: Internet → EC2 → (has_role) → IAM role → (grants_access_to) → Crown Jewel
-        _jlog("stage", name="iam_permission_edges", scan_run_id=scan_run_id)
-        iam_extra_edges = _build_iam_permission_edges(tenant_id, posture_lookup, scan_run_id)
-        _jlog("iam_permission_edges_built", synthetic_edges=sum(len(v) for v in iam_extra_edges.values()),
-              roles_with_access=len(iam_extra_edges), scan_run_id=scan_run_id)
-
-        # ── Stage 2b-pre3: EKS worker node edges (topology bridge) ──────────────
-        # Reconstructs EC2 → EKS cluster worker_node_of edges that the inventory
-        # engine does not write. Without these, internet-exposed EKS worker nodes
-        # have no path to the EKS crown jewel in the pg BFS graph.
-        _jlog("stage", name="eks_worker_edges", scan_run_id=scan_run_id)
-        eks_worker_edges = _build_eks_worker_node_edges(di_conn, tenant_id, internet_exposed_uids, posture_lookup=posture_lookup)
-        for ec2_uid, worker_edges in eks_worker_edges.items():
-            iam_extra_edges.setdefault(ec2_uid, []).extend(worker_edges)
-        _jlog("eks_worker_edges_merged", ec2_worker_nodes=len(eks_worker_edges), scan_run_id=scan_run_id)
-
         # ── Stage 2b: PostgreSQL BFS (primary) ───────────────────────────────
-        # Reads inventory_relationships directly — no Neo4j dependency.
+        # asset_relationships is in threat_engine_di (di_conn) since inventory DB retired.
+        # IAM policy edges and EKS worker_node_of edges are now written to asset_relationships
+        # as validated edges (is_attack_edge=TRUE) by iam_policy + eks_worker validators above,
+        # so no synthetic extra_edges are needed here.
         _jlog("stage", name="pg_bfs", scan_run_id=scan_run_id)
         from .graph.pg_graph import run_pg_bfs
         raw_paths = run_pg_bfs(
-            inventory_conn=inventory_conn,
+            inventory_conn=di_conn,
             tenant_id=tenant_id,
             scan_run_id=scan_run_id,
             internet_exposed_uids=internet_exposed_uids,
             posture_lookup=posture_lookup,
-            extra_edges=iam_extra_edges if iam_extra_edges else None,
+            entry_categories=entry_categories_map,
         )
         _jlog("pg_bfs_complete", raw_paths=len(raw_paths), scan_run_id=scan_run_id)
 
@@ -731,6 +853,25 @@ def run_attack_path_scan(
             scan_run_id=scan_run_id,
         )
 
+        # ── Stage 5b: Quality cap — keep top-N by criticality score ──────────
+        # BFS may generate thousands of paths in large environments. After 3-phase
+        # dedup collapses equivalent exposures, we rank survivors by path_score and
+        # keep the highest-scoring MAX_WRITE_PATHS. This ensures the DB always
+        # contains the most critical paths, not just the first N found by BFS order.
+        MAX_WRITE_PATHS = 500
+        if len(final_paths) > MAX_WRITE_PATHS:
+            pre_cap = len(final_paths)
+            final_paths = sorted(final_paths, key=lambda p: p.path_score, reverse=True)[:MAX_WRITE_PATHS]
+            metrics["final_path_count"] = len(final_paths)
+            metrics["critical_path_count"] = sum(1 for p in final_paths if (p.severity or "").upper() == "CRITICAL")
+            _jlog(
+                "quality_cap_applied",
+                scan_run_id=scan_run_id,
+                before=pre_cap,
+                kept=len(final_paths),
+                pruned=pre_cap - len(final_paths),
+            )
+
         # ── Stage 6: Choke point detection ───────────────────────────────────
         _jlog("stage", name="choke_detect", scan_run_id=scan_run_id)
         from .core.choke_point_detector import detect_choke_points
@@ -812,10 +953,6 @@ def run_attack_path_scan(
             pass
         try:
             di_conn.close()
-        except Exception:
-            pass
-        try:
-            inventory_conn.close()
         except Exception:
             pass
         if threat_conn:

@@ -41,13 +41,21 @@ logger = logging.getLogger("attack-path.scorer")
 # Entry point base probabilities (architecture doc section 5.2)
 # ---------------------------------------------------------------------------
 _ENTRY_BASE_P: Dict[str, float] = {
-    "internet":     0.90,
-    "onprem":       0.70,
-    "datacenter":   0.70,
-    "vpn":          0.60,
-    "vendor":       0.50,
-    "k8s_external": 0.50,
-    "peer_account": 0.40,
+    # Network-facing entry points
+    "internet":          0.90,
+    "onprem":            0.70,
+    "datacenter":        0.70,
+    "vpn":               0.60,
+    "k8s_external":      0.50,
+    "vendor":            0.50,
+    "peer_account":      0.40,
+    # Identity / credential entry points
+    "identity":          0.75,   # IAM user with no MFA + active access keys
+    "cicd":              0.70,   # GitHub Actions / CI/CD OIDC role (external trust)
+    "third_party":       0.65,   # Cross-account SaaS integration role
+    "endpoint_agent":    0.65,   # SSM-managed EC2 (StartSession = shell access)
+    # Internal pivot entry points
+    "compute":           0.60,   # Compromised pod / internal workload
 }
 _DEFAULT_BASE_P = 0.50
 
@@ -97,6 +105,91 @@ _DATA_CLASS_MULT: Dict[str, float] = {
     "internal":    1.00,
     "public":      0.80,
 }
+
+# ---------------------------------------------------------------------------
+# Business impact type taxonomy — what happens when an attacker reaches the target
+# ---------------------------------------------------------------------------
+_IMPACT_TYPE_WEIGHT: Dict[str, float] = {
+    "DataExposure":           1.00,   # Customer data, PII, financial records exfiltrated
+    "SecretExposure":         0.95,   # Secrets, API keys, KMS keys compromised
+    "PrivilegeTakeover":      0.90,   # IAM role / admin account fully controlled
+    "InfrastructureTakeover": 0.85,   # AWS account admin / root compromised
+    "BusinessDisruption":     0.85,   # Production cluster taken down (availability impact)
+    "ServiceControl":         0.80,   # K8s/EKS API control (deploy malware, exfil from pods)
+}
+
+# Map crown_jewel_type → base impact type when access_capability is not definitive
+_CJ_TYPE_TO_IMPACT: Dict[str, str] = {
+    "data":               "DataExposure",
+    "data_warehouse":     "DataExposure",
+    "ai_model":           "DataExposure",
+    "secrets":            "SecretExposure",
+    "encryption_control": "SecretExposure",
+    "identity":           "PrivilegeTakeover",
+    "infra_control":      "InfrastructureTakeover",
+    "code":               "ServiceControl",
+}
+
+# EKS / K8s resource type prefixes — distinguish ServiceControl vs BusinessDisruption
+_K8S_PREFIXES = ("eks.", "k8s.", "kubernetes.", "aks.", "gke.", "oke.", "container.cluster")
+
+# Access capabilities that imply destructive / availability impact → BusinessDisruption
+_DESTRUCTIVE_CAPS = frozenset({"can_delete", "can_disrupt", "can_terminate", "can_stop"})
+
+# Entry category → display label for chain_type strings
+_ENTRY_CAT_LABELS: Dict[str, str] = {
+    "INTERNET_ENTRY":          "Internet",
+    "IDENTITY_ENTRY":          "Identity",
+    "CICD_ENTRY":              "CI/CD",
+    "THIRD_PARTY_ENTRY":       "Third Party",
+    "INTERNAL_WORKLOAD_ENTRY": "Internal Workload",
+    "ENDPOINT_AGENT_ENTRY":    "Endpoint Agent",
+}
+
+# Impact type → human-friendly display label
+_IMPACT_TYPE_DISPLAY: Dict[str, str] = {
+    "DataExposure":           "Data Exposure",
+    "SecretExposure":         "Secret Exposure",
+    "PrivilegeTakeover":      "Privilege Takeover",
+    "InfrastructureTakeover": "Infrastructure Takeover",
+    "BusinessDisruption":     "Business Disruption",
+    "ServiceControl":         "Service Control",
+}
+
+# entry_point_category → key in _ENTRY_BASE_P
+_CAT_TO_EP_TYPE: Dict[str, str] = {
+    "INTERNET_ENTRY":          "internet",
+    "IDENTITY_ENTRY":          "identity",
+    "CICD_ENTRY":              "cicd",
+    "THIRD_PARTY_ENTRY":       "third_party",
+    "INTERNAL_WORKLOAD_ENTRY": "compute",
+    "ENDPOINT_AGENT_ENTRY":    "endpoint_agent",
+}
+
+
+def _compute_impact_type(
+    crown_jewel_type: str,
+    crown_jewel_uid: str,
+    access_capability: str,
+    posture_lookup: Dict[str, "PostureRow"],
+) -> str:
+    """Derive business impact type from technical crown jewel class and access capability.
+
+    Rules (in priority order):
+      1. EKS / K8s clusters: destructive capability → BusinessDisruption; else ServiceControl.
+      2. crown_jewel_type lookup → _CJ_TYPE_TO_IMPACT.
+      3. Default: DataExposure.
+    """
+    cj_type = (crown_jewel_type or "").lower()
+    cap = (access_capability or "").lower()
+    cp = posture_lookup.get(crown_jewel_uid or "")
+    rtype = (cp.resource_type if cp else "").lower()
+
+    if any(rtype.startswith(pfx) for pfx in _K8S_PREFIXES):
+        return "BusinessDisruption" if cap in _DESTRUCTIVE_CAPS else "ServiceControl"
+
+    return _CJ_TYPE_TO_IMPACT.get(cj_type, "DataExposure")
+
 
 # ---------------------------------------------------------------------------
 # Edge semantic probability boosts — applied when the outgoing edge from a hop
@@ -160,8 +253,15 @@ def probability_score(
     entry_uid = path.entry_point_uid or ""
     entry_posture = posture_lookup.get(entry_uid)
     entry_type = (entry_posture.entry_point_type if entry_posture else "") or ""
-    if not entry_type and path.node_types:
+
+    # entry_point_category (set by pg_graph) takes priority for new entry types —
+    # maps directly to the expanded _ENTRY_BASE_P keys.
+    entry_cat = getattr(path, "entry_point_category", "") or ""
+    if entry_cat and entry_cat in _CAT_TO_EP_TYPE:
+        entry_type = _CAT_TO_EP_TYPE[entry_cat]
+    elif not entry_type and path.node_types:
         entry_type = path.node_types[0]
+
     p = _ENTRY_BASE_P.get(entry_type.lower(), _DEFAULT_BASE_P)
 
     # Step 2+3+4: Per-hop loop — posture signals + CDR/MITRE signals + edge semantics
@@ -239,10 +339,14 @@ def impact_score(path: RawPath, posture_lookup: Dict[str, PostureRow]) -> float:
     """
     crown_uid = path.crown_jewel_uid or ""
     crown_posture = posture_lookup.get(crown_uid)
-
-    # Crown jewel type base impact
     crown_type = (crown_posture.crown_jewel_type if crown_posture else "") or ""
-    i = _CJ_TYPE_IMPACT.get(crown_type, _DEFAULT_CJ_IMPACT)
+
+    # Derive business impact type for richer weight lookup
+    access_cap = path.edge_types[-1] if path.edge_types else ""
+    impact_type = _compute_impact_type(crown_type, crown_uid, access_cap, posture_lookup)
+
+    # Impact type weight takes precedence; fall back to technical crown_jewel_type weight
+    i = _IMPACT_TYPE_WEIGHT.get(impact_type, _CJ_TYPE_IMPACT.get(crown_type, _DEFAULT_CJ_IMPACT))
 
     if crown_posture:
         # Data classification multiplier
@@ -282,28 +386,37 @@ def severity_bucket(score: int) -> str:
 
 
 def _chain_type(path: RawPath, posture_lookup: Dict[str, PostureRow]) -> str:
-    """Build a human-readable chain type label like 'Internet → Data'.
+    """Build a human-readable chain type label like 'Identity → Secret Exposure'.
 
-    Entry label priority: posture entry_point_type → hop_categories[0] from BFS.
-    hop_categories[0] is derived by the BFS Cypher from node labels (internet/virtual/compute)
-    and is always more accurate than node_types[0] (which gives raw class names like VirtualNode).
+    Entry label priority:
+      1. entry_point_category (set by pg_graph from attack_entry_point_category in posture)
+      2. posture entry_point_type
+      3. hop_categories[0] from BFS
 
-    Crown label: posture crown_jewel_type only — no fallback. If the crown jewel
-    is not in posture_lookup the label is left empty so chain_type shows the gap
-    rather than masking it with a misleading default like "Asset".
+    Crown label: business impact type derived from crown_jewel_type + access_capability.
+    e.g., "Data Exposure", "Privilege Takeover", "Service Control".
     """
     entry_uid = path.entry_point_uid or ""
     ep = posture_lookup.get(entry_uid)
-    if ep and ep.entry_point_type:
+
+    # Priority 1: entry_point_category → ENTRY_CAT_LABELS
+    entry_cat = getattr(path, "entry_point_category", "") or ""
+    if entry_cat and entry_cat in _ENTRY_CAT_LABELS:
+        entry_label = _ENTRY_CAT_LABELS[entry_cat]
+    elif ep and ep.entry_point_type:
         entry_label = ep.entry_point_type.lower().capitalize()
     elif path.hop_categories:
         entry_label = path.hop_categories[0].capitalize()
     else:
         entry_label = "Unknown"
 
+    # Crown label: business impact type
     crown_uid = path.crown_jewel_uid or ""
     cp = posture_lookup.get(crown_uid)
-    crown_label = (cp.crown_jewel_type or "").replace("_", " ").title() if cp else ""
+    crown_type = (cp.crown_jewel_type if cp else "") or ""
+    access_cap = path.edge_types[-1] if path.edge_types else ""
+    impact_type = _compute_impact_type(crown_type, crown_uid, access_cap, posture_lookup)
+    crown_label = _IMPACT_TYPE_DISPLAY.get(impact_type, crown_type.replace("_", " ").title())
 
     return f"{entry_label} → {crown_label}"
 
@@ -353,6 +466,12 @@ def score_paths(
         cp2 = posture_lookup.get(raw.crown_jewel_uid or "")
         cj_type = (cp2.crown_jewel_type if cp2 else "") or ""
 
+        # Derive business impact type for display and BFF grouping
+        access_cap_raw = raw.edge_types[-1] if raw.edge_types else ""
+        attack_impact_type = _compute_impact_type(
+            cj_type, raw.crown_jewel_uid or "", access_cap_raw, posture_lookup
+        )
+
         sp = ScoredPath(
             **raw.model_dump(),
             probability_score=p,
@@ -364,6 +483,7 @@ def score_paths(
             crown_jewel_type=cj_type,
             data_classification=data_class,
             has_active_cdr_actor=has_cdr,
+            attack_impact_type=attack_impact_type,
         )
         scored.append(sp)
     return scored

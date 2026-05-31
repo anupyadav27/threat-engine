@@ -86,6 +86,26 @@ _SENSITIVE_CM_PATTERNS = ("password", "secret", "token", "key", "credential", "c
 _BARE_KEY_BLOCKLIST: frozenset = frozenset({
     "resource", "action", "config", "image", "lambda", "recipe",
     "indexe", "kms",
+    # Generic names used by many services — only service-qualified forms should match.
+    # e.g. "opensearch.domain" = valid CJ; bare "domain" from apigateway/route53 = not a CJ.
+    "domain", "key", "policy", "certificate",
+})
+
+# Compound resource types that are sub-resources / metadata — not data stores or secrets.
+# Both underscore and dot forms are listed because asset_inventory stores either convention.
+# The denylist is checked against both rtype and rtype_dot in _auto_classify().
+_COMPOUND_TYPE_DENYLIST: frozenset = frozenset({
+    # TLS certs / CA bundles
+    "rds_certificate", "rds.certificate",
+    "acm_certificate", "acm.certificate",
+    "kms_certificate", "kms.certificate",
+    # Sub-resource metadata
+    "key_rotation_status", "key.rotation.status",
+    "key_policy", "key.policy",
+    # RDS operational sub-resources (not data stores)
+    "rds_db_recommendation", "rds.db.recommendation",
+    "rds_db_snapshot", "rds.db.snapshot",
+    "rds_db_cluster_snapshot", "rds.db.cluster.snapshot",
 })
 
 # ---------------------------------------------------------------------------
@@ -196,6 +216,11 @@ class CrownJewelClassifier:
         # dynamodb.table (dot); catalog keys include both forms after _load_from_di_catalog.
         rtype_dot = rtype.replace("_", ".")
 
+        # Reject known false-positive compound types (TLS certs, rotation metadata, etc.)
+        # Check both underscore and dot forms — asset_inventory uses either convention.
+        if rtype in _COMPOUND_TYPE_DENYLIST or rtype_dot in _COMPOUND_TYPE_DENYLIST:
+            return None
+
         # Conditional rules — which resource types undergo these checks is driven
         # by di_resource_catalog.subcategory via _CONDITIONAL_SUBCATEGORIES.
         condition = self._conditional_types.get(rtype) or self._conditional_types.get(rtype_dot)
@@ -272,6 +297,11 @@ class CrownJewelClassifier:
             logger.warning("posture_writer not available — skipping posture update for uid=%s", uid)
             return
 
+        # Derive provider from the resource's own asset_inventory.provider field so that
+        # a GCP/K8s scan does not overwrite AWS ARNs with the wrong provider in RSP.
+        # ARN prefix is the authoritative fallback — it cannot be wrong.
+        resource_provider = self._derive_provider(uid, resource.get("provider") or "")
+
         try:
             upsert_posture_signals(
                 self.inventory_conn,
@@ -279,7 +309,7 @@ class CrownJewelClassifier:
                 scan_run_id=self.scan_run_id,
                 tenant_id=self.tenant_id,    # from scan context, NOT from resource props (AC-16)
                 account_id=self.account_id,
-                provider=self.provider,
+                provider=resource_provider,
                 resource_type=resource.get("resource_type") or "",
                 region=resource.get("region"),
                 resource_name=resource.get("name") or resource.get("resource_name"),
@@ -293,6 +323,23 @@ class CrownJewelClassifier:
                 self.inventory_conn.rollback()
             except Exception:
                 pass
+
+    @staticmethod
+    def _derive_provider(uid: str, resource_provider: str) -> str:
+        """Return the correct CSP provider for a resource_uid.
+
+        ARN prefix is authoritative — it cannot be forged by scan context.
+        Falls back to the asset_inventory.provider field, then empty string.
+        """
+        if uid.startswith("arn:aws:"):
+            return "aws"
+        if uid.startswith("/subscriptions/"):
+            return "azure"
+        if uid.startswith("projects/") or uid.startswith("//"):
+            return "gcp"
+        if uid.startswith("ocid1."):
+            return "oci"
+        return resource_provider or ""
 
     def _load_from_di_catalog(self) -> None:
         """Populate three runtime lookups from di_resource_catalog in threat_engine_di.

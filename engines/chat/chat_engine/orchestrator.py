@@ -99,7 +99,8 @@ Your approach:
 1. Read the user's question carefully
 2. Call ONLY the most relevant specialist(s) — typically 1-3 for a focused question, up to 4 for broad overviews
 3. Each specialist performs their own deep analysis using live platform data
-4. Synthesize their results into a clear, concise, actionable answer
+4. Output the specialist's answer — preserve ALL markdown formatting exactly (## headers, tables, bullet lists, bold numbers). Do NOT rewrite, paraphrase, or add prose around pre-formatted responses. If a specialist already returned a structured answer with tables or headers, output it verbatim.
+5. Only synthesize/combine when multiple specialists responded and their answers need to be merged.
 
 Available specialists:
 {specialist_list}
@@ -205,6 +206,15 @@ def _persist_message(
 
 def _sse(event: Dict) -> str:
     return f"data: {json.dumps(event)}\n\n"
+
+
+def _stream_text(text: str, chunk_size: int = 80) -> List[str]:
+    """Split text into word-boundary chunks for streaming."""
+    chunks = []
+    while text:
+        chunks.append(text[:chunk_size])
+        text = text[chunk_size:]
+    return chunks
 
 
 # ── Specialist runner ──────────────────────────────────────────────────────────
@@ -342,6 +352,15 @@ async def run_agent(
                     "summary": result["answer"][:200],  # short preview
                 })
 
+            # If this specialist returned pre-formatted markdown, stream it directly
+            # and skip the synthesis LLM call entirely.
+            answer_text = result.get("answer", "")
+            if answer_text.lstrip().startswith("##"):
+                for chunk in _stream_text(answer_text):
+                    full_text += chunk
+                    yield _sse({"type": "token", "content": chunk})
+                break
+
             tool_results.append({
                 "toolResult": {
                     "toolUseId": tool_use_id,
@@ -349,6 +368,8 @@ async def run_agent(
                 }
             })
 
+        if full_text:
+            break
         messages.append({"role": "user", "content": tool_results})
 
     # ── Fallback streaming if tool loop exhausted without final answer ────────

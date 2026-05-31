@@ -1,8 +1,6 @@
 """
 Attack Path Engine — Three-Phase Deduplicator.
 
-Architecture doc section 6 — implementation matches exactly.
-
 Phase 1: Exact dedup by sha256("|".join(node_uids)).
          On collision, highest-scoring path wins.
 
@@ -12,10 +10,17 @@ Phase 2: Subpath absorption.
            - the short path's entry node is NOT independently internet-exposed
              (posture_lookup[entry_uid].is_internet_exposed == False).
 
-Phase 3: Convergence grouping.
-         Paths with the same (crown_jewel_uid, tuple(node_types[-2:])) share a group_id.
-         is_representative=True for the highest-scoring path in each group.
-         choke_node_uid = node_uids[-2] of the shared tail (penultimate node).
+Phase 3: Exposure-Key grouping.
+         Groups paths by (crown_jewel_uid, effective_access_principal, access_capability).
+         effective_access_principal = node_uids[-2] — the last principal before the target.
+         access_capability          = edge_types[-1] — the final access edge (can_read, etc.).
+
+         This correctly groups: "ALB→EC2→AppRole→S3" and "APIGW→Lambda→AppRole→S3"
+         (same exposure: AppRole reads S3) while keeping "Lambda→AdminRole→S3" separate
+         (different principal → different blast radius).
+
+         is_representative=True for highest-scoring path in each group.
+         choke_node_uid = effective_access_principal (the privilege node blocking all routes).
 
 Security notes:
   - Phase 2 independence check uses posture_lookup (DB-sourced) — NEVER trusts
@@ -41,10 +46,17 @@ def _path_id(node_uids: List[str]) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def _group_key_hash(crown_jewel_uid: str, last_two_types: tuple) -> str:
-    """Compute group_id as first 12 chars of sha256 of the group key."""
-    key_str = str((crown_jewel_uid, last_two_types))
-    return hashlib.sha256(key_str.encode()).hexdigest()[:12]
+def _exposure_key(crown_jewel_uid: str, effective_principal: Optional[str], access_cap: Optional[str]) -> str:
+    """Compute group_id as first 16 chars of sha256(target|principal|capability).
+
+    Groups paths by WHO can reach WHAT via WHICH capability, not by route.
+    Two paths reaching the same crown jewel via the same role + same edge type
+    share an exposure key regardless of how many different entry-point routes exist.
+    """
+    principal = effective_principal or ""
+    cap = (access_cap or "unknown").lower()
+    key_str = f"{crown_jewel_uid}|{principal}|{cap}"
+    return hashlib.sha256(key_str.encode()).hexdigest()[:16]
 
 
 def is_suffix(short: List[str], long: List[str]) -> bool:
@@ -79,6 +91,10 @@ def deduplicate(
     paths: List[Path] = []
     for sp in scored_paths:
         pid = _path_id(sp.node_uids)
+        # Effective access principal = last node before crown jewel (node_uids[-2])
+        # Access capability = final edge type (edge_types[-1])
+        effective_principal = sp.node_uids[-2] if len(sp.node_uids) >= 2 else None
+        access_cap = sp.edge_types[-1].lower() if sp.edge_types else None
         paths.append(Path(
             **sp.model_dump(),
             path_id=pid,
@@ -87,6 +103,8 @@ def deduplicate(
             is_representative=True,
             choke_node_uid=None,
             absorbed_count=0,
+            effective_access_principal=effective_principal,
+            access_capability=access_cap,
         ))
 
     # ── Phase 1: Exact dedup ───────────────────────────────────────────────────
@@ -138,25 +156,23 @@ def deduplicate(
     paths = [p for idx, p in enumerate(paths) if not absorbed_flags[idx]]
     logger.debug("Dedup Phase 2 (subpath absorption): %d paths remaining", len(paths))
 
-    # ── Phase 3: Convergence grouping ─────────────────────────────────────────
-    # Group key = (crown_jewel_uid, tuple(node_types[-2:]))
+    # ── Phase 3: Exposure-Key grouping ────────────────────────────────────────
+    # Group key = hash(crown_jewel_uid | effective_access_principal | access_capability)
+    # Paths that reach the same crown jewel via the same privilege principal and
+    # the same capability are the same exposure — regardless of their entry route.
     groups: Dict[str, List[int]] = {}
     for idx, p in enumerate(paths):
-        last_two = tuple((p.node_types or [])[-2:]) if len(p.node_types or []) >= 2 else tuple()
-        key_hash = _group_key_hash(p.crown_jewel_uid, last_two)
+        key_hash = _exposure_key(p.crown_jewel_uid, p.effective_access_principal, p.access_capability)
         groups.setdefault(key_hash, []).append(idx)
 
     for group_id, idxs in groups.items():
-        # Find highest-scoring path in group (representative)
         best_idx = max(idxs, key=lambda i: paths[i].path_score)
         group_size = len(idxs)
 
-        # choke_node_uid = node_uids[-2] of the representative path (penultimate node)
-        # for groups with > 1 path; None for single-path groups
+        # choke_node_uid = effective_access_principal of the representative path.
+        # This is the privilege node that, if remediated, blocks ALL routes in the group.
         best_path = paths[best_idx]
-        choke = None
-        if group_size > 1 and best_path.node_uids and len(best_path.node_uids) >= 2:
-            choke = best_path.node_uids[-2]
+        choke = best_path.effective_access_principal if group_size > 1 else None
 
         for idx in idxs:
             p = paths[idx]

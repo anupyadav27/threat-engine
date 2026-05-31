@@ -15,6 +15,8 @@ import PageLayout from '@/components/shared/PageLayout';
 import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiCard from '@/components/shared/KpiCard';
 import IdentityRiskHeatmap from '@/components/cdr/IdentityRiskHeatmap';
+import CorrelationTimeline from '@/components/cdr/CorrelationTimeline';
+import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 import DataTable from '@/components/shared/DataTable';
 
 const C = {
@@ -207,8 +209,9 @@ function IdentityRiskTable({ identities, filters, onIdentityClick }) {
 export default function CiemPage() {
   const router = useRouter();
   const { data, loading, error, refetch } = useViewFetch('cdr');
-  const [heatmapData, setHeatmapData] = useState({ matrix: [], accounts: [], principal_types: [] });
-  const [filters, setFilters] = useState({});
+  const [heatmapData, setHeatmapData]     = useState({ matrix: [], accounts: [], principal_types: [] });
+  const [filters, setFilters]             = useState({});
+  const [selectedFinding, setSelectedFinding] = useState(null);
 
   useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
@@ -223,6 +226,8 @@ export default function CiemPage() {
   const identities   = data.identities   || [];
   const topRules     = data.topRules     || [];
   const logSources   = data.logSources   || [];
+  const seqDetect    = data.sequenceDetections || { findings: [], total: 0, has_critical: false };
+  const sequenceFindings = seqDetect.findings || [];
 
   useEffect(() => {
     fetchView('cdr/heatmap').then(result => {
@@ -508,21 +513,74 @@ export default function CiemPage() {
     { accessorKey: 'latest', header: 'Last Event', cell: ({ getValue }) => getValue() ? new Date(getValue()).toLocaleString() : '-' },
   ];
 
+  const SEQUENCE_LABELS = {
+    RULE_S3_EXFIL:        'S3 Data Exfiltration',
+    RULE_IDENTITY_PIVOT:  'Identity Pivot Chain',
+    RULE_SECRETS_STAGING: 'Secrets Staging',
+    RULE_COMPUTE_HIJACK:  'Compute Hijack',
+  };
+
+  const sequenceColumns = [
+    {
+      accessorKey: 'rule_id',
+      header: 'Pattern',
+      cell: ({ getValue }) => (
+        <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>
+          {SEQUENCE_LABELS[getValue()] || getValue()}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'severity',
+      header: 'Severity',
+      cell: ({ getValue }) => <SeverityBadge severity={getValue()} />,
+    },
+    {
+      accessorKey: 'actor_principal',
+      header: 'Actor',
+      cell: ({ getValue }) => (
+        <span className="font-mono text-xs" style={{ color: 'var(--text-secondary)' }}>
+          {(getValue() || '').split('/').pop() || getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'resource_uid',
+      header: 'Target',
+      cell: ({ getValue }) => (
+        <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>
+          {(getValue() || '').split('/').pop() || getValue() || '—'}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'first_seen_at',
+      header: 'Detected',
+      cell: ({ getValue }) => getValue() ? new Date(getValue()).toLocaleString() : '—',
+    },
+  ];
+
   const pageContext = {
     title: 'CDR — Log Analysis',
     brief: 'Cloud log collection, threat detection, and identity risk analysis',
     tabs: [
-      { id: 'overview',    label: 'Overview',        count: topCritical.length },
-      { id: 'detections',  label: 'Detection Rules', count: topRules.length    },
-      { id: 'events',      label: 'Log Sources',     count: logSources.length  },
+      { id: 'overview',    label: 'Overview',        count: topCritical.length      },
+      { id: 'detections',  label: 'Detection Rules', count: topRules.length         },
+      { id: 'events',      label: 'Log Sources',     count: logSources.length       },
+      ...(sequenceFindings.length > 0 ? [
+        { id: 'sequences', label: 'Sequences', count: sequenceFindings.length },
+      ] : []),
     ],
   };
 
   const tabData = useMemo(() => ({
-    overview:   { data: topCritical, columns: criticalColumns  },
-    detections: { data: topRules,    columns: detectionColumns },
-    events:     { data: logSources,  columns: eventColumns     },
-  }), [topCritical, topRules, logSources]);
+    overview:   { data: topCritical,       columns: criticalColumns   },
+    detections: { data: topRules,          columns: detectionColumns  },
+    events:     { data: logSources,        columns: eventColumns      },
+    ...(sequenceFindings.length > 0 ? {
+      sequences: { data: sequenceFindings, columns: sequenceColumns   },
+    } : {}),
+  }), [topCritical, topRules, logSources, sequenceFindings]);
 
   return (
     <EngineShell
@@ -539,12 +597,33 @@ export default function CiemPage() {
         kpiGroups={[]}
         insightRow={insightStrip || null}
         tabData={tabData}
+        persistenceKey="cdr"
         loading={loading}
         error={error}
         defaultTab="overview"
         hideHeader
         topNav
+        onRowClick={(row) => setSelectedFinding(row)}
       />
+      {selectedFinding && (
+        <FindingDetailPanel
+          finding={selectedFinding}
+          onClose={() => setSelectedFinding(null)}
+          context={{
+            engine: 'cdr',
+            renderExtra: (f) =>
+              f.rule_source === 'log_correlation' && f.finding_id ? (
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider mb-3"
+                    style={{ color: 'var(--text-muted)' }}>
+                    Attack Sequence ({f.rule_source})
+                  </h3>
+                  <CorrelationTimeline findingId={f.finding_id} />
+                </section>
+              ) : null,
+          }}
+        />
+      )}
     </EngineShell>
   );
 }

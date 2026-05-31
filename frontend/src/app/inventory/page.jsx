@@ -1115,6 +1115,7 @@ export default function InventoryPage() {
         topNav
         tabData={{ overview: { renderTab: () => <>{kpiStripNode}{insightRowNode}</> }, ...tabData }}
         defaultTab="overview"
+        persistenceKey="inventory"
         loading={loading}
         error={error}
       />
