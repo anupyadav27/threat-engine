@@ -77,7 +77,9 @@ async def view_onboarding_schedules(
     elif isinstance(data, list):
         schedules = data
 
-    enabled = sum(1 for s in schedules if s.get("schedule_enabled", False))
+    # Schedule rows expose the `enabled` boolean (DB column), not `schedule_enabled`
+    # (which is an account-level joined field used in the cloud-accounts view).
+    enabled = sum(1 for s in schedules if s.get("enabled", False))
 
     kpi_groups = [
         {

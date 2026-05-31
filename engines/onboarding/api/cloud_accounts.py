@@ -258,11 +258,22 @@ async def create_account(
         or f"{body.customer_id}@cspm.local"
     )
 
+    # Derive customer_id from the authenticated session when available — prevents
+    # a caller from tagging an account under an arbitrary customer. Falls back to
+    # the body value only when auth is unavailable (local/test).
+    effective_customer_id = getattr(auth, "customer_id", None) or body.customer_id
+
     data = {
         "account_id":     str(uuid.uuid4()),
-        "customer_id":    body.customer_id,
+        "customer_id":    effective_customer_id,
         "customer_email": customer_email,
-        "tenant_id":      body.tenant_id,
+        # Store the auth-resolved canonical tenant_id (engine_tenant_id) — the SAME
+        # value the listing filter, the single-account guard, and the schedule
+        # ownership check use. Storing the raw body.tenant_id here caused accounts
+        # to be invisible to their owner and produced "403 Forbidden" on schedule
+        # creation when body.tenant_id != engine_tenant_id. Falls back to
+        # body.tenant_id when auth is unavailable (local/test).
+        "tenant_id":      lookup_tenant_id,
         "account_name":   body.account_name.strip(),
         "account_type":   account_type,
         "provider":       body.provider,
@@ -652,7 +663,8 @@ async def trigger_adhoc_scan(
         logger.error("Failed to create scan_run for ad-hoc scan %s: %s", account_id, exc)
         raise HTTPException(status_code=500, detail="Failed to create scan record")
 
-    # Submit Argo workflow
+    # Submit Argo workflow. submit_pipeline raises on failure.
+    argo_ok = False
     try:
         from engine_onboarding.scheduler.argo_client import ArgoClient
         argo = ArgoClient()
@@ -666,9 +678,26 @@ async def trigger_adhoc_scan(
             include_regions=body.include_regions,
             include_services=body.include_services,
         )
+        argo_ok = True
     except Exception as exc:
         logger.warning("Argo submission failed for ad-hoc scan %s: %s", scan_run_id, exc)
-        # Not fatal — scan_run record exists; caller can monitor or retry
+        argo_ok = False
+
+    if not argo_ok:
+        # Mark the scan_run failed so it does not sit 'pending' forever, then
+        # surface the failure rather than reporting a false 'pending'.
+        try:
+            from engine_onboarding.database.scan_run_operations import mark_scan_run_completed
+            mark_scan_run_completed(
+                scan_run_id, success=False,
+                error_details={"stage": "argo_submit", "error": "Workflow submission failed — scan orchestrator unavailable"},
+            )
+        except Exception as mark_exc:
+            logger.error("Failed to mark scan_run %s as failed: %s", scan_run_id, mark_exc)
+        raise HTTPException(
+            status_code=503,
+            detail="Scan could not be started — the scan orchestrator is unavailable. Please retry.",
+        )
 
     logger.info("Ad-hoc scan triggered: scan_run_id=%s account=%s", scan_run_id, account_id)
     return {

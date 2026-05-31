@@ -26,6 +26,7 @@ class AuthContext:
     tenant_ids: Optional[list[str]] = None      # None = unrestricted
     account_ids: Optional[list[str]] = None     # None = unrestricted
     engine_tenant_id: Optional[str] = None      # active engine slug (set at login)
+    customer_id: Optional[str] = None           # owning customer (from users.customer_id)
 
     # ── Permission checks ────────────────────────────────────────────
 
@@ -87,6 +88,7 @@ class AuthContext:
             "tenant_ids": self.tenant_ids,
             "account_ids": self.account_ids,
             "engine_tenant_id": self.engine_tenant_id,
+            "customer_id": self.customer_id,
         }
 
     def to_header_json(self) -> str:
@@ -107,6 +109,7 @@ class AuthContext:
             tenant_ids=data.get("tenant_ids"),
             account_ids=data.get("account_ids"),
             engine_tenant_id=data.get("engine_tenant_id"),
+            customer_id=data.get("customer_id"),
         )
 
     @classmethod
@@ -119,6 +122,7 @@ class AuthContext:
         role_scope_level: str,
         permissions_cache: list,
         scope_cache: dict,
+        customer_id: Optional[str] = None,
     ) -> "AuthContext":
         """Build from user_sessions cached fields (the fast path)."""
         return cls(
@@ -132,4 +136,5 @@ class AuthContext:
             tenant_ids=scope_cache.get("tenant_ids") if scope_cache else None,
             account_ids=scope_cache.get("account_ids") if scope_cache else None,
             engine_tenant_id=scope_cache.get("engine_tenant_id") if scope_cache else None,
+            customer_id=customer_id,
         )

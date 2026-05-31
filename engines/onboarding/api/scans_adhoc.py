@@ -67,6 +67,22 @@ def _get_tenant_id(auth: Any) -> Optional[str]:
     return getattr(auth, "tenant_id", None) or getattr(auth, "engine_tenant_id", None)
 
 
+def _mark_run_failed(scan_run_id: str, stage: str, message: str) -> None:
+    """Mark a scan_run as failed (best-effort) so it does not linger 'pending'.
+
+    Never raises — a failure here must not mask the original error we are about
+    to report to the caller.
+    """
+    try:
+        from engine_onboarding.database.scan_run_operations import mark_scan_run_completed
+        mark_scan_run_completed(
+            scan_run_id, success=False,
+            error_details={"stage": stage, "error": message},
+        )
+    except Exception as exc:
+        logger.error("Failed to mark scan_run %s as failed: %s", scan_run_id, exc)
+
+
 @router.post("/scans/run-now", status_code=202, response_model=RunNowResponse)
 async def run_scan_now(
     body: RunNowRequest,
@@ -183,10 +199,14 @@ async def run_scan_now(
     if isinstance(raw_exclude, list) and raw_exclude:
         exclude_regions = raw_exclude
 
-    # AC7 — Submit Argo pipeline (best-effort; scan_orchestration row already committed).
+    # AC7 — Submit Argo pipeline. trigger_scan returns the workflow name on
+    # success and None on failure (it logs but does not raise). We must surface
+    # that failure instead of reporting a false "queued", otherwise the scan_run
+    # sits at 'pending' forever with no workflow behind it.
+    workflow_name = None
     try:
         from engine_onboarding.scheduler.argo_client import trigger_scan
-        await trigger_scan(
+        workflow_name = await trigger_scan(
             scan_run_id=scan_run_id,
             tenant_id=tenant_id or account.get("tenant_id", ""),
             account_id=body.account_id,
@@ -198,11 +218,18 @@ async def run_scan_now(
     except Exception as exc:
         logger.warning(
             "Argo submission failed for run-now scan_run_id=%s account=%s: %s",
-            scan_run_id,
-            body.account_id,
-            exc,
+            scan_run_id, body.account_id, exc,
         )
-        # Non-fatal — scan_orchestration row exists for retry/monitoring.
+        workflow_name = None
+
+    if not workflow_name:
+        # Mark the scan_run failed so it doesn't sit 'pending' forever, then
+        # surface the failure to the caller (the UI shows an error toast).
+        _mark_run_failed(scan_run_id, "argo_submit", "Workflow submission failed — scan orchestrator unavailable")
+        raise HTTPException(
+            status_code=503,
+            detail="Scan could not be started — the scan orchestrator is unavailable. Please retry.",
+        )
 
     logger.info(
         "Ad-hoc scan queued: scan_run_id=%s account=%s tenant=%s",
