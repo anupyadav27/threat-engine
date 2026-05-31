@@ -155,7 +155,14 @@ def upsert_posture_signals(
     # ON CONFLICT targets (resource_uid, tenant_id) — the real unique constraint
     # (uq_rsp_resource_tenant). scan_run_id and resource_type are updated on every
     # conflict so the row always reflects the latest scan's canonical type.
-    set_clauses.insert(0, "resource_type = EXCLUDED.resource_type")
+    # Only overwrite resource_type when the new value is non-empty — prevents
+    # blank rows from asset_inventory (rows with null/empty type and a more
+    # recent last_seen_at) from clobbering a previously-correct type.
+    set_clauses.insert(
+        0,
+        "resource_type = CASE WHEN EXCLUDED.resource_type IS NOT NULL AND EXCLUDED.resource_type != ''"
+        " THEN EXCLUDED.resource_type ELSE resource_security_posture.resource_type END",
+    )
     set_clauses.insert(0, "scan_run_id = EXCLUDED.scan_run_id")
 
     sql = f"""
