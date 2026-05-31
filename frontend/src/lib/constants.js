@@ -167,8 +167,9 @@ export const NAV_ITEMS = [
     icon: 'UserPlus',
     children: [
       { label: 'Workspace Onboarding', href: '/onboarding' },
-      { label: 'User Onboarding',    href: '/onboarding/users' },
-      { label: 'Scans',              href: '/scans' },
+      { label: 'Cloud Accounts',       href: '/accounts' },
+      { label: 'User Onboarding',      href: '/onboarding/users' },
+      { label: 'Scans',                href: '/scans' },
     ],
   },
   {

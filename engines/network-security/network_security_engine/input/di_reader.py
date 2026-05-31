@@ -93,7 +93,9 @@ class NetworkDIReader:
                       AND discovery_id = ANY(%s)
                 """
                 params = [scan_run_id, tenant_id, discovery_ids]
-                if account_id:
+                # Skip account_id filter when scan_run_id present — DI stores cloud
+                # account number; callers pass internal UUID.
+                if account_id and not scan_run_id:
                     query += " AND account_id = %s"
                     params.append(account_id)
 
@@ -136,7 +138,7 @@ class NetworkDIReader:
                       AND discovery_id = %s
                 """
                 params = [scan_run_id, tenant_id, discovery_id]
-                if account_id:
+                if account_id and not scan_run_id:
                     query += " AND account_id = %s"
                     params.append(account_id)
 

@@ -173,12 +173,15 @@ async def create_account(
     prevents a caller from bypassing per-tenant account_type restrictions by
     supplying a different tenant_id in the payload.
     """
-    # AC5: resolve tenant_id from auth context (X-Auth-Context), fall back to
-    # body.tenant_id only when auth is not available (local/test environments).
+    # AC5: resolve tenant_id from auth context (X-Auth-Context).
+    # platform_admin manages all tenants — trust body.tenant_id so the wizard
+    # can create accounts under whichever workspace the user selected.
+    # All other roles are scoped to their own engine_tenant_id.
+    is_platform_admin = getattr(auth, "scope_level", None) == "platform" if auth else False
     auth_tenant_id: Optional[str] = (
         getattr(auth, "tenant_id", None)
         or getattr(auth, "engine_tenant_id", None)
-    ) if auth else None
+    ) if auth and not is_platform_admin else None
     lookup_tenant_id = auth_tenant_id or body.tenant_id
 
     # AC6: surface DB connection failures as 503 (tenant service unavailable).
@@ -378,7 +381,7 @@ async def update_account(
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
 
-    if auth and getattr(auth, "engine_tenant_id", None):
+    if auth and getattr(auth, "scope_level", None) != "platform" and getattr(auth, "engine_tenant_id", None):
         if account.get("tenant_id") != auth.engine_tenant_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -408,7 +411,7 @@ async def store_credentials(
     account = get_cloud_account(account_id)
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
-    if auth and getattr(auth, "engine_tenant_id", None):
+    if auth and getattr(auth, "scope_level", None) != "platform" and getattr(auth, "engine_tenant_id", None):
         if account.get("tenant_id") != auth.engine_tenant_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -455,6 +458,18 @@ async def store_credentials(
         }
         if getattr(result, "account_number", None):
             updates["account_number"] = result.account_number
+
+        # For code_security accounts persist repo_url + branch into auth_config
+        # so downstream engines (SecOps) can resolve the repo without re-fetching SM.
+        if account.get("account_type") == "code_security" and body.credentials.get("repo_url"):
+            from engine_onboarding.database.cloud_accounts_operations import get_cloud_account as _get
+            existing_auth = (_get(account_id) or {}).get("auth_config") or {}
+            existing_auth["repo_url"]       = body.credentials["repo_url"]
+            existing_auth["default_branch"] = body.credentials.get("default_branch", "main")
+            existing_auth["project_name"]   = (
+                body.credentials["repo_url"].rstrip("/").split("/")[-1].removesuffix(".git")
+            )
+            updates["auth_config"] = existing_auth
 
         update_cloud_account(account_id, updates)
         logger.info(f"Credentials stored for {account_id} ({provider}/{body.credential_type})")
@@ -584,7 +599,7 @@ async def delete_account(
     account = get_cloud_account(account_id)
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
-    if auth and getattr(auth, "engine_tenant_id", None):
+    if auth and getattr(auth, "scope_level", None) != "platform" and getattr(auth, "engine_tenant_id", None):
         if account.get("tenant_id") != auth.engine_tenant_id:
             raise HTTPException(status_code=403, detail="Forbidden")
     deleted = soft_delete_cloud_account(account_id)
@@ -628,7 +643,7 @@ async def trigger_adhoc_scan(
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
 
-    if auth and getattr(auth, "engine_tenant_id", None):
+    if auth and getattr(auth, "scope_level", None) != "platform" and getattr(auth, "engine_tenant_id", None):
         if account.get("tenant_id") != auth.engine_tenant_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -667,21 +682,45 @@ async def trigger_adhoc_scan(
         logger.error("Failed to create scan_run for ad-hoc scan %s: %s", account_id, exc)
         raise HTTPException(status_code=500, detail="Failed to create scan record")
 
-    # Submit Argo workflow. submit_pipeline raises on failure.
+    # Map non-CSP account types to their single engine name for cspm-single-engine template.
+    _SINGLE_ENGINE_MAP = {
+        "code_security": "secops",
+        "database":      "dbsec",
+        "middleware":    "check",
+    }
+
+    # Submit Argo workflow.
+    # - cloud_csp            → cspm-scan-pipeline  (full multi-engine DAG)
+    # - code_security        → cspm-single-engine  (secops)
+    # - database             → cspm-single-engine  (dbsec)
+    # - middleware           → cspm-single-engine  (check)
+    # - vulnerability        → agent path (handled above, never reaches here)
     argo_ok = False
     try:
         from engine_onboarding.scheduler.argo_client import ArgoClient
         argo = ArgoClient()
-        argo.submit_pipeline(
-            scan_run_id=scan_run_id,
-            tenant_id=account["tenant_id"],
-            account_id=account_id,
-            provider=account["provider"],
-            credential_type=credential_type,
-            credential_ref=credential_ref,
-            include_regions=body.include_regions,
-            include_services=body.include_services,
-        )
+        single_engine = _SINGLE_ENGINE_MAP.get(account_type)
+        if single_engine:
+            argo.submit_single_engine(
+                engine=single_engine,
+                scan_run_id=scan_run_id,
+                tenant_id=account["tenant_id"],
+                account_id=account_id,
+                provider=account["provider"],
+                credential_type=credential_type,
+                credential_ref=credential_ref,
+            )
+        else:
+            argo.submit_pipeline(
+                scan_run_id=scan_run_id,
+                tenant_id=account["tenant_id"],
+                account_id=account_id,
+                provider=account["provider"],
+                credential_type=credential_type,
+                credential_ref=credential_ref,
+                include_regions=body.include_regions,
+                include_services=body.include_services,
+            )
         argo_ok = True
     except Exception as exc:
         logger.warning("Argo submission failed for ad-hoc scan %s: %s", scan_run_id, exc)
@@ -781,9 +820,10 @@ async def issue_agent_token(
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
 
-    # Multi-tenant guard.
+    # Multi-tenant guard — platform_admin can manage any tenant.
     tenant_id_from_auth: Optional[str] = None
-    if auth:
+    is_platform = getattr(auth, "scope_level", None) == "platform" if auth else False
+    if auth and not is_platform:
         tenant_id_from_auth = (
             getattr(auth, "engine_tenant_id", None)
             or getattr(auth, "tenant_id", None)
@@ -835,7 +875,7 @@ async def issue_agent_token(
     # Future: accept platform hint from request body.
     s3_base = os.environ.get(
         "AGENT_S3_BASE_URL",
-        "https://onam-security-agents-588989875114.s3.ap-south-1.amazonaws.com/agents/latest",
+        "https://cspm-vulnerability-agent.s3.ap-south-1.amazonaws.com/agents/latest",
     )
     platform_map = {"vulnerability": "linux", "database": "linux", "middleware": "linux"}
     agent_platform = platform_map.get(account_type, "linux")
@@ -898,9 +938,10 @@ async def get_agent_status(
     if not account:
         raise HTTPException(status_code=404, detail=f"Account {account_id} not found")
 
-    # Multi-tenant guard — enforce caller's tenant_id.
+    # Multi-tenant guard — platform_admin can manage any tenant.
     tenant_id_from_auth: Optional[str] = None
-    if auth:
+    is_platform = getattr(auth, "scope_level", None) == "platform" if auth else False
+    if auth and not is_platform:
         tenant_id_from_auth = (
             getattr(auth, "engine_tenant_id", None)
             or getattr(auth, "tenant_id", None)

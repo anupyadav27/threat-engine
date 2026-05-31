@@ -160,7 +160,7 @@ async def create_schedule_endpoint(
         raise HTTPException(status_code=404, detail=f"Account {body.account_id} not found")
 
     # Tenant isolation: verify the account belongs to the authenticated tenant
-    if auth and getattr(auth, "engine_tenant_id", None):
+    if auth and getattr(auth, "scope_level", None) != "platform" and getattr(auth, "engine_tenant_id", None):
         if account.get("tenant_id") != auth.engine_tenant_id:
             raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -171,9 +171,11 @@ async def create_schedule_endpoint(
     data["cron_expression"] = cron
     data["next_run_at"] = _next_run_from_cron(cron, body.timezone)
 
-    # tenant_id must come from auth context — never trust request body
-    if auth and getattr(auth, "engine_tenant_id", None):
+    # tenant_id: for platform_admin trust the account's tenant; for others enforce auth scope
+    if auth and getattr(auth, "scope_level", None) != "platform" and getattr(auth, "engine_tenant_id", None):
         data["tenant_id"] = auth.engine_tenant_id
+    else:
+        data["tenant_id"] = account.get("tenant_id", data.get("tenant_id"))
 
     # customer_id from auth context too — prevent tagging under another customer
     if auth and getattr(auth, "customer_id", None):
@@ -491,17 +493,30 @@ async def run_all_schedules(
             errors.append({"account_id": account_id, "error": str(exc)})
             continue
 
+        _SINGLE_ENGINE_MAP = {"code_security": "secops", "database": "dbsec", "middleware": "check"}
+        single_engine = _SINGLE_ENGINE_MAP.get(sched.get("account_type", "cloud_csp"))
         try:
-            argo.submit_pipeline(
-                scan_run_id=scan_run_id,
-                tenant_id=sched["tenant_id"],
-                account_id=account_id,
-                provider=sched["provider"],
-                credential_type=sched["credential_type"],
-                credential_ref=sched["credential_ref"],
-                include_regions=sched.get("include_regions") if isinstance(sched.get("include_regions"), list) else None,
-                include_services=sched.get("include_services") if isinstance(sched.get("include_services"), list) else None,
-            )
+            if single_engine:
+                argo.submit_single_engine(
+                    engine=single_engine,
+                    scan_run_id=scan_run_id,
+                    tenant_id=sched["tenant_id"],
+                    account_id=account_id,
+                    provider=sched["provider"],
+                    credential_type=sched["credential_type"],
+                    credential_ref=sched["credential_ref"],
+                )
+            else:
+                argo.submit_pipeline(
+                    scan_run_id=scan_run_id,
+                    tenant_id=sched["tenant_id"],
+                    account_id=account_id,
+                    provider=sched["provider"],
+                    credential_type=sched["credential_type"],
+                    credential_ref=sched["credential_ref"],
+                    include_regions=sched.get("include_regions") if isinstance(sched.get("include_regions"), list) else None,
+                    include_services=sched.get("include_services") if isinstance(sched.get("include_services"), list) else None,
+                )
         except Exception as exc:
             # Per-account failure must NOT abort the batch — mark this run failed,
             # record it, and continue with the remaining accounts.

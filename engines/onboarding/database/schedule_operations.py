@@ -224,7 +224,7 @@ def get_active_schedules_for_tenant(tenant_id: str, limit: int = 20) -> List[Dic
     try:
         cur.execute(
             """
-            SELECT s.*, ca.provider, ca.credential_type, ca.credential_ref
+            SELECT s.*, ca.provider, ca.credential_type, ca.credential_ref, ca.account_type
             FROM schedules s
             JOIN cloud_accounts ca ON ca.account_id = s.account_id
             WHERE s.tenant_id = %s
@@ -253,7 +253,7 @@ def get_due_schedules(limit: int = 50) -> List[Dict[str, Any]]:
     try:
         cur.execute(
             """
-            SELECT s.*, ca.provider, ca.credential_type, ca.credential_ref
+            SELECT s.*, ca.provider, ca.credential_type, ca.credential_ref, ca.account_type
             FROM schedules s
             JOIN cloud_accounts ca ON ca.account_id = s.account_id
             WHERE s.enabled = true

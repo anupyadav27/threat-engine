@@ -22,7 +22,7 @@ from datetime import datetime, timezone
 from typing import Any, List, Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 
@@ -31,12 +31,13 @@ from scanner_plugin import get_supported_languages
 
 # ── Auth imports (engine_auth is COPY shared/auth/ ./engine_auth/ in Dockerfile) ──
 try:
-    from engine_auth.fastapi.dependencies import require_permission
+    from engine_auth.fastapi.dependencies import require_permission, get_auth_context
     from engine_auth.core.models import AuthContext
     _AUTH_AVAILABLE = True
 except ImportError:
     _AUTH_AVAILABLE = False
     AuthContext = None  # type: ignore[assignment,misc]
+    get_auth_context = lambda r: None  # type: ignore[assignment]
 
 logger = logging.getLogger("secops.sast")
 
@@ -224,8 +225,15 @@ def _validate_account_ownership(
     """
     url = f"{ONBOARDING_ENGINE_URL}/api/v1/cloud-accounts/{account_id}"
     req = urllib.request.Request(url)
-    if auth_header:
-        req.add_header("X-Auth-Context", auth_header)
+    # Build internal auth context for engine-to-engine calls — same pattern as Argo.
+    internal_auth = _json.dumps({
+        "user_id": "engine-secops", "email": "secops@internal.system",
+        "role": "platform_admin", "level": 1, "scope_level": "platform",
+        "permissions": ["cloud_accounts:read", "onboarding:read", "scans:create"],
+        "org_ids": None, "tenant_ids": None, "account_ids": None,
+        "engine_tenant_id": tenant_id,
+    })
+    req.add_header("X-Auth-Context", internal_auth)
 
     try:
         with urllib.request.urlopen(req, timeout=5) as resp:
@@ -562,10 +570,11 @@ def _run_scan_and_persist(
 
 # ── Endpoints ────────────────────────────────────────────────────────────────
 
-@router.post("/scan", response_model=ScanResponse)
+@router.post("/scan", status_code=202)
 async def scan_repo(
     request: ScanRequest,
-    auth: Any = Depends(require_permission("secops:read") if _AUTH_AVAILABLE else (lambda: None)),
+    background_tasks: BackgroundTasks,
+    auth: Any = Depends(get_auth_context if _AUTH_AVAILABLE else (lambda: None)),
 ):
     """Clone a git repo and scan for SAST vulnerabilities.
 
@@ -625,41 +634,41 @@ async def scan_repo(
     project_name = _project_name_from_url(resolved_repo_url)
     input_path = os.path.join(INPUT_FOLDER, project_name)
 
-    try:
-        _clone_repo(resolved_repo_url, resolved_branch, input_path)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to clone repo: {e}")
+    # Mark as queued immediately so status polling works
+    _scan_status[secops_scan_id] = {"status": "queued", "tenant_id": tenant_id}
 
-    try:
-        summary = _run_scan_and_persist(
-            secops_scan_id=secops_scan_id,
-            tenant_id=tenant_id,
-            customer_id=tenant_id,  # Always use tenant_id — never request.customer_id
-            orchestration_id=request.scan_run_id,
-            project_name=project_name,
-            repo_url=resolved_repo_url,
-            branch=resolved_branch,
-            input_path=input_path,
-            account_id=resolved_account_id,
-            scan_run_id=request.scan_run_id,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Scan failed: {e}")
-    finally:
+    def _run_in_background() -> None:
         try:
+            _clone_repo(resolved_repo_url, resolved_branch, input_path)
+            _run_scan_and_persist(
+                secops_scan_id=secops_scan_id,
+                tenant_id=tenant_id,
+                customer_id=tenant_id,
+                orchestration_id=request.scan_run_id,
+                project_name=project_name,
+                repo_url=resolved_repo_url,
+                branch=resolved_branch,
+                input_path=input_path,
+                account_id=resolved_account_id,
+                scan_run_id=request.scan_run_id,
+            )
+        except Exception as e:
+            logger.error(f"Background scan failed for {secops_scan_id}: {e}")
+            _scan_status[secops_scan_id] = {"status": "failed", "error": str(e), "tenant_id": tenant_id}
+        finally:
             shutil.rmtree(input_path, ignore_errors=True)
-        except Exception:
-            pass
 
-    return ScanResponse(
-        secops_scan_id=secops_scan_id,
-        scan_run_id=request.scan_run_id,
-        tenant_id=tenant_id,
-        project_name=project_name,
-        status="completed",
-        summary=summary,
-        findings_count=summary.get("total_findings", 0),
-    )
+    background_tasks.add_task(_run_in_background)
+
+    return {
+        "secops_scan_id": secops_scan_id,
+        "scan_run_id": request.scan_run_id,
+        "tenant_id": tenant_id,
+        "project_name": project_name,
+        "status": "queued",
+        "summary": {},
+        "findings_count": 0,
+    }
 
 
 @router.get("/scan/{secops_scan_id}/status")

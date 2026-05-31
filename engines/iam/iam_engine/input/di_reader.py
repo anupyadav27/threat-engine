@@ -87,7 +87,9 @@ class IAMDIReader:
               AND service = 'iam'
         """
         params: list = [scan_run_id, tenant_id]
-        if account_id:
+        # Skip account_id filter when scan_run_id is present — scan_run_id is globally
+        # unique. DI stores the cloud account number; callers pass the internal UUID.
+        if account_id and not scan_run_id:
             query += " AND account_id = %s"
             params.append(account_id)
         query += " ORDER BY discovery_id, resource_uid"

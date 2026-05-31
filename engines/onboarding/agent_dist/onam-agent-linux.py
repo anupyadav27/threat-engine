@@ -65,7 +65,7 @@ class VulnerabilityAgent:
     def _load_config(self, config_file: str) -> Dict:
         """Load agent configuration"""
         default_config = {
-            "engine_url": "http://a0ecae1139d8e4afc8e7e72c8fcd35f2-336723212.ap-south-1.elb.amazonaws.com:80",
+            "engine_url": "http://a248499a3e9da47248ad0adca7dac106-365a099e4a3b2214.elb.ap-south-1.amazonaws.com/onboarding",
             "api_key": "",
             "scan_interval": 3600,  # 1 hour
             "include_packages": True,
@@ -180,6 +180,56 @@ class VulnerabilityAgent:
         except Exception as exc:
             self.logger.warning("Onboarding heartbeat failed (non-fatal): %s", exc)
         return {}
+
+    def register_with_vulnerability_engine(self, config_file: str = "agent_config.json") -> bool:
+        """Call vulnerability engine /api/v1/agents/register to obtain api_key.
+
+        Called once on first run when api_key is absent from config.
+        Saves api_key to config file for all future runs.
+        """
+        registration_token = self.config.get("agent_token", "")
+        if not registration_token:
+            self.logger.warning("No agent_token — cannot register with vulnerability engine")
+            return False
+
+        # Derive vulnerability engine URL from onboarding_url (replace /onboarding with /vulnerability)
+        base_url = self.config.get("onboarding_url", self.config.get("engine_url", ""))
+        vul_url = base_url.rstrip("/").replace("/onboarding", "") + "/vulnerability"
+
+        try:
+            import socket
+            resp = requests.post(
+                f"{vul_url}/api/v1/agents/register",
+                json={
+                    "registration_token": registration_token,
+                    "agent_id": self.agent_id,
+                    "hostname": socket.gethostname(),
+                },
+                timeout=15,
+                verify=False,
+            )
+            if resp.status_code == 200:
+                api_key = resp.json().get("api_key") or resp.json().get("agent_api_key")
+                if api_key:
+                    self.config["api_key"] = api_key
+                    # Persist to config file so future runs skip this step
+                    try:
+                        import json as _json
+                        cfg = {}
+                        if os.path.exists(config_file):
+                            with open(config_file, "r") as f:
+                                cfg = _json.load(f)
+                        cfg["api_key"] = api_key
+                        with open(config_file, "w") as f:
+                            _json.dump(cfg, f, indent=2)
+                    except Exception as e:
+                        self.logger.warning("Could not persist api_key to config: %s", e)
+                    self.logger.info("Registered with vulnerability engine, api_key obtained.")
+                    return True
+            self.logger.warning("Vulnerability engine register returned %s: %s", resp.status_code, resp.text[:200])
+        except Exception as exc:
+            self.logger.warning("Vulnerability engine registration failed (non-fatal): %s", exc)
+        return False
 
     def _persist_agent_id(self, config_file: str, agent_id: str) -> None:
         """Write agent_id back into the config file for persistence across restarts."""
@@ -2435,6 +2485,11 @@ def main():
         # Resolve canonical agent_id from onboarding DB — overrides local fallback.
         agent.heartbeat_onboarding(config_file=args.config)
         agent.logger.info("Canonical agent_id from onboarding DB: %s", agent.agent_id)
+
+        # Auto-register with vulnerability engine on first run to get api_key.
+        # Skipped if api_key already present in config.
+        if not agent.config.get("api_key"):
+            agent.register_with_vulnerability_engine(config_file=args.config)
 
         result = agent.run_scan()
         if result:

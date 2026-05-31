@@ -12,11 +12,13 @@ from typing import Any, Dict, List, Optional
 from engine_onboarding.database.connection import get_db_connection
 
 # B-5: credential_ref must follow the canonical Secrets Manager path format.
-# Supports both legacy (threat-engine/account/<account-uuid>) and
-# tenant-scoped (threat-engine/account/<tenant-uuid>/<account-uuid>) formats.
+# Supports legacy (threat-engine/account/<account-uuid>),
+# UUID tenant-scoped (threat-engine/account/<tenant-uuid>/<account-uuid>),
+# and slug tenant-scoped (threat-engine/account/<slug>/<account-uuid>) formats.
 _UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+_TENANT_SEG = r"[a-zA-Z0-9_-]+"
 _CRED_REF_PATTERN = re.compile(
-    rf"^threat-engine/account/({_UUID4}/)?{_UUID4}$"
+    rf"^threat-engine/account/({_TENANT_SEG}/)?{_UUID4}$"
 )
 
 

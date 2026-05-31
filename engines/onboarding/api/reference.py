@@ -56,7 +56,7 @@ class AccountTypeOut(BaseModel):
 @router.get(
     "/providers",
     response_model=List[ProviderOut],
-    dependencies=[Depends(require_permission("onboarding:read"))],
+    dependencies=[Depends(require_permission("accounts:read"))],
     summary="List all active cloud/DB/VCS/agent providers",
 )
 def list_providers():
@@ -75,7 +75,7 @@ def list_providers():
 @router.get(
     "/account-types",
     response_model=List[AccountTypeOut],
-    dependencies=[Depends(require_permission("onboarding:read"))],
+    dependencies=[Depends(require_permission("accounts:read"))],
     summary="List all active account types with engine mappings",
 )
 def list_account_types():

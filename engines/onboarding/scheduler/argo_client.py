@@ -120,6 +120,41 @@ class ArgoClient:
         url = f"{ARGO_SERVER_URL}/api/v1/workflows/{ARGO_NAMESPACE}/submit"
         return self._post(url, body, context=f"submit scan_run_id={scan_run_id}")
 
+    def submit_single_engine(
+        self,
+        engine: str,
+        scan_run_id: str,
+        tenant_id: str,
+        account_id: str,
+        provider: str = "github",
+        credential_type: str = "",
+        credential_ref: str = "",
+    ) -> Dict[str, Any]:
+        """Submit a single-engine scan via cspm-single-engine WorkflowTemplate."""
+        params = [
+            {"name": "engine",        "value": engine},
+            {"name": "scan-run-id",   "value": scan_run_id},
+            {"name": "tenant-id",     "value": tenant_id},
+            {"name": "account-id",    "value": account_id},
+            {"name": "provider",      "value": provider},
+            {"name": "credential-type", "value": credential_type},
+            {"name": "credential-ref",  "value": credential_ref},
+            {"name": "include-services", "value": ""},
+            {"name": "include-regions",  "value": ""},
+        ]
+        body = {
+            "namespace":    ARGO_NAMESPACE,
+            "resourceKind": "WorkflowTemplate",
+            "resourceName": "cspm-single-engine",
+            "submitOptions": {
+                "generateName": "cspm-scan-",
+                "labels":       f"scan-run-id={scan_run_id}",
+                "parameters":   [f"{p['name']}={p['value']}" for p in params],
+            },
+        }
+        url = f"{ARGO_SERVER_URL}/api/v1/workflows/{ARGO_NAMESPACE}/submit"
+        return self._post(url, body, context=f"submit single-engine={engine} scan_run_id={scan_run_id}")
+
     # ── Poll workflow status ───────────────────────────────────────────────────
 
     def get_workflow(self, workflow_name: str) -> Dict[str, Any]:

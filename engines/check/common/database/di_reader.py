@@ -111,7 +111,11 @@ class DIReader:
                 if tenant_id:
                     query += " AND tenant_id = %s"
                     params.append(tenant_id)
-                if account_id:
+                # account_id filter skipped when scan_id is present — scan_run_id is
+                # globally unique, and DI stores the cloud account number (e.g. "588989875114")
+                # while check engine receives the internal UUID. Filtering by both would
+                # return 0 rows due to the mismatch.
+                if account_id and not scan_id:
                     query += " AND account_id = %s"
                     params.append(account_id)
 
