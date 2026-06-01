@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, ReferenceLine,
+  Tooltip, ResponsiveContainer,
 } from 'recharts';
 import { useViewFetch } from '@/lib/use-view-fetch';
 import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
@@ -16,20 +16,56 @@ import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
 import PivotLink from '@/components/shared/PivotLink';
+import { buildUniversalColumns, LastAccessCell } from '@/components/shared/EngineTableCells';
+import { getEngineModules } from '@/lib/engine-modules';
 
 
-// ── Color palette ──
 const C = {
-  critical: '#ef4444',
-  high:     '#f97316',
-  medium:   '#eab308',
-  low:      '#22c55e',
-  sky:      '#38bdf8',
-  amber:    '#f59e0b',
-  emerald:  '#10b981',
-  indigo:   '#6366f1',
+  critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e',
+  sky: '#38bdf8', amber: '#f59e0b', emerald: '#10b981', indigo: '#6366f1',
 };
 
+// Single source of truth — engine-modules.js
+const IAM_MODULES = getEngineModules('iam');
+const MODULE_LABELS = Object.fromEntries(Object.entries(IAM_MODULES).map(([k, v]) => [k, v.label]));
+
+function inferIdentityType(f) {
+  if (f.identity_type) return f.identity_type;
+  const uid = (f.resource_uid || f.identity_name || '').toLowerCase();
+  const rt  = (f.resource_type || '').toLowerCase();
+
+  if (/root/.test(uid + rt))                                             return 'Root';
+  if (/:user\//.test(uid) || /iam[._]user|ad[._]user/.test(rt))         return 'IAM User';
+  if (/:role\//.test(uid) || /iam[._]role/.test(rt))                    return 'IAM Role';
+  if (/service[._]account|service[._]principal/.test(rt + uid))         return 'Service Account';
+  if (/managed[._]identity/.test(rt))                                   return 'Managed Identity';
+  if (/iam[._]group|ad[._]group/.test(rt))                              return 'Group';
+
+  // Resource-config types are not identities — skip module fallback for them
+  if (/bigquery|pubsub|cloud.?sql|spanner|keyvault|secrets.?store|private.?ca|storage.?table|storage.?blob|dataset|cluster|catalog/.test(rt))
+    return '—';
+
+  // Module fallback for clear identity types only
+  const mod = f.iam_module || '';
+  if (mod === 'access_keys')      return 'IAM User';
+  if (mod === 'service_accounts') return 'Service Account';
+  if (mod === 'role_management')  return 'IAM Role';
+
+  if (f.identity_name) return 'Identity';
+  return '—';
+}
+
+function inferIamModule(f) {
+  const rule = (f.rule_id || '').toLowerCase();
+  const rt   = (f.resource_type || '').toLowerCase();
+  if (/priv|escalat|passrole|assume/.test(rule)) return 'least_privilege';
+  if (/access.key|key.rotat/.test(rule))          return 'access_keys';
+  if (/\bmfa\b/.test(rule))                        return 'mfa';
+  if (/password/.test(rule))                       return 'password_policy';
+  if (/service.account/.test(rule + rt))           return 'service_accounts';
+  if (/\brole\b/.test(rule + rt))                  return 'role_management';
+  return 'access_control';
+}
 
 // ── Pure-SVG severity donut ──
 function IamDonut({ slices, size = 160 }) {
@@ -76,62 +112,51 @@ function IamDonut({ slices, size = 160 }) {
 }
 
 
-// ── IAM Finding / Identity Detail Panel ─────────────────────────────────────
-const IAM_ISSUE_MAP = {
-  critical: [
-    'No MFA enabled on root or privileged account',
-    'Access key not rotated in 90+ days',
-    'Inline policy grants full administrative privileges (*:*)',
-    'Cross-account trust without condition keys',
-  ],
-  high: [
-    'Console access without MFA enforcement',
-    'Unused credentials active for 45+ days',
-    'Role trust policy allows all principals (*)',
-    'Service account with human-equivalent permissions',
-  ],
-  medium: [
-    'Password policy does not meet minimum requirements',
-    'Permissions boundary not attached to privileged role',
-    'CloudTrail not capturing IAM events in all regions',
-    'Access Analyzer findings unresolved for 30+ days',
-  ],
-  low: [
-    'Access key last used over 60 days ago',
-    'Role has no permission boundary',
-    'User belongs to more than 10 groups',
-  ],
-};
-
-const IAM_REMEDIATION_MAP = {
-  critical: 'Immediately revoke or rotate credentials. Enable MFA on all privileged accounts. Replace wildcard policies with least-privilege alternatives scoped to specific resources and actions.',
-  high: 'Enable MFA for console access. Review and remove unused credentials. Restrict role trust policies to specific principals with condition keys (aws:PrincipalArn, aws:SourceAccount).',
-  medium: 'Update account password policy to enforce complexity and rotation. Attach permission boundaries to all privileged roles. Ensure CloudTrail is enabled across all regions.',
-  low: 'Review and deactivate unused access keys. Consolidate group memberships. Apply permission boundaries to limit effective permissions.',
-};
-
 export default function IamSecurityPage() {
   const { data, loading, error, refetch } = useViewFetch('iam');
-  const [selectedIdentity, setSelectedIdentity] = useState(null);
+  const [selectedFinding, setSelectedFinding] = useState(null);
 
-  // Subscribe to refresh bus so a single Refresh button refetches every visible tab
   useEffect(() => subscribeRefresh(() => refetch()), [refetch]);
 
   const handleRowClick = (row) => {
-    const identity = row?.original || row;
-    if (identity) setSelectedIdentity(identity);
+    const finding = row?.original || row;
+    if (finding) setSelectedFinding(finding);
   };
 
-  const rawIdentities          = data.identities          || [];
-  const rawFindings            = data.findings            || [];
-  const rawRoles               = data.roles               || [];
-  const rawAccessKeys          = data.accessKeys          || [];
-  const rawPrivilegeEscalation = data.privilegeEscalation || [];
+  // Single source: all 3 tabs read from data.findings.
+  // Normalizes both new enriched format and old raw gateway format.
+  const rawFindings = useMemo(() => {
+    let base = data.findings || [];
+    // Old BFF also returned separate arrays — merge them if findings is empty
+    if (base.length === 0) {
+      const merged = [];
+      for (const f of (data.identities          || [])) merged.push({ ...f, iam_module: f.iam_module || 'access_control'  });
+      for (const f of (data.roles               || [])) merged.push({ ...f, iam_module: f.iam_module || 'role_management'  });
+      for (const f of (data.accessKeys          || [])) merged.push({ ...f, iam_module: f.iam_module || 'access_keys'      });
+      for (const f of (data.privilegeEscalation || [])) merged.push({ ...f, iam_module: f.iam_module || 'least_privilege'  });
+      base = merged;
+    }
+    // Enrich: flatten finding_data + derive iam_module from iam_modules[] if needed
+    return base.map(f => {
+      const fd  = f.finding_data || {};
+      const mod = f.iam_module || (Array.isArray(f.iam_modules) && f.iam_modules[0]) || inferIamModule(f);
+      const enriched = {
+        ...f,
+        iam_module:       mod,
+        identity_type:    f.identity_type    || fd.identity_type    || '',
+        title:            f.title            || fd.title            || fd.description?.slice(0, 80) || f.rule_id || '',
+        description:      f.description      || fd.description      || '',
+        remediation:      f.remediation      || fd.remediation      || '',
+        identity_name:    f.identity_name    || fd.identity_name    || fd.user || fd.role_name || fd.identity || '',
+        technique:        f.technique        || fd.technique        || '',
+        target_privilege: f.target_privilege || fd.target_privilege || '',
+      };
+      // Pre-compute so DataTable accessorKey path also works
+      if (!enriched.identity_type) enriched.identity_type = inferIdentityType(enriched);
+      return enriched;
+    });
+  }, [data]);
 
-  const identities          = rawIdentities;
-  const roles               = rawRoles;
-  const accessKeys          = rawAccessKeys;
-  const privilegeEscalation = rawPrivilegeEscalation;
 
   // ── Derive KPI numbers ──
   const kpiNums = useMemo(() => {
@@ -139,39 +164,31 @@ export default function IamSecurityPage() {
     const g1 = data.kpiGroups?.[1]?.items || [];
     const get = (arr, lbl) =>
       arr.find(x => x.label?.toLowerCase() === lbl.toLowerCase())?.value ?? null;
-
     return {
-      critical:      get(g0, 'Critical')       ?? 0,
-      high:          get(g0, 'High')            ?? 0,
-      medium:        get(g0, 'Medium')          ?? 0,
-      low:           0,
-      posture_score: get(g0, 'Posture Score')  ?? 0,
-      total_findings:get(g0, 'Total Findings') ?? 0,
-      identityCount: get(g1, 'Identities')     ?? identities.length,
-      keys_to_rotate:get(g1, 'Keys to Rotate') ?? 0,
-      mfa_adoption:  get(g1, 'MFA Adoption')   ?? 100,
+      critical:       get(g0, 'Critical')       ?? 0,
+      high:           get(g0, 'High')            ?? 0,
+      medium:         get(g0, 'Medium')          ?? 0,
+      low:            0,
+      posture_score:  get(g0, 'Posture Score')   ?? 0,
+      total_findings: get(g0, 'Total Findings')  ?? rawFindings.length,
+      identityCount:  get(g1, 'Identities')      ?? 0,
+      keys_to_rotate: get(g1, 'Keys to Rotate')  ?? 0,
     };
-  }, [data.kpiGroups, identities]);
+  }, [data.kpiGroups, rawFindings.length]);
 
-  const activeScanTrend = useMemo(
-    () => data.scanTrend || [],
-    [data.scanTrend],
-  );
+  const activeScanTrend = useMemo(() => data.scanTrend || [], [data.scanTrend]);
 
-  // ── KPI Strip — 2×2 grid · Donut · Trend chart all in ONE row ──
+  // ── KPI Strip ──
   const kpiStripNode = useMemo(() => {
     const { critical, high, medium, low, posture_score, total_findings,
             identityCount, keys_to_rotate } = kpiNums;
 
-    // Live sparklines derived from scan trend — all 4 KPI tiles now use real data
     const sparkPS = activeScanTrend.map(d => d.pass_rate          ?? 0);
     const sparkTF = activeScanTrend.map(d => d.total              ?? 0);
     const sparkIR = activeScanTrend.map(d => d.identities_at_risk ?? 0);
     const sparkKR = activeScanTrend.map(d => d.keys_to_rotate     ?? 0);
 
-    const scoreColor = posture_score >= 70 ? C.emerald
-                     : posture_score >= 50 ? C.amber
-                     : C.critical;
+    const scoreColor = posture_score >= 70 ? C.emerald : posture_score >= 50 ? C.amber : C.critical;
 
     const donutSlices = [
       { label: 'Critical', value: critical, color: C.critical },
@@ -180,39 +197,23 @@ export default function IamSecurityPage() {
       { label: 'Low',      value: low,      color: C.low      },
     ];
 
-    const chartLast = activeScanTrend[activeScanTrend.length - 1] || {};
-
-    // KPI tile — KpiSparkCard with translucent border, glow, sparkline, delta
-    const tile = (label, value, color, suffix = '', sub = '', sparkData = [], delta = null, deltaGood = 'down') => (
-      <KpiSparkCard
-        key={label}
-        label={label}
-        value={value}
-        color={color}
-        suffix={suffix}
-        sub={sub}
-        sparkData={sparkData}
-        delta={delta}
-        deltaGood={deltaGood}
-      />
-    );
-
-    // ── Trend chart deltas ──
+    const chartLast  = activeScanTrend[activeScanTrend.length - 1] || {};
     const chartFirst = activeScanTrend[0] || {};
-    const noMfaΔ = (chartLast.no_mfa ?? 0) - (chartFirst.no_mfa ?? 0);
-    const overΔ  = (chartLast.overprivileged ?? 0) - (chartFirst.overprivileged ?? 0);
-    const safeΔ  = (chartLast.safe ?? 0) - (chartFirst.safe ?? 0);
-    const totalRiskΔ = ((chartLast.no_mfa ?? 0) + (chartLast.overprivileged ?? 0)) -
-                       ((chartFirst.no_mfa ?? 0) + (chartFirst.overprivileged ?? 0));
 
     const chartSeries = [
-      { key: 'no_mfa',         label: 'No MFA',           color: C.critical,
-        value: chartLast.no_mfa         ?? 0, delta: noMfaΔ, good: 'down' },
-      { key: 'overprivileged', label: 'Overprivileged',   color: C.high,
-        value: chartLast.overprivileged ?? 0, delta: overΔ,  good: 'down' },
-      { key: 'safe',           label: 'Secure',           color: C.emerald,
-        value: chartLast.safe           ?? 0, delta: safeΔ,  good: 'up'   },
+      { key: 'no_mfa',         label: 'No MFA',         color: C.critical,
+        value: chartLast.no_mfa         ?? 0,
+        delta: (chartLast.no_mfa         ?? 0) - (chartFirst.no_mfa         ?? 0), good: 'down' },
+      { key: 'overprivileged', label: 'Overprivileged', color: C.high,
+        value: chartLast.overprivileged ?? 0,
+        delta: (chartLast.overprivileged ?? 0) - (chartFirst.overprivileged ?? 0), good: 'down' },
+      { key: 'safe',           label: 'Secure',         color: C.emerald,
+        value: chartLast.safe           ?? 0,
+        delta: (chartLast.safe           ?? 0) - (chartFirst.safe           ?? 0), good: 'up'   },
     ];
+
+    const totalRiskΔ = ((chartLast.no_mfa ?? 0) + (chartLast.overprivileged ?? 0)) -
+                       ((chartFirst.no_mfa ?? 0) + (chartFirst.overprivileged ?? 0));
 
     const ChartTooltip = ({ active, payload, label }) => {
       if (!active || !payload?.length) return null;
@@ -247,25 +248,32 @@ export default function IamSecurityPage() {
     return (
       <div className="flex gap-3 items-stretch" style={{ minHeight: 260 }}>
 
-        {/* ── Row 1: 4 KPI tiles in a single horizontal row ── */}
+        {/* 2×2 KPI tiles */}
         <div style={{
           flex: 1, display: 'grid',
           gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
           gap: 8, minWidth: 0,
         }}>
-          {tile('Posture Score',   posture_score,  scoreColor, '/100', `${medium} medium · ${low} low risk`,  sparkPS, sparkPS[sparkPS.length - 1] - sparkPS[0],  'up'  )}
-          {tile('Total Findings', total_findings, C.high,    '',     `${critical} critical · ${high} high`,  sparkTF, sparkTF[sparkTF.length - 1] - sparkTF[0], 'down')}
-          {tile('Identities',     identityCount,  C.sky,     '',     `${chartLast.overprivileged ?? 0} overprivileged · ${chartLast.no_mfa ?? 0} no MFA`, sparkIR, sparkIR[sparkIR.length - 1] - sparkIR[0], 'up')}
-          {tile('Keys to Rotate', keys_to_rotate, C.amber,  '',     'Exceed 90-day rotation policy', sparkKR, sparkKR[sparkKR.length - 1] - sparkKR[0], 'down')}
+          <KpiSparkCard label="Posture Score"   value={posture_score}  color={scoreColor} suffix="/100"
+            sub={`${medium} medium · ${low} low risk`} sparkData={sparkPS}
+            delta={sparkPS[sparkPS.length-1] - sparkPS[0]} deltaGood="up" />
+          <KpiSparkCard label="Total Findings"  value={total_findings} color={C.high}
+            sub={`${critical} critical · ${high} high`} sparkData={sparkTF}
+            delta={sparkTF[sparkTF.length-1] - sparkTF[0]} deltaGood="down" />
+          <KpiSparkCard label="Identities"      value={identityCount}  color={C.sky}
+            sub={`${chartLast.overprivileged ?? 0} overprivileged · ${chartLast.no_mfa ?? 0} no MFA`} sparkData={sparkIR}
+            delta={sparkIR[sparkIR.length-1] - sparkIR[0]} deltaGood="up" />
+          <KpiSparkCard label="Keys to Rotate"  value={keys_to_rotate} color={C.amber}
+            sub="Exceed 90-day rotation policy" sparkData={sparkKR}
+            delta={sparkKR[sparkKR.length-1] - sparkKR[0]} deltaGood="down" />
         </div>
 
-        {/* ── Findings by Severity Donut ── */}
+        {/* Severity Donut */}
         <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
           background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
           border: '1px solid var(--border-primary)',
           minWidth: 0, overflow: 'hidden',
         }}>
-          {/* Header */}
           <div className="flex items-center justify-between mb-0.5">
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
               Findings by Severity
@@ -277,24 +285,17 @@ export default function IamSecurityPage() {
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10 }}>
             Identity risk · severity breakdown
           </div>
-
-          {/* Donut + legend side-by-side */}
           <div className="flex items-center gap-4 flex-1">
-            {/* Donut */}
             <div style={{ position: 'relative', flexShrink: 0 }}>
               <IamDonut slices={donutSlices} size={160} />
-              <div style={{
-                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
-              }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
                 <div style={{ fontSize: 26, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>
                   {total_findings.toLocaleString()}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>findings</div>
               </div>
             </div>
-
-            {/* Progress-bar legend */}
             <div className="flex-1 space-y-2" style={{ minWidth: 0 }}>
               {donutSlices.map(s => {
                 const pct = Math.round((s.value / (total_findings || 1)) * 100);
@@ -302,14 +303,11 @@ export default function IamSecurityPage() {
                   <div key={s.label}>
                     <div className="flex items-center justify-between mb-0.5">
                       <div className="flex items-center gap-1.5">
-                        <div style={{ width: 9, height: 9, borderRadius: 2,
-                          backgroundColor: s.color, flexShrink: 0 }} />
+                        <div style={{ width: 9, height: 9, borderRadius: 2, backgroundColor: s.color, flexShrink: 0 }} />
                         <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>
-                          {s.value.toLocaleString()}
-                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.value.toLocaleString()}</span>
                         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{pct}%</span>
                       </div>
                     </div>
@@ -324,14 +322,12 @@ export default function IamSecurityPage() {
           </div>
         </div>
 
-        {/* ── Identity Risk Trend — merged stacked area ── */}
+        {/* Identity Risk Trend */}
         <div className="flex flex-col flex-1 p-4 rounded-xl" style={{
           background: 'linear-gradient(160deg, var(--bg-secondary), var(--bg-card))',
           border: '1px solid var(--border-primary)',
           minWidth: 0, overflow: 'hidden',
         }}>
-
-          {/* ── Header row ── */}
           <div style={{ display: 'flex', justifyContent: 'space-between',
             alignItems: 'flex-start', marginBottom: 2 }}>
             <div>
@@ -342,23 +338,19 @@ export default function IamSecurityPage() {
                 {chartFirst.date ?? '—'} – {chartLast.date ?? '—'} · {activeScanTrend.length} scans
               </div>
             </div>
-            {/* Overall risk delta summary badge */}
             <span style={{
               fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 20,
               backgroundColor: totalRiskΔ <= 0 ? `${C.emerald}18` : `${C.critical}18`,
-              color: totalRiskΔ <= 0 ? C.emerald : C.critical,
-              whiteSpace: 'nowrap',
+              color: totalRiskΔ <= 0 ? C.emerald : C.critical, whiteSpace: 'nowrap',
             }}>
               {totalRiskΔ <= 0 ? '↓' : '↑'} {Math.abs(totalRiskΔ)} risk {totalRiskΔ <= 0 ? 'resolved' : 'added'}
             </span>
           </div>
 
-          {/* ── Per-series legend with current value + delta pill ── */}
           <div style={{ display: 'flex', gap: 10, marginBottom: 8, flexWrap: 'wrap' }}>
             {[...chartSeries].reverse().map(s => {
               const improved = s.good === 'down' ? s.delta <= 0 : s.delta >= 0;
               const dColor   = improved ? C.emerald : C.critical;
-              const dSign    = s.delta > 0 ? '+' : '';
               return (
                 <div key={s.key} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 2,
@@ -366,16 +358,15 @@ export default function IamSecurityPage() {
                   <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{s.label}</span>
                   <span style={{ fontSize: 13, fontWeight: 800, color: s.color,
                     fontVariantNumeric: 'tabular-nums' }}>{s.value}</span>
-                  <span style={{
-                    fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
-                    backgroundColor: `${dColor}18`, color: dColor,
-                  }}>{dSign}{s.delta}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 10,
+                    backgroundColor: `${dColor}18`, color: dColor }}>
+                    {s.delta > 0 ? '+' : ''}{s.delta}
+                  </span>
                 </div>
               );
             })}
           </div>
 
-          {/* ── Stacked Area Chart — fills remaining height ── */}
           <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
             <div style={{ position: 'absolute', inset: 0 }}>
               <ResponsiveContainer width="100%" height="100%">
@@ -393,8 +384,7 @@ export default function IamSecurityPage() {
                   <XAxis dataKey="date"
                     tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
                     axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)', fontFamily: 'inherit' }}
                     axisLine={false} tickLine={false} width={28} />
                   <Tooltip content={<ChartTooltip />} />
                   {chartSeries.map(s => (
@@ -407,14 +397,10 @@ export default function IamSecurityPage() {
             </div>
           </div>
 
-          {/* ── Bottom summary bar ── */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8,
             paddingTop: 8, borderTop: '1px solid var(--border-primary)' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Secure identities
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
-              color: C.emerald }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Secure identities</span>
+            <span style={{ fontSize: 11, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: C.emerald }}>
               {chartLast.safe ?? 0} / {chartLast.total ?? 0}
               <span style={{ fontWeight: 400, color: 'var(--text-muted)', marginLeft: 4 }}>
                 ({chartLast.total > 0 ? Math.round(((chartLast.safe ?? 0) / chartLast.total) * 100) : 0}%)
@@ -427,266 +413,58 @@ export default function IamSecurityPage() {
     );
   }, [kpiNums, activeScanTrend]);
 
-  // ── Column definitions ──
-  const overviewColumns = [
-    { accessorKey: 'username', header: 'Identity', size: 180 },
+  // ── Finding columns — universal + IAM identity extra column ──
+  const findingColumns = useMemo(() => buildUniversalColumns('iam', [
     {
-      accessorKey: 'type', header: 'Type', size: 110,
-      cell: (info) => (
-        <span className="text-xs px-2 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ),
-    },
-    { accessorKey: 'account', header: 'Account', size: 140 },
-    { accessorKey: 'policies', header: 'Findings', size: 80 },
-    {
-      accessorKey: 'severity', header: 'Severity', size: 100,
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'risk_score', header: 'Risk', size: 100,
+      id: 'identity',
+      header: 'Identity',
+      size: 170,
+      accessorFn: row => row.identity_name || row.resource_uid?.split('/').pop() || '',
       cell: (info) => {
-        const score = info.getValue();
-        const color = score >= 75 ? '#ef4444' : score >= 50 ? '#f97316' : score >= 25 ? '#eab308' : '#22c55e';
+        const row = info.row.original;
+        const name = info.getValue() || '—';
+        const type = row.identity_type || inferIdentityType(row);
         return (
-          <div className="flex items-center gap-2">
-            <div className="w-14 h-1.5 rounded-full"
-              style={{ backgroundColor: 'var(--bg-tertiary)' }}>
-              <div className="h-full rounded-full"
-                style={{ width: `${score}%`, backgroundColor: color }} />
-            </div>
-            <span className="text-xs font-bold" style={{ color }}>{score}</span>
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-xs font-medium truncate" style={{ color: 'var(--text-primary)', maxWidth: 150 }}
+              title={name}>{name}</span>
+            {type && type !== '—' && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded self-start"
+                style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>{type}</span>
+            )}
           </div>
         );
       },
     },
     {
-      accessorKey: 'mfa', header: 'MFA', size: 60,
-      cell: (info) => info.getValue()
-        ? <CheckCircle className="w-4 h-4 text-green-400" />
-        : <AlertTriangle className="w-4 h-4 text-red-400" />,
+      id: 'last_access',
+      header: 'Last Access',
+      size: 88,
+      accessorFn: row => row.last_accessed || row.last_access_date || row.last_used_date || '',
+      cell: ({ row }) => <LastAccessCell row={row.original} />,
     },
-  ];
-
-  const findingsColumns = useMemo(() => [
-    {
-      accessorKey: 'provider', header: 'Provider', size: 70,
-      cell: (info) => info.getValue()?.toUpperCase() || '—',
-    },
-    { accessorKey: 'account_id', header: 'Account', size: 130,
-      cell: (info) => info.getValue() || info.row.original.account || '—' },
-    { accessorKey: 'region', header: 'Region', size: 110 },
-    {
-      accessorKey: 'service', header: 'Service', size: 110,
-      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—',
-    },
-    { accessorKey: 'rule_id', header: 'Rule ID', size: 130,
-      cell: (info) => info.getValue()
-        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
-        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
-    {
-      accessorKey: 'title', header: 'Finding', size: 260,
-      cell: (info) => {
-        const row = info.row.original;
-        const v = info.getValue() || row.rule_id || '—';
-        const fid = row.finding_id;
-        if (fid) {
-          return <PivotLink to="finding" engine="iam" id={fid} label={v} size="xs" showIcon={false} truncate={48} />;
-        }
-        return <span className="text-xs leading-tight">{v}</span>;
-      },
-    },
-    { accessorKey: 'severity', header: 'Severity', size: 90,
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    {
-      accessorKey: 'status', header: 'Status', size: 75,
-      cell: (info) => {
-        const v = info.getValue(), fail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>;
-      },
-    },
-    {
-      accessorKey: 'resource_uid', header: 'Resource', size: 200,
-      cell: (info) => {
-        const row = info.row.original;
-        const v = info.getValue() || row.resource_id;
-        if (!v) return <span className="font-mono text-xs">—</span>;
-        const display = v.split('/').pop() || v;
-        return <PivotLink to="asset" id={v} provider={row.provider} label={display} size="xs" showIcon={false} truncate={40} />;
-      },
-    },
-    {
-      accessorKey: 'resource_type', header: 'Type', size: 120,
-      cell: (info) => info.getValue() ? (
-        <span className="text-xs px-2 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ) : null,
-    },
-    {
-      accessorKey: 'risk_score', header: 'Risk', size: 80,
-      cell: (info) => {
-        const s = info.getValue(); if (s == null) return '—';
-        const color = s >= 75 ? '#ef4444' : s >= 50 ? '#f97316' : s >= 25 ? '#eab308' : '#22c55e';
-        return <span className="text-xs font-bold" style={{ color }}>{s}</span>;
-      },
-    },
-    {
-      accessorKey: 'posture_category', header: 'Category', size: 120,
-      cell: (info) => info.getValue()
-        ? <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{info.getValue().replace(/_/g, ' ')}</span>
-        : null,
-    },
-  ], []);
-
-  const accessKeyColumns = [
-    { accessorKey: 'user',       header: 'Name',     size: 180 },
-    {
-      accessorKey: 'type', header: 'Type', size: 110,
-      cell: (info) => info.getValue() ? (
-        <span className="text-xs px-2 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ) : null,
-    },
-    { accessorKey: 'rule_id',    header: 'Rule',     size: 130,
-      cell: (info) => info.getValue()
-        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
-        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
-    { accessorKey: 'severity',   header: 'Severity', size: 100,
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    {
-      accessorKey: 'status', header: 'Status', size: 80,
-      cell: (info) => {
-        const v = info.getValue(), fail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>;
-      },
-    },
-    { accessorKey: 'account_id', header: 'Account', size: 140 },
-    { accessorKey: 'region',     header: 'Region',  size: 100 },
-  ];
-
-  const rolesColumns = [
-    { accessorKey: 'name', header: 'Role / Resource', size: 220,
-      cell: (info) => <span className="text-xs font-medium">{info.getValue() || info.row.original.resource_uid?.split('/').pop() || '—'}</span> },
-    { accessorKey: 'type', header: 'Type', size: 130,
-      cell: (info) => info.getValue() ? (
-        <span className="text-xs px-2 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ) : null },
-    { accessorKey: 'rule_id', header: 'Rule', size: 140,
-      cell: (info) => info.getValue()
-        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
-        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
-    { accessorKey: 'severity', header: 'Severity', size: 100,
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    {
-      accessorKey: 'status', header: 'Status', size: 80,
-      cell: (info) => {
-        const v = info.getValue(), fail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>;
-      },
-    },
-    { accessorKey: 'account_id', header: 'Account', size: 140 },
-    { accessorKey: 'region',     header: 'Region',  size: 110 },
-  ];
-
-  const privEscColumns = [
-    { accessorKey: 'name', header: 'Resource', size: 220,
-      cell: (info) => <span className="text-xs font-medium">{info.getValue() || info.row.original.resource_uid?.split('/').pop() || '—'}</span> },
-    { accessorKey: 'type', header: 'Identity Type', size: 130,
-      cell: (info) => info.getValue() ? (
-        <span className="text-xs px-2 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {info.getValue()}
-        </span>
-      ) : null },
-    { accessorKey: 'rule_id', header: 'Rule', size: 140,
-      cell: (info) => info.getValue()
-        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
-        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
-    { accessorKey: 'severity', header: 'Severity', size: 100,
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    {
-      accessorKey: 'status', header: 'Status', size: 80,
-      cell: (info) => {
-        const v = info.getValue(), fail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${fail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v || '—'}</span>;
-      },
-    },
-    { accessorKey: 'account_id', header: 'Account', size: 140 },
-    { accessorKey: 'region',     header: 'Region',  size: 110 },
-  ];
-
-  const findingsData = rawFindings.length ? rawFindings : identities;
-
-  const serviceOptions = useMemo(() =>
-    [...new Set((rawFindings || []).map(f => f.service || f.network_layer || '').filter(Boolean))].sort(),
-  [rawFindings]);
+  ]), []);
 
   const tabData = useMemo(() => ({
-    overview: { renderTab: () => null },
     findings: {
-      data: findingsData,
-      columns: rawFindings.length ? findingsColumns : overviewColumns,
+      data: rawFindings,
+      columns: findingColumns,
+      initialColumnVisibility: { region: false, rule_id: false, resource_uid: false, provider: false },
+      initialGroupBy: 'module',
       filters: [
-        { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
-        { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
-        { key: 'status',    label: 'Status',          options: ['FAIL', 'PASS'] },
-        { key: 'service',   label: 'Service',         options: serviceOptions },
+        { key: 'severity',      label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
+        { key: 'iam_module',    label: 'Module',   options: Object.keys(MODULE_LABELS)            },
+        { key: 'status',        label: 'Status',   options: ['FAIL', 'PASS']                       },
       ],
-      extraFilters: [
-        { key: 'region',        label: 'Region',        options: [] },
-        { key: 'account_id',    label: 'Account',       options: [] },
-        { key: 'resource_type', label: 'Resource Type', options: [] },
-      ],
-      searchPlaceholder: 'Search by rule, resource, title...',
+      searchPlaceholder: 'Search by identity, finding, account…',
     },
-    roles: {
-      data: roles,
-      columns: rolesColumns,
-      filters: [
-        { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-        { key: 'status',   label: 'Status',   options: ['FAIL', 'PASS'] },
-      ],
-      searchPlaceholder: 'Search by role name, rule, account...',
-    },
-    access_keys: {
-      data: accessKeys,
-      columns: accessKeyColumns,
-      filters: [
-        { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-        { key: 'status',   label: 'Status',   options: ['FAIL', 'PASS'] },
-      ],
-      searchPlaceholder: 'Search by user, rule, account...',
-    },
-    privilege_escalation: {
-      data: privilegeEscalation,
-      columns: privEscColumns,
-      filters: [
-        { key: 'severity', label: 'Severity', options: ['critical', 'high', 'medium', 'low'] },
-        { key: 'status',   label: 'Status',   options: ['FAIL', 'PASS'] },
-      ],
-      searchPlaceholder: 'Search by resource, rule, account...',
-    },
-  }), [findingsData, rawFindings, findingsColumns, overviewColumns, serviceOptions,
-       roles, accessKeys, privilegeEscalation, rolesColumns, accessKeyColumns, privEscColumns]);
+  }), [rawFindings, findingColumns]);
 
   const pageContext = {
     title: (data.pageContext || {}).title || 'IAM Security',
-    brief:  (data.pageContext || {}).brief  || 'Identity and access management posture across cloud accounts. Monitors roles, access keys, MFA adoption, and privilege escalation paths.',
+    brief: (data.pageContext || {}).brief  || 'Identity and access management posture across cloud accounts.',
     tabs: [
-      { id: 'overview',              label: 'Overview'                                          },
-      { id: 'findings',              label: 'Findings',              count: findingsData.length },
-      { id: 'roles',                 label: 'Roles & Policies',      count: roles.length        },
-      { id: 'access_keys',           label: 'Access Control',        count: accessKeys.length   },
-      { id: 'privilege_escalation',  label: 'Privilege Escalation',  count: privilegeEscalation.length },
+      { id: 'findings', label: 'Findings', count: rawFindings.length },
     ],
   };
 
@@ -695,11 +473,9 @@ export default function IamSecurityPage() {
       icon={KeyRound}
       title={pageContext.title}
       description={pageContext.brief}
-      details={pageContext.details}
       onRefresh={() => emitRefresh()}
       refreshing={loading}
     >
-      {/* ── PageLayout: tabs + table ── */}
       <PageLayout
         icon={Shield}
         pageContext={pageContext}
@@ -709,14 +485,22 @@ export default function IamSecurityPage() {
         persistenceKey="iam"
         loading={loading}
         error={error}
-        defaultTab="overview"
+        defaultTab="findings"
         onRowClick={handleRowClick}
         hideHeader
         topNav
       />
 
-      {/* Identity detail drawer */}
-      <FindingDetailPanel finding={selectedIdentity} onClose={() => setSelectedIdentity(null)} />
+      <FindingDetailPanel
+        finding={selectedFinding}
+        onClose={() => setSelectedFinding(null)}
+        context={{
+          engine: 'iam',
+          hideTabs: ['relationships', 'resource'],
+          allFindings: rawFindings,
+          moduleLabels: MODULE_LABELS,
+        }}
+      />
     </EngineShell>
   );
 }

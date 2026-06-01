@@ -12,11 +12,10 @@ import {
 import { useViewFetch } from '@/lib/use-view-fetch';
 import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
 import EngineShell from '@/components/shared/EngineShell';
-import SeverityBadge from '@/components/shared/SeverityBadge';
 import PageLayout from '@/components/shared/PageLayout';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
-import PivotLink from '@/components/shared/PivotLink';
+import { buildUniversalColumns, CveCountCell } from '@/components/shared/EngineTableCells';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
 const C = {
@@ -546,48 +545,27 @@ export default function ContainerSecurityPage() {
     { accessorKey: 'region', header: 'Region' },
   ];
 
-  const findingsColumns = useMemo(() => [
-    { accessorKey: 'provider',         header: 'Provider', size: 70,
-      cell: (info) => info.getValue()?.toUpperCase() || '—' },
-    { accessorKey: 'account_id',       header: 'Account', size: 130,
-      cell: (info) => info.getValue() || info.row.original.account || '—' },
-    { accessorKey: 'region',           header: 'Region', size: 110 },
-    { accessorKey: 'service',          header: 'Service', size: 110,
-      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—' },
-    { accessorKey: 'rule_id',          header: 'Rule ID', size: 130,
-      cell: (info) => info.getValue()
-        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
-        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span> },
-    { accessorKey: 'title',            header: 'Finding',
+  const findingsColumns = useMemo(() => buildUniversalColumns('container-security', [
+    {
+      accessorKey: 'container_service',
+      header: 'Service',
+      size: 80,
       cell: (info) => {
-        const row = info.row.original;
-        const v = info.getValue() || row.rule_id || '—';
-        if (row.finding_id) {
-          return <PivotLink to="finding" engine="container-security" id={row.finding_id} label={v} size="xs" showIcon={false} truncate={48} />;
-        }
-        return <span className="text-xs font-medium" style={{ color: 'var(--text-primary)' }}>{v}</span>;
-      } },
-    { accessorKey: 'severity',         header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} /> },
-    { accessorKey: 'status',           header: 'Status',
-      cell: (info) => { const v = info.getValue(), f = v === 'FAIL'; return <span className={`text-xs px-2 py-0.5 rounded ${f ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>; } },
-    { accessorKey: 'resource_uid',     header: 'Resource',
-      cell: (info) => {
-        const row = info.row.original;
         const v = info.getValue();
-        if (!v) return <span className="font-mono text-xs">—</span>;
-        const display = v.split('/').pop() || v.split(':').pop() || v;
-        return <PivotLink to="asset" id={v} provider={row.provider} label={display} size="xs" showIcon={false} truncate={36} />;
-      } },
-    { accessorKey: 'resource_type',    header: 'Type' },
-    { accessorKey: 'container_service',header: 'Container Svc',
-      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>{v}</span> : null; } },
-    { accessorKey: 'cluster_name',     header: 'Cluster' },
-    { accessorKey: 'security_domain',  header: 'Domain',
-      cell: (info) => { const v = info.getValue(); return v ? <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-muted)' }}>{v}</span> : null; } },
-    { accessorKey: 'risk_score',       header: 'Risk',
-      cell: (info) => { const v = info.getValue(); if (!v) return null; const c = v >= 75 ? '#ef4444' : v >= 50 ? '#f97316' : v >= 25 ? '#eab308' : '#22c55e'; return <div className="flex items-center gap-1.5"><div className="w-10 h-1.5 rounded-full" style={{ backgroundColor: 'var(--bg-tertiary)' }}><div className="h-full rounded-full" style={{ width: `${v}%`, backgroundColor: c }} /></div><span className="text-xs font-bold" style={{ color: c }}>{v}</span></div>; } },
-  ], []);
+        return v
+          ? <span className="text-xs px-2 py-0.5 rounded font-medium"
+              style={{ backgroundColor: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>{v}</span>
+          : null;
+      },
+    },
+    {
+      id: 'cve_count',
+      header: 'CVEs',
+      size: 72,
+      accessorFn: row => row.cve_count || row.vulnerability_count || 0,
+      cell: ({ row }) => <CveCountCell row={row.original} />,
+    },
+  ]), []);
 
   // ── Helper ──
   const uv = (arr, key) => [...new Set(arr.map(r => r[key]).filter(Boolean))].sort();
@@ -628,6 +606,7 @@ export default function ContainerSecurityPage() {
     const findingTab = (data) => ({
       data,
       columns: findingsColumns,
+      initialGroupBy: 'module',
       filters: commonFilters,
       extraFilters,
       searchPlaceholder: 'Search by rule, resource, title...',
@@ -664,7 +643,7 @@ export default function ContainerSecurityPage() {
           tabData={tabData} persistenceKey="container_security" loading={loading} error={error}
           defaultTab="overview" hideHeader topNav onRowClick={handleRowClick} />
       )}
-      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} context={{ engine: 'container-security', allFindings: findings }} />
     </EngineShell>
   );
 }

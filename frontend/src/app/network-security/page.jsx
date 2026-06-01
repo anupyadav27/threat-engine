@@ -10,10 +10,9 @@ import { useViewFetch } from '@/lib/use-view-fetch';
 import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
 import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
-import SeverityBadge from '@/components/shared/SeverityBadge';
 import KpiSparkCard from '@/components/shared/KpiSparkCard';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
-import PivotLink from '@/components/shared/PivotLink';
+import { buildUniversalColumns, ExposedCell, PortProtocolCell } from '@/components/shared/EngineTableCells';
 import SecurityRelationshipGraphPage from '../inventory/graph/page';
 
 // ── Colour palette ────────────────────────────────────────────────────────────
@@ -501,87 +500,22 @@ export default function NetworkSecurityPage() {
     );
   }, [kpiNums, activeScanTrend]);
 
-  // ── Unified column definition ────────────────────────────────────────────
-  // All sub-tables (Findings, Security Groups, Internet Exposure, Topology, WAF)
-  // are filtered views of check findings — same schema, different rows.
-  const findingsColumns = useMemo(() => [
+  // ── Universal columns (Orca-style merged cells) ──────────────────────────
+  const findingsColumns = useMemo(() => buildUniversalColumns('network-security', [
     {
-      accessorKey: 'provider',
-      header: 'Provider', size: 70,
-      cell: (info) => info.getValue()?.toUpperCase() || '—',
+      id: 'port_protocol',
+      header: 'Port',
+      size: 80,
+      accessorFn: row => row.port || row.from_port || '',
+      cell: ({ row }) => <PortProtocolCell row={row.original} />,
     },
     {
-      accessorKey: 'account_id',
-      header: 'Account', size: 130,
-      cell: (info) => info.getValue() || info.row.original.account || '—',
+      accessorKey: 'is_internet_exposed',
+      header: 'Exposed',
+      size: 72,
+      cell: ({ getValue }) => <ExposedCell value={getValue()} />,
     },
-    { accessorKey: 'region', header: 'Region', size: 110 },
-    {
-      accessorKey: 'service',
-      header: 'Service', size: 110,
-      cell: (info) => info.getValue() || info.row.original.network_layer || info.row.original.encryption_domain || info.row.original.container_service || info.row.original.db_service || '—',
-    },
-    {
-      accessorKey: 'rule_id',
-      header: 'Rule ID', size: 130,
-      cell: (info) => info.getValue()
-        ? <PivotLink to="rule" id={info.getValue()} size="xs" showIcon={false} />
-        : <span className="font-mono text-xs" style={{ color: 'var(--text-muted)' }}>—</span>,
-    },
-    {
-      accessorKey: 'resource_name',
-      header: 'Resource',
-      // resource_name (BFF-enriched) or fall back to resource_id / resource_uid
-      cell: (info) => {
-        const row = info.row.original;
-        const display = info.getValue() || row.resource_id || row.resource_uid;
-        const uid = row.resource_uid || row.resource_id;
-        if (!uid) return <span className="font-mono text-xs">—</span>;
-        return <PivotLink to="asset" id={uid} provider={row.provider} label={display || uid} size="xs" showIcon={false} truncate={40} />;
-      },
-    },
-    {
-      accessorKey: 'title',
-      header: 'Finding',
-      cell: (info) => {
-        const row = info.row.original;
-        const v = info.getValue() || row.rule_id || '—';
-        const fid = row.finding_id;
-        if (fid) {
-          return <PivotLink to="finding" engine="network-security" id={fid} label={v} size="xs" showIcon={false} truncate={48} />;
-        }
-        return <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{v}</span>;
-      },
-    },
-    {
-      accessorKey: 'module',
-      header: 'Module',
-      cell: (info) => {
-        const v = info.getValue() || info.row.original.finding_type || '';
-        if (!v) return null;
-        return (
-          <span className="text-xs px-2 py-0.5 rounded"
-            style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-            {v}
-          </span>
-        );
-      },
-    },
-    {
-      accessorKey: 'severity',
-      header: 'Severity',
-      cell: (info) => <SeverityBadge severity={info.getValue()} />,
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: (info) => {
-        const v = info.getValue(), isFail = v === 'FAIL';
-        return <span className={`text-xs px-2 py-0.5 rounded ${isFail ? 'bg-red-500/20 text-red-400' : 'bg-green-500/20 text-green-400'}`}>{v}</span>;
-      },
-    },
-    { accessorKey: 'resource_type', header: 'Type' },
-  ], []);
+  ]), []);
 
   const serviceOptions = useMemo(() =>
     [...new Set((findings || []).map(f => f.service || f.network_layer || '').filter(Boolean))].sort(),
@@ -592,6 +526,7 @@ export default function NetworkSecurityPage() {
     findings: {
       data: findings,
       columns: findingsColumns,
+      initialGroupBy: 'module',
       filters: [
         { key: 'provider', label: 'Cloud Platform', options: ['aws', 'azure', 'gcp'] },
         { key: 'severity',  label: 'Severity',       options: ['critical', 'high', 'medium', 'low'] },
@@ -652,7 +587,7 @@ export default function NetworkSecurityPage() {
       />
 
       {/* Finding detail drawer */}
-      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} />
+      <FindingDetailPanel finding={selectedFinding} onClose={() => setSelectedFinding(null)} context={{ engine: 'network-security', allFindings: findings }} />
     </EngineShell>
   );
 }

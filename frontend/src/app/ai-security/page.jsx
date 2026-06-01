@@ -6,9 +6,8 @@ import { useViewFetch } from '@/lib/use-view-fetch';
 import { subscribeRefresh, emitRefresh } from '@/lib/refreshBus';
 import EngineShell from '@/components/shared/EngineShell';
 import PageLayout from '@/components/shared/PageLayout';
-import SeverityBadge from '@/components/shared/SeverityBadge';
 import FindingDetailPanel from '@/components/shared/FindingDetailPanel';
-import PivotLink from '@/components/shared/PivotLink';
+import { buildUniversalColumns } from '@/components/shared/EngineTableCells';
 
 // ── Colours ───────────────────────────────────────────────────────────────────
 const C = {
@@ -156,82 +155,22 @@ export default function AiSecurityPage() {
   const coverage  = data.coverage  || {};
 
   // ── Column definitions ────────────────────────────────────────────────────
-  const findingsColumns = [
+  const findingsColumns = useMemo(() => buildUniversalColumns('ai-security', [
     {
-      accessorKey: 'provider',
-      header: 'Provider',
-      cell: i => (
-        <span className="text-xs font-bold" style={{ color: 'var(--accent-primary)' }}>
-          {i.getValue() || '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'account_id',
-      header: 'Account',
-      cell: i => (
-        <span className="text-xs font-mono">
-          {i.getValue() || i.row.original.account || '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'region',
-      header: 'Region',
-      cell: i => <span className="text-xs">{i.getValue() || '—'}</span>,
-    },
-    {
-      accessorKey: 'resource_type',
-      header: 'Service',
-      cell: i => (
-        <span className="text-xs px-1.5 py-0.5 rounded"
-          style={{ backgroundColor: 'var(--bg-tertiary)', color: 'var(--text-secondary)' }}>
-          {i.getValue() || '—'}
-        </span>
-      ),
-    },
-    {
-      accessorKey: 'rule_id',
-      header: 'Rule ID',
-      cell: i => i.getValue()
-        ? <PivotLink to="rule" id={i.getValue()} size="xs" showIcon={false} />
-        : <span className="text-xs font-mono" style={{ color: 'var(--text-muted)' }}>—</span>,
-    },
-    {
-      accessorKey: 'title',
-      header: 'Finding',
+      accessorKey: 'ai_service',
+      header: 'AI Service',
+      size: 110,
       cell: i => {
-        const row = i.row.original;
-        const v = i.getValue() || '—';
-        if (row.finding_id) {
-          return <PivotLink to="finding" engine="ai-security" id={row.finding_id} label={v} size="xs" showIcon={false} truncate={48} />;
-        }
-        return <span className="text-xs" style={{ color: 'var(--text-primary)' }}>{v}</span>;
-      },
-    },
-    {
-      accessorKey: 'severity',
-      header: 'Severity',
-      cell: i => <SeverityBadge severity={i.getValue()} />,
-    },
-    {
-      accessorKey: 'status',
-      header: 'Status',
-      cell: i => {
-        const s = (i.getValue() || '').toUpperCase();
-        return (
-          <span style={{ fontSize: 11, fontWeight: 700, color: s === 'PASS' ? C.emerald : C.critical }}>
-            {s}
+        const v = i.getValue() || i.row.original.resource_type || null;
+        return v ? (
+          <span className="text-xs px-2 py-0.5 rounded font-medium"
+            style={{ backgroundColor: 'rgba(139,92,246,0.15)', color: '#a78bfa' }}>
+            {v}
           </span>
-        );
+        ) : null;
       },
     },
-    {
-      accessorKey: 'category',
-      header: 'Module',
-      cell: i => <CategoryBadge value={i.getValue()} />,
-    },
-  ];
+  ]), []);
 
   const inventoryColumns = [
     {
@@ -343,7 +282,7 @@ export default function AiSecurityPage() {
 
   const extraFilters = [
     {
-      key: 'category', label: 'Module',
+      key: 'security_domain', label: 'Module',
       options: Object.entries(MODULE_LABELS).map(([v, l]) => ({ value: v, label: l })),
     },
   ];
@@ -356,6 +295,7 @@ export default function AiSecurityPage() {
     findings: {
       data: findings,
       columns: findingsColumns,
+      initialGroupBy: 'module',
       filters: commonFilters,
       extraFilters,
       searchPlaceholder: 'Search by rule, resource, title...',
@@ -405,6 +345,7 @@ export default function AiSecurityPage() {
         finding={selectedFinding}
         open={!!selectedFinding}
         onClose={() => setSelectedFinding(null)}
+        context={{ engine: 'ai-security', allFindings: findings }}
       />
     </EngineShell>
   );
