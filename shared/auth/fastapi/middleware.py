@@ -125,6 +125,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Invalid or expired session"},
             )
 
+        # If the client sent X-Active-Tenant-Id (scope bar selection), override
+        # engine_tenant_id in the auth context so every downstream engine sees
+        # the correct tenant without each engine needing its own header logic.
+        # Security: only allow tenants the user can actually access.
+        active_tenant = request.headers.get("x-active-tenant-id") or request.headers.get("X-Active-Tenant-Id")
+        if active_tenant and auth_ctx.can_access_tenant(active_tenant):
+            import dataclasses as _dc
+            auth_ctx = _dc.replace(auth_ctx, engine_tenant_id=active_tenant)
+
         # Set auth context on request state (for FastAPI dependencies)
         request.state.auth_context = auth_ctx
 

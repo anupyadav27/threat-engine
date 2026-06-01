@@ -65,6 +65,16 @@ class IAMDIReader:
     def __exit__(self, *args):
         self.close()
 
+    # Discovery IDs with rich role/policy data that may time out during DI scan.
+    # When absent from the current scan, we supplement from the latest available
+    # tenant-level data to ensure IAM relationship/posture writers have full context.
+    _RICH_DISCOVERY_IDS = (
+        "aws.iam.get_account_authorization_details_roles",
+        "aws.iam.get_account_authorization_details_policies",
+        "aws.iam.get_policy_version",
+        "aws.iam.list_attached_role_policies",
+    )
+
     def load_iam_resources(
         self,
         scan_run_id: str,
@@ -75,12 +85,15 @@ class IAMDIReader:
 
         Queries asset_inventory WHERE service = 'iam'.
         Returns same structure as IAMInventoryReader.load_iam_resources().
+        When expensive discovery IDs are absent (DI scan timed out), supplements
+        with the latest available tenant-level data for those IDs.
         """
         conn = self._get_conn()
         query = """
             SELECT discovery_id, resource_uid, resource_type,
                    emitted_fields, raw_response,
-                   account_id, region
+                   account_id,
+                   emitted_fields->>'region' AS region
             FROM asset_inventory
             WHERE scan_run_id = %s
               AND tenant_id = %s
@@ -113,12 +126,55 @@ class IAMDIReader:
                 "IAMDIReader: %d records across %d discovery_ids for scan %s",
                 total, len(grouped), scan_run_id,
             )
+
+            # Supplement: when expensive discovery IDs timed out in the current scan,
+            # fall back to the latest available data for this tenant.
+            missing = [did for did in self._RICH_DISCOVERY_IDS if did not in grouped]
+            if missing:
+                try:
+                    self._supplement_from_latest(conn, grouped, tenant_id, account_id, missing)
+                except Exception as supp_exc:
+                    logger.warning("IAMDIReader supplement failed (non-fatal): %s", supp_exc)
+
             return dict(grouped)
 
         except Exception as exc:
             logger.error("IAMDIReader.load_iam_resources failed: %s", exc)
             conn.rollback()
             return {}
+
+    def _supplement_from_latest(
+        self,
+        conn: "psycopg2.extensions.connection",
+        grouped: Dict[str, List[Dict]],
+        tenant_id: str,
+        account_id: Optional[str],
+        missing_ids: List[str],
+    ) -> None:
+        """Query latest available data for missing rich discovery IDs, tenant-scoped."""
+        account_filter = " AND account_id = %s" if account_id else ""
+        for did in missing_ids:
+            sql = f"""
+                SELECT DISTINCT ON (resource_uid)
+                    discovery_id, resource_uid, resource_type,
+                    emitted_fields, raw_response, account_id,
+                    emitted_fields->>'region' AS region
+                FROM asset_inventory
+                WHERE tenant_id = %s
+                  AND discovery_id = %s
+                  {account_filter}
+                ORDER BY resource_uid, last_seen_at DESC
+            """
+            params: tuple = (tenant_id, did) if not account_id else (tenant_id, did, account_id)
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(sql, params)
+                rows = cur.fetchall()
+            if rows:
+                grouped[did] = [dict(r) for r in rows]
+                logger.info(
+                    "IAMDIReader: supplemented %d rows for %s from latest tenant scan",
+                    len(rows), did,
+                )
 
     def get_roles(self, resources: Dict[str, List[Dict]]) -> List[Dict]:
         auth_roles = resources.get("aws.iam.get_account_authorization_details_roles", [])

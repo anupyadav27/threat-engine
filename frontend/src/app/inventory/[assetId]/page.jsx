@@ -211,6 +211,7 @@ export default function AssetDetailPage() {
 
   // Table columns for findings (matches API findings_detail: rule_id, title, severity, status, service)
   const findingsColumns = [
+    { accessorKey: 'finding_id', header: 'ID', size: 0, cell: () => null },
     {
       accessorKey: 'rule_id',
       header: 'Rule ID',
@@ -467,6 +468,8 @@ export default function AssetDetailPage() {
 
   // Table columns for threats (MITRE ATT&CK enriched from threat engine)
   const threatColumns = [
+    { accessorKey: 'threat_id', header: 'ID', size: 0, cell: () => null },
+    { accessorKey: 'finding_id', header: 'FID', size: 0, cell: () => null },
     {
       accessorKey: 'threat_category',
       header: 'Category',
@@ -609,7 +612,7 @@ export default function AssetDetailPage() {
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4 flex-1">
           <button
-            onClick={() => router.push('/inventory')}
+            onClick={() => router.back()}
             className="mt-1 p-1 rounded-lg transition-colors"
             style={{ backgroundColor: 'transparent' }}
             onMouseEnter={(e) => (e.target.style.backgroundColor = 'var(--bg-tertiary)')}
@@ -985,6 +988,10 @@ export default function AssetDetailPage() {
               pageSize={10}
               loading={loading}
               emptyMessage="No misconfigurations found"
+              onRowClick={(row) => {
+                const fid = row.finding_id || row.rule_id;
+                if (fid) router.push(`/finding/check/${encodeURIComponent(fid)}`);
+              }}
             />
           ) : (
             <div className="text-center py-8" style={{ color: 'var(--text-tertiary)' }}>
@@ -1076,7 +1083,7 @@ export default function AssetDetailPage() {
               Explore:
             </span>
             <Link
-              href={`/attack-paths`}
+              href="/attack-paths"
               className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
               style={{ color: 'var(--accent-primary)' }}
             >
@@ -1089,13 +1096,6 @@ export default function AssetDetailPage() {
             >
               Blast Radius <ArrowRight className="w-3 h-3" />
             </button>
-            <Link
-              href="/attack-paths"
-              className="text-xs flex items-center gap-1 font-medium hover:opacity-80 transition-opacity"
-              style={{ color: 'var(--accent-primary)' }}
-            >
-              Attack Paths <ArrowRight className="w-3 h-3" />
-            </Link>
           </div>
 
           <div
@@ -1120,6 +1120,10 @@ export default function AssetDetailPage() {
                 pageSize={10}
                 loading={loading}
                 emptyMessage="No threats found"
+                onRowClick={(row) => {
+                  const fid = row.threat_id || row.finding_id;
+                  if (fid) router.push(`/finding/threat/${encodeURIComponent(fid)}`);
+                }}
               />
             ) : (
               <div className="text-center py-8" style={{ color: 'var(--text-tertiary)' }}>

@@ -26,9 +26,9 @@ class TenantSerializer(serializers.ModelSerializer):
         fields = [
             "id", "name", "description", "status", "plan",
             "contact_email", "region", "tenant_type", "customer_id",
-            "created_at", "updated_at",
+            "engine_tenant_id", "created_at", "updated_at",
         ]
-        read_only_fields = ["id", "customer_id", "created_at", "updated_at"]
+        read_only_fields = ["id", "customer_id", "engine_tenant_id", "created_at", "updated_at"]
 
 
 class GroupSerializer(serializers.ModelSerializer):

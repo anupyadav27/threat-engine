@@ -536,6 +536,54 @@ def _mark_non_internet_entry_points(
         except Exception:
             pass
 
+    # ── CROSS_CLOUD_ENTRY: roles assumable from external accounts ──────────
+    # Roles that have incoming CAN_ASSUME attack edges where the source is an
+    # external-account principal (cross_account=True in relation_metadata, or
+    # source_type='service' indicating a service role from another AWS account).
+    # These roles are valid attack entry points: an attacker with access to the
+    # external account can assume them and immediately traverse their IAM edges.
+    try:
+        with di_conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT target_uid
+                FROM asset_relationships
+                WHERE tenant_id      = %s
+                  AND UPPER(relation_type) = 'CAN_ASSUME'
+                  AND is_attack_edge  = TRUE
+                  AND target_uid      IS NOT NULL
+                  AND (
+                        (relation_metadata->>'cross_account')::text = 'True'
+                     OR source_type = 'service'
+                  )
+                """,
+                (tenant_id,),
+            )
+            cross_cloud_uids = [row[0] for row in cur.fetchall()]
+
+        if cross_cloud_uids:
+            with di_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE resource_security_posture
+                    SET is_attack_entry_point       = TRUE,
+                        attack_entry_point_category = 'CROSS_CLOUD_ENTRY',
+                        updated_at                  = NOW()
+                    WHERE tenant_id    = %s
+                      AND resource_uid = ANY(%s)
+                      AND NOT COALESCE(is_attack_entry_point, FALSE)
+                    """,
+                    (tenant_id, cross_cloud_uids),
+                )
+                counts["CROSS_CLOUD_ENTRY"] = cur.rowcount
+            di_conn.commit()
+    except Exception as exc:
+        logger.debug("CROSS_CLOUD_ENTRY marking failed (non-fatal): %s", exc)
+        try:
+            di_conn.rollback()
+        except Exception:
+            pass
+
     return counts
 
 
@@ -1152,6 +1200,7 @@ def _build_posture_lookup(
                     data_classification,
                     COALESCE(blast_radius_count, 0)          AS blast_radius_count,
                     COALESCE(is_encrypted_at_rest, true)     AS is_encrypted_at_rest,
+                    COALESCE(network_exposure_score, -1)     AS network_exposure_score,
                     COALESCE(is_crown_jewel, false)          AS is_crown_jewel,
                     COALESCE(is_on_attack_path, false)       AS is_on_attack_path,
                     COALESCE(attack_path_count, 0)           AS attack_path_count,

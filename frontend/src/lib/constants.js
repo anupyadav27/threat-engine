@@ -119,6 +119,7 @@ export const NAV_ITEMS = [
     icon: 'Shield',
     subtitle: 'CSPM',
     children: [
+      { label: 'Investigation',       href: '/investigation',      icon: 'Search'      },
       { label: 'Misconfigurations',  href: '/misconfig',          icon: 'ShieldAlert' },
       { label: 'IAM Security',       href: '/iam',                icon: 'KeyRound'    },
       { label: 'Network Security',   href: '/network-security',   icon: 'Network'     },

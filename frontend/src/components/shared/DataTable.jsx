@@ -56,6 +56,8 @@ export default function DataTable({
   hideToolbar = false,
   defaultDensity = 'compact',
   persistenceKey = null,
+  initialColumnVisibility = null,
+  initialGroupBy = null,
 }) {
   // Read persisted column/group prefs from localStorage (keyed per page)
   const readPref = (suffix, fallback) => {
@@ -77,7 +79,7 @@ export default function DataTable({
   const [goToPageInput, setGoToPageInput] = useState('');
   const [exportProgress, setExportProgress] = useState(null);
   // Column visibility & density — restored from localStorage when persistenceKey is set
-  const [columnVisibility, setColumnVisibility] = useState(() => readPref('cols', {}));
+  const [columnVisibility, setColumnVisibility] = useState(() => readPref('cols', initialColumnVisibility || {}));
   const [density, setDensity] = useState(() => readPref('density', defaultDensity));
   const [showColPicker, setShowColPicker] = useState(false);
   const [selectedRows, setSelectedRows] = useState(new Set());
@@ -86,7 +88,7 @@ export default function DataTable({
   const [openFilterCol, setOpenFilterCol] = useState(null);
   const [filterBtnPos, setFilterBtnPos] = useState(null); // { top, left } for fixed popover
   const [filterSearch, setFilterSearch] = useState({});
-  const [groupBy, setGroupBy] = useState(() => readPref('groupby', ''));
+  const [groupBy, setGroupBy] = useState(() => readPref('groupby', initialGroupBy || ''));
   const [collapsedGroups, setCollapsedGroups] = useState(new Set()); // tracks collapsed groups; default = all expanded
   const [showGroupPicker, setShowGroupPicker] = useState(false);
 
@@ -766,7 +768,7 @@ export default function DataTable({
                         </td>
                         {columns.map((col) => {
                           const isSticky = col.sticky;
-                          const cellValue = row[col.accessorKey] || '';
+                          const cellValue = col.accessorFn ? col.accessorFn(row) : (row[col.accessorKey] ?? '');
 
                           return (
                             <td
@@ -785,7 +787,7 @@ export default function DataTable({
                               className={`${densityPadding[density]} border-r last:border-r-0 transition-colors duration-200 align-middle`}
                             >
                               <div className="min-w-0">
-                                {col.cell ? col.cell({ getValue: () => cellValue, row: { original: row } }) : cellValue}
+                                {col.cell ? col.cell({ getValue: () => cellValue, renderValue: () => cellValue, row: { original: row } }) : cellValue}
                               </div>
                             </td>
                           );
@@ -891,7 +893,7 @@ export default function DataTable({
                                 const colDef = col.columnDef;
                                 const isSticky = colDef.sticky;
                                 const colSize = colDef.size;
-                                const cellValue = row[colDef.accessorKey] ?? '';
+                                const cellValue = colDef.accessorFn ? colDef.accessorFn(row) : (row[colDef.accessorKey] ?? '');
                                 return (
                                   <td
                                     key={col.id}
@@ -905,7 +907,7 @@ export default function DataTable({
                                   >
                                     <div className="break-words">
                                       {colDef.cell
-                                        ? colDef.cell({ getValue: () => cellValue, row: { original: row } })
+                                        ? colDef.cell({ getValue: () => cellValue, renderValue: () => cellValue, row: { original: row } })
                                         : String(cellValue)}
                                     </div>
                                   </td>

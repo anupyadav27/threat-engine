@@ -4,9 +4,13 @@ import EmptyState from '@/components/shared/EmptyState';
 import { emit } from '@/lib/telemetry';
 
 export default function ComplianceTab({ finding, engine, id, data }) {
-  const mappings = finding?.compliance || data?.compliance || finding?.complianceMappings || [];
+  const raw = data?.compliance || finding?.compliance;
+  // BFF returns { available, controlMappings: [...] } — unwrap the array
+  const mappings = Array.isArray(raw)
+    ? raw
+    : (raw?.controlMappings || raw?.control_mappings || []);
 
-  if (!Array.isArray(mappings) || mappings.length === 0) {
+  if (mappings.length === 0) {
     return (
       <EmptyState
         title="No compliance mappings"

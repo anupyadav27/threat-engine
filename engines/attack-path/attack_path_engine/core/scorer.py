@@ -54,6 +54,7 @@ _ENTRY_BASE_P: Dict[str, float] = {
     "cicd":              0.70,   # GitHub Actions / CI/CD OIDC role (external trust)
     "third_party":       0.65,   # Cross-account SaaS integration role
     "endpoint_agent":    0.65,   # SSM-managed EC2 (StartSession = shell access)
+    "cross_cloud":       0.45,   # Role assumable from external AWS account
     # Internal pivot entry points
     "compute":           0.60,   # Compromised pod / internal workload
 }
@@ -144,6 +145,7 @@ _ENTRY_CAT_LABELS: Dict[str, str] = {
     "THIRD_PARTY_ENTRY":       "Third Party",
     "INTERNAL_WORKLOAD_ENTRY": "Internal Workload",
     "ENDPOINT_AGENT_ENTRY":    "Endpoint Agent",
+    "CROSS_CLOUD_ENTRY":       "Cross-Account",
 }
 
 # Impact type → human-friendly display label
@@ -164,6 +166,7 @@ _CAT_TO_EP_TYPE: Dict[str, str] = {
     "THIRD_PARTY_ENTRY":       "third_party",
     "INTERNAL_WORKLOAD_ENTRY": "compute",
     "ENDPOINT_AGENT_ENTRY":    "endpoint_agent",
+    "CROSS_CLOUD_ENTRY":       "cross_cloud",
 }
 
 
@@ -205,6 +208,10 @@ _EDGE_SEMANTIC_BOOST: Dict[str, float] = {
     "grants_access_to":      1.25,
     "can_access":            1.20,
     "has_policy":            1.20,
+    # IAM permission-derived access edges (written by iam_relationship_writer)
+    "can_read":              1.10,   # read access to data store (S3, Secrets, ECR)
+    "can_decrypt":           1.30,   # KMS decrypt — confirmed data exposure path
+    "can_invoke":            1.15,   # invoke serverless/endpoint — code/model access
     # Identity chain hops
     "member_of":             1.10,
     "linked_to":             1.10,
@@ -292,6 +299,10 @@ def probability_score(
             if posture.mfa_required:
                 p *= 0.50
             if posture.has_permission_boundary:
+                p *= 0.70
+            # Network isolation: resource with confirmed zero network exposure is
+            # harder to reach via network pivots (IAM/API paths still possible).
+            if posture.network_exposure_score == 0 and not posture.is_internet_exposed:
                 p *= 0.70
 
         # ── CDR / MITRE signals from security_findings ────────────────────

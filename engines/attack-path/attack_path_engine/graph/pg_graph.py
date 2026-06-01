@@ -58,6 +58,7 @@ _ENTRY_CAT_TO_HOP: Dict[str, str] = {
     "THIRD_PARTY_ENTRY":       "third_party",
     "INTERNAL_WORKLOAD_ENTRY": "compute",
     "ENDPOINT_AGENT_ENTRY":    "compute",
+    "CROSS_CLOUD_ENTRY":       "cross_cloud",
 }
 
 

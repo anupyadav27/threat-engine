@@ -63,30 +63,6 @@ def _safe_lower(val: Optional[str], default: str = "") -> str:
     return (val or default).lower()
 
 
-def _infer_identity_type(uid: str, provider: str = "") -> str:
-    if not uid:
-        return ""
-    prov = provider.lower()
-    if ":user/" in uid:
-        return "IAM User"
-    if ":role/" in uid:
-        return "IAM Role"
-    if ":policy/" in uid:
-        return "IAM Policy"
-    if ":group/" in uid:
-        return "IAM Group"
-    if ":instance-profile/" in uid:
-        return "Instance Profile"
-    if prov == "azure" or "microsoft" in uid.lower():
-        return "Service Principal"
-    if prov == "gcp" or "@" in uid:
-        return "Service Account"
-    # Fallback: try to extract type from ARN pattern arn:aws:SERVICE:...
-    if uid.startswith("arn:aws:"):
-        parts = uid.split(":")
-        if len(parts) >= 3:
-            return parts[2].upper() + " Resource"
-    return "Identity"
 
 
 def _extract_account_from_assets(t: dict) -> str:
@@ -463,121 +439,25 @@ def normalize_asset(a: dict) -> dict:
 
 # ── IAM ──────────────────────────────────────────────────────────────────────
 
-def normalize_iam_identity(findings_list: List[dict], uid: str) -> dict:
-    if not findings_list:
-        return {}
-    first = findings_list[0]
-    severity = _safe_lower(first.get("severity"))
-    policy_count = len(findings_list)
-    has_mfa_issue = any("mfa" in _safe_lower(f.get("rule_id")) for f in findings_list)
-    provider = first.get("provider", "")
-    if severity == "critical":
-        risk = 90
-    elif severity == "high":
-        risk = 70
-    elif severity == "medium":
-        risk = 45
-    else:
-        risk = min(policy_count * 12, 100)
-    identity_type = first.get("identity_type") or _infer_identity_type(uid, provider)
-    last_seen = first.get("last_seen_at") or first.get("first_seen_at") or first.get("created_at")
-    return {
-        "id": uid,
-        "username": first.get("identity_name") or uid.rsplit("/", 1)[-1],
-        "type": identity_type,
-        "provider": _safe_upper(provider),
-        "account": first.get("account_id") or first.get("account", ""),
-        "region": first.get("region", ""),
-        "groups": 0,
-        "policies": policy_count,
-        "last_login": last_seen,
-        "mfa": not has_mfa_issue,
-        "risk_score": risk,
-        "status": "active",
-        "findings_count": policy_count,
-        "severity": _safe_lower(first.get("severity")),
-    }
-
-
-def group_iam_findings_to_identities(findings: List[dict]) -> List[dict]:
-    by_uid: Dict[str, list] = {}
-    for f in findings:
-        uid = f.get("identity_name") or f.get("resource_uid") or f.get("finding_id", "unknown")
-        by_uid.setdefault(uid, []).append(f)
-    return [normalize_iam_identity(flist, uid) for uid, flist in by_uid.items() if flist]
-
-
-def normalize_iam_role(r: dict) -> dict:
-    fd = r.get("finding_data") or {}
-    uid = r.get("resource_arn") or r.get("resource_uid") or ""
-    name = r.get("name") or r.get("resource_id") or (uid.rsplit("/", 1)[-1] if uid else "")
-    identity_type = _infer_identity_type(uid, r.get("provider", ""))
-    return {
-        "name": name,
-        "type": identity_type,
-        "rule_id": r.get("rule_id", ""),
-        "severity": _safe_lower(r.get("severity")),
-        "status": r.get("status", ""),
-        "resource_uid": uid,
-        "account_id": r.get("account_id", ""),
-        "region": r.get("region", ""),
-        "description": fd.get("description") or fd.get("rule_description", ""),
-        "remediation": fd.get("remediation", ""),
-        "finding_id": str(r.get("finding_id") or ""),
-        "provider": _safe_upper(r.get("provider")),
-    }
-
-
-def normalize_access_key(k: dict) -> dict:
-    fd = k.get("finding_data") or {}
-    uid = k.get("resource_arn") or k.get("resource_uid") or ""
-    user = k.get("resource_id") or (uid.rsplit("/", 1)[-1] if uid else "")
-    return {
-        "user": user,
-        "rule_id": k.get("rule_id", ""),
-        "severity": _safe_lower(k.get("severity")),
-        "status": k.get("status", ""),
-        "resource_uid": uid,
-        "account_id": k.get("account_id", ""),
-        "region": k.get("region", ""),
-        "description": fd.get("description") or fd.get("rule_description", ""),
-        "remediation": fd.get("remediation", ""),
-        "finding_id": str(k.get("finding_id") or ""),
-        "provider": _safe_upper(k.get("provider")),
-    }
-
-
-def normalize_privilege_escalation(e: dict) -> dict:
-    fd = e.get("finding_data") or {}
-    uid = e.get("resource_arn") or e.get("resource_uid") or ""
-    name = e.get("resource_id") or (uid.rsplit("/", 1)[-1] if uid else "")
-    return {
-        "id": e.get("finding_id", ""),
-        "name": name,
-        "rule_id": e.get("rule_id", ""),
-        "severity": _safe_lower(e.get("severity")),
-        "status": e.get("status", ""),
-        "resource_uid": uid,
-        "account_id": e.get("account_id", ""),
-        "region": e.get("region", ""),
-        "type": _infer_identity_type(uid, e.get("provider", "")),
-        "description": fd.get("description") or fd.get("rule_description", ""),
-        "remediation": fd.get("remediation", ""),
-        "provider": _safe_upper(e.get("provider")),
-    }
-
-
-def normalize_service_account(sa: dict) -> dict:
-    return {
-        "name": sa.get("name") or sa.get("service_account_name", ""),
-        "purpose": sa.get("purpose") or sa.get("description", ""),
-        "owner": sa.get("owner", ""),
-        "keys": sa.get("keys") or sa.get("key_count", 0),
-        "permissions": sa.get("permissions") or sa.get("permission_count", 0),
-        "status": sa.get("status", "active"),
-        "risk_score": sa.get("risk_score", 0),
-        "provider": _safe_upper(sa.get("provider")),
-    }
+def _get_iam_module(f: dict) -> str:
+    modules = f.get("iam_modules") or []
+    if modules:
+        return modules[0]
+    rule_id = (f.get("rule_id") or "").lower()
+    rt = (f.get("resource_type") or "").lower()
+    if "priv" in rule_id or "escalat" in rule_id or "passrole" in rule_id or "assume" in rule_id:
+        return "least_privilege"
+    if "access_key" in rule_id or "key_rotation" in rule_id or ("access" in rule_id and "key" in rule_id):
+        return "access_keys"
+    if "role" in rule_id or "role" in rt:
+        return "role_management"
+    if "mfa" in rule_id:
+        return "mfa"
+    if "password" in rule_id:
+        return "password_policy"
+    if "service_account" in rule_id or "service_account" in rt:
+        return "service_accounts"
+    return "access_control"
 
 
 # ── DataSec ──────────────────────────────────────────────────────────────────

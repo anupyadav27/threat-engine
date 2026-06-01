@@ -233,6 +233,8 @@ export default function PageLayout({
             pageSize={25}
             onRowClick={currentTab.onRowClick !== undefined ? currentTab.onRowClick : onRowClick}
             persistenceKey={persistenceKey ? `${persistenceKey}_${activeTab}` : null}
+            initialColumnVisibility={currentTab.initialColumnVisibility || null}
+            initialGroupBy={currentTab.initialGroupBy || null}
           />
         </>
       )}

@@ -65,6 +65,7 @@ class PostureRow(BaseModel):
     blast_radius_count: int = 0
     encryption_type: Optional[str] = None       # aes256 | kms | none | null
     is_encrypted_at_rest: bool = True            # False = known unencrypted storage
+    network_exposure_score: int = -1             # 0=fully isolated, 1-100=exposure level, -1=unknown
     is_crown_jewel: bool = False
     is_on_attack_path: bool = False
     attack_path_count: int = 0

@@ -85,6 +85,19 @@ def write_iam_relationships(
                     )
                 )
 
+            # Permission access edges: CAN_READ/CAN_INVOKE edges derived from
+            # specific service actions in policy statements (ECR, SageMaker, Bedrock).
+            edges.extend(
+                _permission_access_edges(di_conn, scan_run_id, tenant_id, provider)
+            )
+
+            # Fallback: derive edges directly from asset_inventory for scans where
+            # iam_policy_statements lacks managed policy data (DI scan timed out).
+            if provider == "aws":
+                edges.extend(
+                    _direct_permission_edges_from_inventory(di_conn, tenant_id, provider)
+                )
+
             if not edges:
                 logger.info("IAM relationship writer: no edges derived for scan %s", scan_run_id)
                 return 0
@@ -142,6 +155,26 @@ def _assumes_edges(trust_relationships: List[Any], own_account_id: str) -> List[
                 "attack_path_category": category,
             },
         })
+
+        # Cross-account assume: emit an explicit CAN_ASSUME attack edge so the BFS
+        # can traverse it as a lateral movement / privilege escalation hop.
+        if is_cross_account:
+            edges.append({
+                "source_uid": principal,
+                "source_type": principal_type,
+                "target_uid": role_arn,
+                "target_type": "iam_role",
+                "relation_type": "CAN_ASSUME",
+                "is_attack_edge": True,
+                "attack_path_category": "privilege_escalation",
+                "relation_metadata": {
+                    "principal_type": principal_type,
+                    "effect": effect,
+                    "is_cross_account": True,
+                    "cross_account": True,
+                    "attack_path_category": "privilege_escalation",
+                },
+            })
 
     return edges
 
@@ -498,6 +531,393 @@ def _can_access_edges(
                         return edges
 
     return edges
+
+
+# ── Permission-based access edges (CAN_READ / CAN_INVOKE / CAN_DECRYPT) ──────────
+#
+# Maps lowercase IAM action → (relation_type, target_resource_type, attack_category).
+# All edges tagged is_attack_edge=True so BFS traverses them without any engine change.
+_PERMISSION_ACTION_MAP: Dict[str, tuple] = {
+    # ── ECR → CODE_ACCESS ────────────────────────────────────────────────────────
+    "ecr:batchgetimage":             ("CAN_READ",    "ecr_repository",           "data_access"),
+    "ecr:getdownloadurlforlayer":    ("CAN_READ",    "ecr_repository",           "data_access"),
+    "ecr:describeimages":            ("CAN_READ",    "ecr_repository",           "data_access"),
+    "ecr:getauthorizationtoken":     ("CAN_READ",    "ecr_repository",           "data_access"),
+    # ── SageMaker → AI_MODEL_ACCESS ──────────────────────────────────────────────
+    "sagemaker:invokeendpoint":                  ("CAN_INVOKE", "sagemaker_endpoint",       "data_access"),
+    "sagemaker:invokeendpointasync":             ("CAN_INVOKE", "sagemaker_endpoint",       "data_access"),
+    "sagemaker:invokeendpointwithresponsestream":("CAN_INVOKE", "sagemaker_endpoint",       "data_access"),
+    # ── Bedrock → AI_MODEL_ACCESS ─────────────────────────────────────────────────
+    "bedrock:invokemodel":                        ("CAN_INVOKE", "bedrock_model", "data_access"),
+    "bedrock:invokemodelwithresponsestream":       ("CAN_INVOKE", "bedrock_model", "data_access"),
+    "bedrock:invoke":                             ("CAN_INVOKE", "bedrock_model", "data_access"),
+    # ── S3 → DATA_THEFT ───────────────────────────────────────────────────────────
+    "s3:getobject":                  ("CAN_READ",    "s3_bucket",                "data_access"),
+    "s3:listbucket":                 ("CAN_READ",    "s3_bucket",                "data_access"),
+    "s3:listallmybuckets":           ("CAN_READ",    "s3_bucket",                "data_access"),
+    "s3:getbucketacl":               ("CAN_READ",    "s3_bucket",                "data_access"),
+    "s3:headobject":                 ("CAN_READ",    "s3_bucket",                "data_access"),
+    # ── Secrets Manager → SECRET_THEFT ───────────────────────────────────────────
+    "secretsmanager:getsecretvalue": ("CAN_READ",    "secretsmanager_secret",    "data_access"),
+    "secretsmanager:describesecret": ("CAN_READ",    "secretsmanager_secret",    "data_access"),
+    "secretsmanager:listsecrets":    ("CAN_READ",    "secretsmanager_secret",    "data_access"),
+    # ── KMS → DECRYPTION ──────────────────────────────────────────────────────────
+    "kms:decrypt":                   ("CAN_DECRYPT", "kms_key",                  "data_access"),
+    "kms:generatedatakey":           ("CAN_DECRYPT", "kms_key",                  "data_access"),
+    "kms:generatedatakeywithoutplaintext": ("CAN_DECRYPT", "kms_key",           "data_access"),
+    "kms:reencryptfrom":             ("CAN_DECRYPT", "kms_key",                  "data_access"),
+    # ── Lambda → CODE_ACCESS (lateral movement to Lambda functions) ───────────────
+    "lambda:invokefunction":         ("CAN_INVOKE",  "lambda_function",          "lateral_movement"),
+    "lambda:invokewithqualifier":    ("CAN_INVOKE",  "lambda_function",          "lateral_movement"),
+    # ── AWS Organizations → ACCOUNT_TAKEOVER ─────────────────────────────────────
+    # Admin roles with organizations:* can control the entire AWS org account structure.
+    "organizations:deleteorganization":          ("CAN_ASSUME", "organizations_account", "privilege_escalation"),
+    "organizations:inviteaccounttoorganization": ("CAN_ASSUME", "organizations_account", "privilege_escalation"),
+    "organizations:removeaccountfromorganization": ("CAN_ASSUME", "organizations_account", "privilege_escalation"),
+    "organizations:createorganization":          ("CAN_ASSUME", "organizations_account", "privilege_escalation"),
+    "organizations:leaveorganization":           ("CAN_ASSUME", "organizations_account", "privilege_escalation"),
+}
+
+# Wildcard service prefix → same edge as the explicit actions above.
+_PERMISSION_WILDCARD_PREFIXES: Dict[str, tuple] = {
+    "ecr:":              ("CAN_READ",    "ecr_repository",           "data_access"),
+    "sagemaker:":        ("CAN_INVOKE",  "sagemaker_endpoint",       "data_access"),
+    "bedrock:":          ("CAN_INVOKE",  "bedrock_model", "data_access"),
+    "s3:":               ("CAN_READ",    "s3_bucket",                "data_access"),
+    "secretsmanager:":   ("CAN_READ",    "secretsmanager_secret",    "data_access"),
+    "kms:":              ("CAN_DECRYPT", "kms_key",                  "data_access"),
+    "lambda:":           ("CAN_INVOKE",  "lambda_function",          "lateral_movement"),
+    "organizations:":    ("CAN_ASSUME",  "organizations_account",    "privilege_escalation"),
+}
+
+
+def _permission_access_edges(
+    di_conn: "psycopg2.connection",
+    scan_run_id: str,
+    tenant_id: str,
+    provider: str,
+) -> List[dict]:
+    """Derive CAN_READ / CAN_INVOKE edges from IAM policy statement actions.
+
+    Reads iam_policy_statements for the scan, matches actions against
+    ``_PERMISSION_ACTION_MAP`` and ``_PERMISSION_WILDCARD_PREFIXES``, then looks up
+    matching target resources in asset_inventory.  Emits ``is_attack_edge=True`` so
+    the attack-path BFS engine traverses these edges without any code change.
+
+    Limits target lookups to 100 resources per (identity, relation, resource_type)
+    triple to prevent graph explosion.
+    """
+    edges: List[dict] = []
+
+    try:
+        iam_conn = get_iam_conn()
+        try:
+            with iam_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT attached_to_arn, attached_to_type, unnest(actions) AS action
+                    FROM iam_policy_statements
+                    WHERE scan_run_id = %s AND tenant_id = %s AND effect = 'Allow'
+                      AND attached_to_type IN ('role', 'user')
+                      AND actions IS NOT NULL
+                    """,
+                    (scan_run_id, tenant_id),
+                )
+                stmt_rows = cur.fetchall()
+        finally:
+            iam_conn.close()
+    except Exception as exc:
+        logger.debug("Permission action query skipped (non-fatal): %s", exc)
+        return edges
+
+    # Collect unique (attached_to_arn, rel_type, target_rtype, category, attached_type) tuples.
+    # Using a set prevents duplicate lookups when the same role has multiple statements.
+    identity_targets: Dict[tuple, str] = {}  # (arn, rel, rtype) → attached_type
+
+    for row in stmt_rows:
+        attached_to = row.get("attached_to_arn") or ""
+        attached_type = row.get("attached_to_type") or "role"
+        action = (row.get("action") or "").lower().strip()
+        if not attached_to or not action:
+            continue
+
+        edge_spec = _PERMISSION_ACTION_MAP.get(action)
+        if not edge_spec:
+            # Wildcard action (*) → all service prefixes
+            if action == "*":
+                for _spec in _PERMISSION_WILDCARD_PREFIXES.values():
+                    key = (attached_to, _spec[0], _spec[1], _spec[2])
+                    identity_targets[key] = attached_type
+                continue
+            # Service wildcard (ecr:*, sagemaker:*, etc.)
+            for prefix, spec in _PERMISSION_WILDCARD_PREFIXES.items():
+                if action.startswith(prefix):
+                    edge_spec = spec
+                    break
+        if not edge_spec:
+            continue
+
+        rel_type, target_rtype, category = edge_spec
+        key = (attached_to, rel_type, target_rtype, category)
+        identity_targets[key] = attached_type
+
+    for (attached_to, rel_type, target_rtype, category), attached_type in identity_targets.items():
+        try:
+            with di_conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT resource_uid FROM asset_inventory
+                    WHERE tenant_id = %s AND provider = %s AND resource_type = %s
+                    LIMIT 100
+                    """,
+                    (tenant_id, provider, target_rtype),
+                )
+                target_uids = [r[0] for r in cur.fetchall()]
+        except Exception as exc:
+            logger.debug("Target lookup failed for %s: %s", target_rtype, exc)
+            continue
+
+        source_type = f"iam_{attached_type}"
+        for tgt_uid in target_uids:
+            edges.append({
+                "source_uid":             attached_to,
+                "source_type":            source_type,
+                "target_uid":             tgt_uid,
+                "target_type":            target_rtype,
+                "relation_type":          rel_type,
+                "is_attack_edge":         True,
+                "attack_path_category":   category,
+                "relation_metadata": {
+                    "attack_path_category": category,
+                    "derived_from":         "iam_policy_statement",
+                },
+            })
+
+    logger.info(
+        "Permission access edges: %d edges for scan %s (provider=%s)",
+        len(edges), scan_run_id, provider,
+    )
+    return edges
+
+
+# ── Direct permission edges from asset_inventory (fallback for DI-timeout scans) ──
+
+# Admin policy ARNs/names that grant all permissions.
+_KNOWN_ADMIN_POLICY_ARNS: frozenset = frozenset([
+    "AdministratorAccess",
+    "arn:aws:iam::aws:policy/AdministratorAccess",
+    "AdministratorAccess-Amplify",
+    "PowerUserAccess",
+    "arn:aws:iam::aws:policy/PowerUserAccess",
+    "AWSOrganizationsFullAccess",
+    "arn:aws:iam::aws:policy/AWSOrganizationsFullAccess",
+    "IAMFullAccess",
+    "arn:aws:iam::aws:policy/IAMFullAccess",
+])
+
+# Role name substrings that always indicate full admin access (SSO, org access roles).
+_ADMIN_ROLE_NAME_PATTERNS: tuple = (
+    "AdministratorAccess",
+    "OrganizationsAccountAccessRole",
+    "AWSControlTowerExecution",
+)
+
+
+def _direct_permission_edges_from_inventory(
+    di_conn: "psycopg2.connection",
+    tenant_id: str,
+    provider: str,
+) -> List[dict]:
+    """Derive CAN_READ/CAN_INVOKE/CAN_DECRYPT edges from asset_inventory when
+    iam_policy_statements is sparse (DI scan timed out on expensive API calls).
+
+    Reads the latest tenant-level ``get_account_authorization_details_roles`` data to
+    find inline policies and attached managed policies, matches actions against
+    ``_PERMISSION_ACTION_MAP``, then looks up target resources in asset_inventory.
+    Non-fatal — any exception returns [].
+    """
+    edges: List[dict] = []
+
+    try:
+        # Load latest role records containing AttachedManagedPolicies + RolePolicyList
+        with di_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (resource_uid) resource_uid, emitted_fields
+                FROM asset_inventory
+                WHERE tenant_id = %s
+                  AND discovery_id = 'aws.iam.get_account_authorization_details_roles'
+                ORDER BY resource_uid, last_seen_at DESC
+                """,
+                (tenant_id,),
+            )
+            role_rows = cur.fetchall()
+
+        if not role_rows:
+            return edges
+
+        # Load managed policy documents so we can resolve attached policy actions.
+        policy_actions_map: Dict[str, List[str]] = {}  # policy_arn → [actions]
+        try:
+            with di_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT DISTINCT ON (resource_uid) resource_uid, emitted_fields
+                    FROM asset_inventory
+                    WHERE tenant_id = %s
+                      AND discovery_id IN (
+                          'aws.iam.get_account_authorization_details_policies',
+                          'aws.iam.get_policy_version'
+                      )
+                    ORDER BY resource_uid, last_seen_at DESC
+                    """,
+                    (tenant_id,),
+                )
+                for prow in cur.fetchall():
+                    ef = prow["emitted_fields"] or {}
+                    arn = ef.get("Arn") or ef.get("PolicyArn") or prow["resource_uid"] or ""
+                    if not arn:
+                        continue
+                    acts = _extract_actions_from_policy_versions(ef)
+                    if acts:
+                        policy_actions_map[arn] = acts
+        except Exception as pdoc_exc:
+            logger.debug("Policy doc loading skipped (non-fatal): %s", pdoc_exc)
+
+        # Derive (role_arn, rel_type, target_rtype, category) → source_type
+        identity_targets: Dict[tuple, str] = {}
+
+        for rrow in role_rows:
+            role_arn = rrow["resource_uid"] or ""
+            if not role_arn:
+                continue
+            ef = rrow["emitted_fields"] or {}
+
+            # 0. SSO / org admin roles: emit all service edges by role name pattern
+            role_name = ef.get("RoleName") or role_arn.split("/")[-1]
+            if any(p in role_name for p in _ADMIN_ROLE_NAME_PATTERNS):
+                for spec in _PERMISSION_WILDCARD_PREFIXES.values():
+                    identity_targets[(role_arn, spec[0], spec[1], spec[2])] = "iam_role"
+
+            # 1. Inline policies — document already embedded in role record
+            for ipol in (ef.get("RolePolicyList") or []):
+                if not isinstance(ipol, dict):
+                    continue
+                doc = ipol.get("PolicyDocument")
+                if isinstance(doc, dict):
+                    for act in _extract_actions_from_doc(doc):
+                        spec = _resolve_permission_action(act)
+                        if spec:
+                            identity_targets[(role_arn, spec[0], spec[1], spec[2])] = "iam_role"
+
+            # 2. Attached managed policies
+            for apol in (ef.get("AttachedManagedPolicies") or []):
+                if not isinstance(apol, dict):
+                    continue
+                pname = apol.get("PolicyName") or ""
+                parn = apol.get("PolicyArn") or ""
+                # Known admin policy → emit edges for all tracked service prefixes
+                if pname in _KNOWN_ADMIN_POLICY_ARNS or parn in _KNOWN_ADMIN_POLICY_ARNS:
+                    for spec in _PERMISSION_WILDCARD_PREFIXES.values():
+                        identity_targets[(role_arn, spec[0], spec[1], spec[2])] = "iam_role"
+                    continue
+                # "AdministratorAccess" in the policy ARN suffix also counts
+                if "AdministratorAccess" in parn or "AdministratorAccess" in pname:
+                    for spec in _PERMISSION_WILDCARD_PREFIXES.values():
+                        identity_targets[(role_arn, spec[0], spec[1], spec[2])] = "iam_role"
+                    continue
+                # Resolved policy document actions
+                for act in (policy_actions_map.get(parn) or []):
+                    spec = _resolve_permission_action(act)
+                    if spec:
+                        identity_targets[(role_arn, spec[0], spec[1], spec[2])] = "iam_role"
+
+        # Resolve target UIDs and build edges
+        for (role_arn, rel_type, target_rtype, category), source_type in identity_targets.items():
+            try:
+                with di_conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT resource_uid FROM asset_inventory
+                        WHERE tenant_id = %s AND provider = %s AND resource_type = %s
+                        LIMIT 100
+                        """,
+                        (tenant_id, provider, target_rtype),
+                    )
+                    target_uids = [r[0] for r in cur.fetchall()]
+            except Exception as tgt_exc:
+                logger.debug("Direct perm target lookup failed for %s: %s", target_rtype, tgt_exc)
+                continue
+
+            for tgt_uid in target_uids:
+                edges.append({
+                    "source_uid":           role_arn,
+                    "source_type":          source_type,
+                    "target_uid":           tgt_uid,
+                    "target_type":          target_rtype,
+                    "relation_type":        rel_type,
+                    "is_attack_edge":       True,
+                    "attack_path_category": category,
+                    "relation_metadata": {
+                        "attack_path_category": category,
+                        "derived_from":         "asset_inventory_direct",
+                    },
+                })
+
+        logger.info(
+            "Direct inventory permission edges: %d for tenant %s (provider=%s)",
+            len(edges), tenant_id, provider,
+        )
+
+    except Exception as exc:
+        logger.debug("Direct inventory permission edges failed (non-fatal): %s", exc)
+
+    return edges
+
+
+def _extract_actions_from_policy_versions(ef: dict) -> List[str]:
+    """Extract Allow actions from a policy record's PolicyVersionList or Document field."""
+    actions: List[str] = []
+    for version in (ef.get("PolicyVersionList") or []):
+        if not isinstance(version, dict) or not version.get("IsDefaultVersion"):
+            continue
+        doc = version.get("Document") or version.get("PolicyDocument")
+        if isinstance(doc, dict):
+            actions.extend(_extract_actions_from_doc(doc))
+    if not actions:
+        doc = ef.get("Document") or ef.get("PolicyDocument")
+        if isinstance(doc, dict):
+            actions.extend(_extract_actions_from_doc(doc))
+    return actions
+
+
+def _extract_actions_from_doc(doc: dict) -> List[str]:
+    """Pull all Allow-effect actions from an IAM policy document Statement list."""
+    actions: List[str] = []
+    for stmt in (doc.get("Statement") or []):
+        if not isinstance(stmt, dict) or stmt.get("Effect") != "Allow":
+            continue
+        stmt_actions = stmt.get("Action") or []
+        if isinstance(stmt_actions, str):
+            stmt_actions = [stmt_actions]
+        actions.extend(str(a) for a in stmt_actions)
+    return actions
+
+
+def _resolve_permission_action(action: str) -> Optional[tuple]:
+    """Return (rel_type, target_rtype, category) for an IAM action via exact match
+    or service-wildcard prefix.  Returns None for unrecognised actions.
+    """
+    action_lower = action.lower().strip()
+    if not action_lower or action_lower == "*":
+        return None
+    spec = _PERMISSION_ACTION_MAP.get(action_lower)
+    if spec:
+        return spec
+    for prefix, pspec in _PERMISSION_WILDCARD_PREFIXES.items():
+        if action_lower.startswith(prefix):
+            return pspec
+    return None
 
 
 def _load_action_resource_map(provider: str) -> Dict[str, Any]:

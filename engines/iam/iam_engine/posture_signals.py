@@ -70,7 +70,8 @@ def _aggregate_iam_signals(scan_run_id: str, tenant_id: str) -> dict[str, dict[s
                 SELECT
                     resource_uid,
                     resource_type,
-                    MAX(CASE WHEN rule_id ILIKE '%%admin%%' OR rule_id ILIKE '%%privilege%%' THEN 1 ELSE 0 END) = 1
+                    MAX(CASE WHEN (rule_id ILIKE '%%admin%%' OR rule_id ILIKE '%%privilege%%')
+                             AND resource_type ILIKE '%%role%%' THEN 1 ELSE 0 END) = 1
                         AS is_admin_role,
                     MAX(CASE WHEN rule_id ILIKE '%%wildcard%%' AND status = 'FAIL' THEN 1 ELSE 0 END) = 1
                         AS role_has_wildcard_policy,
@@ -212,8 +213,75 @@ def _aggregate_iam_signals(scan_run_id: str, tenant_id: str) -> dict[str, dict[s
         except Exception as stmt_exc:
             logger.debug("iam_policy_statements enrichment skipped: %s", stmt_exc)
 
+        # Supplement: capture admin IAM roles that have no findings (bypass iam_findings gate).
+        # A role may be fully compliant (zero violations) yet have is_admin=TRUE in its
+        # policy statements — it would be invisible to the first iam_findings query above.
+        # This block ensures those roles reach RSP with is_admin_role=TRUE and the correct
+        # resource_type ('iam_role' / 'iam_user') so crown_jewel_classifier can find them.
+        try:
+            with iam_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT DISTINCT
+                        attached_to_arn AS resource_uid,
+                        attached_to_type,
+                        bool_or(is_admin)             AS is_admin,
+                        bool_or(is_wildcard_principal) AS is_wildcard,
+                        bool_or(is_cross_account)      AS is_cross
+                    FROM iam_policy_statements
+                    WHERE scan_run_id = %s AND tenant_id = %s
+                      AND attached_to_type IN ('role', 'user')
+                      AND (is_admin = TRUE OR is_wildcard_principal = TRUE)
+                      AND attached_to_arn IS NOT NULL
+                    GROUP BY attached_to_arn, attached_to_type
+                """, (scan_run_id, tenant_id))
+                for row in cur.fetchall():
+                    uid = row["resource_uid"]
+                    if not uid:
+                        continue
+                    attached_type = row.get("attached_to_type") or "role"
+                    rtype = "iam_role" if attached_type == "role" else "iam_user"
+                    if uid in signals:
+                        signals[uid]["is_admin_role"] = (
+                            signals[uid].get("is_admin_role") or bool(row["is_admin"])
+                        )
+                        signals[uid]["role_has_wildcard_policy"] = (
+                            signals[uid].get("role_has_wildcard_policy") or bool(row["is_wildcard"])
+                        )
+                        signals[uid]["resource_type"] = rtype
+                    else:
+                        signals[uid] = {
+                            "resource_type": rtype,
+                            "has_attached_role": True,
+                            "is_admin_role": bool(row["is_admin"]),
+                            "role_has_wildcard_policy": bool(row["is_wildcard"]),
+                            "role_allows_cross_account": bool(row["is_cross"]),
+                            "mfa_enforced": False,
+                            "has_permission_boundary": False,
+                            "can_access_pii": False,
+                            "has_priv_escalation_path": False,
+                            "priv_escalation_hop_count": 0,
+                            "priv_escalation_cdr_confirmed": False,
+                            "iam_detail": {
+                                "is_admin": bool(row["is_admin"]),
+                                "is_wildcard_principal": bool(row["is_wildcard"]),
+                                "is_cross_account": bool(row["is_cross"]),
+                                "policy_statement_count": 0,
+                                "role_arns": [],
+                                "policy_arns": [],
+                            },
+                        }
+        except Exception as admin_exc:
+            logger.debug("Admin role supplementary query skipped: %s", admin_exc)
+
     finally:
         iam_conn.close()
+
+    # Direct admin role detection from asset_inventory.
+    # When iam_policy_statements lacks managed policy data (DI scan timed out on
+    # get_account_authorization_details), detect admin roles directly by checking
+    # AttachedManagedPolicies and inline RolePolicyList from the latest available
+    # tenant-level asset_inventory data.
+    _detect_admin_roles_from_inventory(signals, tenant_id)
 
     # Ensure every uid has at least a minimal iam_detail from collected boolean signals.
     # This runs when iam_policy_statements is empty or has no overlapping UIDs.
@@ -229,6 +297,135 @@ def _aggregate_iam_signals(scan_run_id: str, tenant_id: str) -> dict[str, dict[s
             }
 
     return signals
+
+
+# Known AWS-managed admin policy names / ARN suffixes.
+_ADMIN_POLICY_NAMES = frozenset([
+    "AdministratorAccess",
+    "arn:aws:iam::aws:policy/AdministratorAccess",
+    "AdministratorAccess-Amplify",
+    "AdministratorAccess-Amplify",
+    "PowerUserAccess",
+    "arn:aws:iam::aws:policy/PowerUserAccess",
+    "AWSOrganizationsFullAccess",
+    "arn:aws:iam::aws:policy/AWSOrganizationsFullAccess",
+    "IAMFullAccess",
+    "arn:aws:iam::aws:policy/IAMFullAccess",
+])
+
+
+def _detect_admin_roles_from_inventory(
+    signals: dict[str, dict[str, Any]],
+    tenant_id: str,
+) -> None:
+    """Detect admin IAM roles from asset_inventory when iam_policy_statements is incomplete.
+
+    Uses the latest available get_account_authorization_details_roles data for the
+    tenant (not scan_run_id scoped) to find roles with AdministratorAccess or inline
+    Action:* + Resource:* policies.  Writes is_admin_role=TRUE into signals.
+    """
+    try:
+        inv_conn = get_di_conn()
+        try:
+            with inv_conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT DISTINCT ON (resource_uid)
+                        resource_uid, emitted_fields
+                    FROM asset_inventory
+                    WHERE tenant_id = %s
+                      AND discovery_id = 'aws.iam.get_account_authorization_details_roles'
+                    ORDER BY resource_uid, last_seen_at DESC
+                """, (tenant_id,))
+                rows = cur.fetchall()
+
+            admin_count = 0
+            for row in rows:
+                uid = row["resource_uid"]
+                if not uid:
+                    continue
+                ef = row["emitted_fields"] or {}
+                attached = ef.get("AttachedManagedPolicies") or []
+                inline = ef.get("RolePolicyList") or []
+
+                is_admin = False
+                # SSO reserved roles: AWSReservedSSO_AdministratorAccess_* are always admin.
+                role_name = ef.get("RoleName") or uid.split("/")[-1]
+                if "AdministratorAccess" in role_name or "OrganizationsAccountAccessRole" in role_name:
+                    is_admin = True
+
+                # Check attached managed policies by name / ARN
+                if not is_admin:
+                    for pol in attached:
+                        if not isinstance(pol, dict):
+                            continue
+                        pname = pol.get("PolicyName") or ""
+                        parn = pol.get("PolicyArn") or ""
+                        if pname in _ADMIN_POLICY_NAMES or parn in _ADMIN_POLICY_NAMES:
+                            is_admin = True
+                            break
+
+                # Check inline policies for Action:* + Resource:*
+                if not is_admin:
+                    for ipol in inline:
+                        if not isinstance(ipol, dict):
+                            continue
+                        doc = ipol.get("PolicyDocument")
+                        if not isinstance(doc, dict):
+                            continue
+                        for stmt in (doc.get("Statement") or []):
+                            if not isinstance(stmt, dict) or stmt.get("Effect") != "Allow":
+                                continue
+                            actions = stmt.get("Action", [])
+                            resources = stmt.get("Resource", [])
+                            if isinstance(actions, str):
+                                actions = [actions]
+                            if isinstance(resources, str):
+                                resources = [resources]
+                            if "*" in actions and "*" in resources:
+                                is_admin = True
+                                break
+                        if is_admin:
+                            break
+
+                if not is_admin:
+                    continue
+
+                admin_count += 1
+                if uid in signals:
+                    signals[uid]["is_admin_role"] = True
+                    signals[uid]["role_has_wildcard_policy"] = True
+                    signals[uid]["resource_type"] = "iam_role"
+                else:
+                    signals[uid] = {
+                        "resource_type": "iam_role",
+                        "has_attached_role": True,
+                        "is_admin_role": True,
+                        "role_has_wildcard_policy": True,
+                        "role_allows_cross_account": False,
+                        "mfa_enforced": False,
+                        "has_permission_boundary": False,
+                        "can_access_pii": True,
+                        "has_priv_escalation_path": False,
+                        "priv_escalation_hop_count": 0,
+                        "priv_escalation_cdr_confirmed": False,
+                        "iam_detail": {
+                            "is_admin": True,
+                            "is_wildcard_principal": False,
+                            "is_cross_account": False,
+                            "policy_statement_count": 0,
+                            "role_arns": [uid],
+                            "policy_arns": [],
+                        },
+                    }
+            if admin_count:
+                logger.info(
+                    "IAM posture signals: detected %d admin roles from asset_inventory", admin_count
+                )
+        finally:
+            inv_conn.close()
+
+    except Exception as exc:
+        logger.debug("Admin role detection from inventory skipped: %s", exc)
 
 
 def _batch_upsert(

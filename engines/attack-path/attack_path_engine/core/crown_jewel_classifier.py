@@ -129,6 +129,29 @@ _CONDITIONAL_SUBCATEGORIES: Dict[str, str] = {
     "config":          "k8s_configmap",
 }
 
+# Resource types that are always crown jewels regardless of di_resource_catalog classification.
+# These are strategic account-level control plane targets (ACCOUNT_TAKEOVER).
+# organizations_account = root of the AWS account hierarchy; always a high-value target.
+# iam_root_user = AWS account root; if accessible, full account takeover is possible.
+# Keyed by both underscore (asset_inventory) and dot (DI engine) forms.
+_ALWAYS_CJ_RESOURCE_TYPES: Dict[str, str] = {
+    "organizations_account":  "infra_control",
+    "organizations.account":  "infra_control",
+    "iam_root_user":          "infra_control",
+    "iam.root_user":          "infra_control",
+    # K8s / container cluster types — always infra_control regardless of di_resource_catalog state
+    "eks.cluster":            "infra_control",
+    "eks_cluster":            "infra_control",
+    "ecs_cluster":            "infra_control",
+    "ecs.cluster":            "infra_control",
+    "aks.cluster":            "infra_control",
+    "aks_cluster":            "infra_control",
+    "gke.cluster":            "infra_control",
+    "gke_cluster":            "infra_control",
+    "k8s.cluster":            "infra_control",
+    "k8s_cluster":            "infra_control",
+}
+
 
 class CrownJewelClassifier:
     """Classifies resources as crown jewels using PostgreSQL only.
@@ -168,6 +191,7 @@ class CrownJewelClassifier:
         resources = self._load_resources_from_inventory()
 
         classified_count = 0
+        classified_uids: set = set()
         for res in resources:
             uid = res.get("resource_uid", "")
             if not uid:
@@ -181,6 +205,7 @@ class CrownJewelClassifier:
                 cj_type = override.get("crown_jewel_type", "data") or "data"
                 self._mark_posture(uid, cj_type, res)
                 classified_count += 1
+                classified_uids.add(uid)
                 continue
 
             # Priority 2: catalog category-based + conditional posture rules.
@@ -189,6 +214,23 @@ class CrownJewelClassifier:
             if cj_type:
                 self._mark_posture(uid, cj_type, res)
                 classified_count += 1
+                classified_uids.add(uid)
+
+        # Pass 2: admin IAM roles that have is_admin_role=TRUE in RSP but are not
+        # present in asset_inventory (e.g. SSO reserved roles, cross-account roles).
+        # These are always crown jewels for ACCOUNT_TAKEOVER / PRIVILEGE_ESCALATION.
+        _iam_role_rtypes = {"iam_role", "iam.role", "iam_user", "iam.user"}
+        for uid, posture in posture_rows.items():
+            if uid in classified_uids:
+                continue
+            rtype = (posture.get("resource_type") or "").lower()
+            if rtype not in _iam_role_rtypes:
+                continue
+            if not posture.get("is_admin_role"):
+                continue
+            self._mark_posture(uid, "identity", {"resource_type": rtype, "provider": "aws"})
+            classified_count += 1
+            classified_uids.add(uid)
 
         logger.info(
             '{"engine":"attack-path","stage":"crown_jewel_classify",'
@@ -220,6 +262,11 @@ class CrownJewelClassifier:
         # Check both underscore and dot forms — asset_inventory uses either convention.
         if rtype in _COMPOUND_TYPE_DENYLIST or rtype_dot in _COMPOUND_TYPE_DENYLIST:
             return None
+
+        # Always-CJ strategic control plane resources (ACCOUNT_TAKEOVER, CLUSTER_TAKEOVER).
+        cj_type = _ALWAYS_CJ_RESOURCE_TYPES.get(rtype) or _ALWAYS_CJ_RESOURCE_TYPES.get(rtype_dot)
+        if cj_type:
+            return cj_type
 
         # Conditional rules — which resource types undergo these checks is driven
         # by di_resource_catalog.subcategory via _CONDITIONAL_SUBCATEGORIES.
@@ -502,6 +549,7 @@ class CrownJewelClassifier:
                 cur.execute(
                     """
                     SELECT resource_uid,
+                           resource_type,
                            has_privileged_container,
                            k8s_rbac_overpermissive,
                            is_admin_role

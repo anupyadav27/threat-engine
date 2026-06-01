@@ -217,12 +217,7 @@ class IamViewResponse(_BaseViewResponse):
     findingsByModule: Dict[str, Any] = Field(default_factory=dict)
     byAccount: List[Dict[str, Any]] = Field(default_factory=list)
     byRegion: List[Dict[str, Any]] = Field(default_factory=list)
-    identities: List[Dict[str, Any]] = Field(default_factory=list)
     findings: List[Dict[str, Any]] = Field(default_factory=list)
-    roles: List[Dict[str, Any]] = Field(default_factory=list)
-    accessKeys: List[Dict[str, Any]] = Field(default_factory=list)
-    privilegeEscalation: List[Dict[str, Any]] = Field(default_factory=list)
-    serviceAccounts: List[Dict[str, Any]] = Field(default_factory=list)
     scanTrend: List[Dict[str, Any]] = Field(default_factory=list)
 
 

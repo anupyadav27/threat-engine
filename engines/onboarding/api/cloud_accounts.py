@@ -310,12 +310,18 @@ async def list_accounts(
 ):
     """List cloud accounts with optional filters and pagination."""
     # AC5: enforce tenant scope from auth context — prevent cross-tenant list.
-    # Platform-level users (scope_level='platform') may pass an explicit tenant_id
-    # query param (set by the BFF when the user selects a tenant in the scope bar).
-    # For all other roles, auth.engine_tenant_id is the authoritative scope.
+    # Platform-level: explicit tenant_id param is always honored (scope bar).
+    # Multi-tenant users: explicit tenant_id honored if user has access to it.
+    # Single-tenant users: auth.engine_tenant_id always wins (cannot switch).
     is_platform = getattr(auth, "scope_level", None) == "platform"
     if auth and not is_platform and getattr(auth, "engine_tenant_id", None):
-        tenant_id = auth.engine_tenant_id
+        can_access = (
+            tenant_id
+            and hasattr(auth, "can_access_tenant")
+            and auth.can_access_tenant(tenant_id)
+        )
+        if not can_access:
+            tenant_id = auth.engine_tenant_id
     filters = {}
     if customer_id:                           filters["customer_id"]   = customer_id
     if tenant_id:                             filters["tenant_id"]     = tenant_id

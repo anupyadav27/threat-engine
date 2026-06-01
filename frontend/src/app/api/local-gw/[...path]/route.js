@@ -20,11 +20,11 @@ const LOCAL_DEV_EMAIL  = process.env.LOCAL_DEV_EMAIL      || 'local-dev@example.
 const SYNTHETIC_AUTH_CTX = JSON.stringify({
   user_id:          LOCAL_DEV_USER,
   email:            LOCAL_DEV_EMAIL,
-  role:             'platform_admin',
-  level:            1,
-  scope_level:      'platform',
+  role:             'tenant_admin',
+  level:            4,
+  scope_level:      'tenant',
   org_ids:          null,
-  tenant_ids:       null,
+  tenant_ids:       [LOCAL_DEV_TENANT],
   account_ids:      null,
   engine_tenant_id: LOCAL_DEV_TENANT,
   permissions: [
@@ -46,7 +46,6 @@ const SYNTHETIC_AUTH_CTX = JSON.stringify({
     'iam:read',                'iam:write',
     'inventory:read',          'inventory:write',
     'network:read',            'network:write',
-    'platform:admin',
     'risk:read',               'risk:write',
     'scans:create',            'scans:read',   'scans:write',
     'secops:read',             'secops:write',
@@ -65,7 +64,7 @@ async function proxy(request, { params }) {
   const targetUrl = `${NLB}${upstreamPath}`;
 
   const fwdHeaders = { 'x-auth-context': SYNTHETIC_AUTH_CTX };
-  for (const h of ['content-type', 'accept', 'x-tenant-id']) {
+  for (const h of ['content-type', 'accept', 'x-tenant-id', 'x-active-tenant-id']) {
     const v = request.headers.get(h);
     if (v) fwdHeaders[h] = v;
   }
